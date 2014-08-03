@@ -1,0 +1,60 @@
+/* DO NOT DISTRIBUTE - PRIVATE SOURCE CODE OF MIKE GUIDRY GROUP INC. / UNIFIED DEFENSE TECHNOLOGIES, INC.
+ * YOU WILL BE PROSECUTED TO THE FULL EXTENT OF THE LAW IF YOU DISTRIBUTE OR DO NOT DELETE IMMEDIATELY,
+ * UNLESS GIVEN PRIOR WRITTEN CONSENT BY MICHAEL GUIDRY, OR BOARD OF UNIFIED DEFENSE TECHNOLOGIES. 
+ * 
+ * July 25, 2014 - Development of Psykoosi (C++ Generation #2 of original C asmrealign)
+ * 
+ * Psykoosi - Finnish for psychosis
+ * Why?  Any code that is modified is essentially in psychosis.
+ * Psykoosi has the ability to change binary code almost as if you had the source all along.  This can be used for inserting backdoors,
+ * fixing vulnerabilities, integrating new security concepts on a global scale, appending new features, removing code from applications,
+ * obfuscating to bypass anti-virus, and whatever other concepts your brain can conjure.
+ * 
+ * Starting with x86, but integrating Capstone Engine gives ability to extend to a substantial amount of architectures.
+ * URL: http://www.capstone-engine.org/arch.html
+ * 
+ * This began as a project (asmrealign) I've developed over the past 2 years in C off and on obviously.  It actually worked in modification
+ * and re-adjusting addresses of instructions where necessary.  The reason I did not finish this is mainly because I was too lazy to completely
+ * develop the PE format IO portions.  I took time away for other profitable projects after I hit a road block.  The road block consisted
+ * of two issues.  The first was not having enough space in the code section to allow the inserted code.  If I extended the section, then I
+ * would have had to modify a huge amount of other things (The next section could have been imports, or relocation tables).  The second issue
+ * was in-fact the relocations themselves.  I was at a point to where I knew I could use the technology in memory only, if I were to
+ * put the modified code in a separate region.  I have had experience with memory modification in prior projects and did not want to deal
+ * with the nightmare of debugging these types of things.  I decided to idle on it.  I was going to wait until funding, or profit from other
+ * projects to handle this with a group of hired developers.
+ * 
+ * Spark of interest to rewrite from scratch as C++:
+ * I completed another project which has potential to fund everything else necessary.  I had also came across PE Bliss.  It is a nearly
+ * complete open source library for reading, and rebuilding PE files.  It will allow me to easily change section addresses, modify
+ * relocation tables, and whatever else necessary to complete the scope of the project.  Capstone is also the engine of choice due to
+ * it using LLVM as a base and supporting so many architectures.  This will evolve into allowing modules for firmware modification on
+ * embedded systems, cell phones, or almost anything possible to flash.  It will have ability to use other Disassemblers, or Assemblers
+ * to add other architectures as well.
+ * 
+ * I chose C++ because I wanted to ensure to keep the code clean, and modular so it can be taken much further than its predecessor.
+ * Asmrealign worked as in it could realign assembly code, although it was very ugly code.  I wrote it on the fly, had huge amounts of
+ * debugging variables, changes in direction, without comments, and it sort of lost a good 'control flow' of the task.
+ * 
+ * I do not intend for this engine to ever be released for use outside of company servers, unless obfuscated drastically using
+ * its own engine.  I intend of any modifications to be implemented under contracts in house to bypass any copyright laws about
+ * distributing modified binaries of other corporations.  There may be other available opportunities discussed with lawyers later on.
+ * 
+ */
+
+ 
+ Flow:
+ 1. Load binary using whatever library necessary (PE Bliss for windows)
+ 2. Disassemble all instructions with 3 diff priorities
+    Do not allow a higher priority to overwrite a lower priorities disassembled instructions
+    1. priority highest: disassemble from entry point covering all code covered by jmps, calls, etc by inserting them into a queue to be
+       disassembled after every time the queue completes... this ensures all code touched directly is handled properly...
+    **2. need to find old code to figure out what was middle
+    2. priority lowest; linear disassemble of entire code section(s)
+  3. Analyze disassembled instructions finding every relative address, and direct address (jmps, calls, etc) that has to be modified.
+  4. Run modules for doing whatever tasks necessary on the binaries (inserting backdoors, obfuscation, inserting security, etc)
+  5. Realign - loop over all instructions and realign all addresses... modify everything that has to be changed...
+     ensure that any relocations are adjusted as well, and any new relocations are added for the code that has been modified
+     ensure that the new inserted code's imports are also appended to the import table, and those are also adjusted accordingly
+  6. Rebuild - write the modified code from memory to disk for the final output
+
+  
