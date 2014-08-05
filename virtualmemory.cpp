@@ -2,6 +2,8 @@
 #include <cstddef>
 #include <iostream>
 #include <cstring>
+#include <inttypes.h>
+#include <stdio.h>
 #include "virtualmemory.h"
 // 64k pages...
 #define PAGE_SIZE 4096*2*2*2*2*sizeof(unsigned char *)
@@ -12,6 +14,7 @@ using namespace psykoosi;
 VirtualMemory::VirtualMemory()
 {
   Memory_Pages = NULL;
+  Section_List = Section_Last = NULL;
 }
 
 VirtualMemory::~VirtualMemory()
@@ -39,7 +42,6 @@ unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
 // find the specific page
 VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
     MemPage *mptr = (MemPage *)Memory_Pages;
-    //MemoryAddr *bptr;
     unsigned long round = roundupto(addr, PAGE_SIZE); // round up to 64k pages
     if (mptr != NULL) {
       for (; mptr != NULL; mptr = mptr->next) {
@@ -49,11 +51,7 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
     }
     // couldnt find so allocate..
     mptr = new MemPage;
-    /*if ((mptr = (MemPage *)malloc(sizeof(MemPage) + 1)) == NULL) {
-        printf("MemPagePtr: alloc fail");
-        exit(-1);
-    }*/
-    
+
     //z c++ero out new memory
     std::memset(mptr, 0, sizeof(MemPage));
 
@@ -74,7 +72,7 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
 }
 
 int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *data, int len) {
-    MemPage *mptr;
+    MemPage *mptr = NULL;
     int i;
     unsigned long pageaddr;
     int count=0;
@@ -84,23 +82,21 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
         // determine location on page
         pageaddr = (addr+i) - (mptr->round - PAGE_SIZE);
         // read byte
-	switch (operation) {
-	  case VMEM_READ:
-	    data[i] = mptr->data[pageaddr];
-	    break;
-	  case VMEM_WRITE:
-		 // std::cout << pageaddr << " max " << PAGE_SIZE << "mptr " << mptr << " max " << mptr+mptr->size << std::endl;
-	    mptr->data[pageaddr] = data[i];
-	    break;
-	  default:
-	    break;
-	}
-	count++;
-	    
+		switch (operation) {
+		  case VMEM_READ:
+			data[i] = mptr->data[pageaddr];
+			break;
+		  case VMEM_WRITE:
+			mptr->data[pageaddr] = data[i];
+			break;
+		  default:
+			break;
+		}
+		count++;
     }
     return count;
 }
-  
+
 //reads data out of the virutal memory
 int VirtualMemory::MemDataRead(unsigned long addr, unsigned char *result, int len) {
   return MemDataIO(VMEM_READ, addr, result, len);
@@ -109,4 +105,30 @@ int VirtualMemory::MemDataRead(unsigned long addr, unsigned char *result, int le
 // writes data into the virtual memory
 int VirtualMemory::MemDataWrite(unsigned long addr, unsigned char *data, int len) {
   return MemDataIO(VMEM_WRITE, addr, data, len);
+}
+
+VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint32_t Size,uint32_t VirtualSize, SectionType Type, uint32_t Characteristics, uint32_t RVA, char *Name, unsigned char *Data) {
+	Memory_Section *sptr = new Memory_Section;
+
+	std::memset(sptr, 0, sizeof(Memory_Section));
+
+	sptr->Address = Address;
+	sptr->VirtualSize = VirtualSize;
+	sptr->RawSize = Size;
+	sptr->Characteristics = Characteristics;
+	sptr->RVA = RVA;
+	sptr->Name = new char[std::strlen(Name)+1];
+	std::strcpy(sptr->Name, Name);
+	sptr->RawData = new unsigned char[sptr->RawSize];
+	std::memcpy(sptr->RawData, Data, sptr->RawSize);
+
+
+	if (Section_Last == NULL) {
+		Section_List = Section_Last = sptr;
+	} else {
+		Section_Last->next = sptr;
+		Section_Last = sptr;
+	}
+
+	return sptr;
 }

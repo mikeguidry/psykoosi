@@ -265,8 +265,19 @@ public: //PE HEADER
 	
 	//Sets base of code
 	void set_base_of_code(uint32_t base);
+	void set_base_of_data(uint32_t base);
 	//Returns base of code
 	uint32_t get_base_of_code() const;
+	uint32_t get_base_of_data() const;
+
+
+	void set_size_of_initialized_data(uint32_t size);
+	void set_size_of_uninitialized_data(uint32_t size);
+	void set_linker_version(uint8_t minor, uint8_t major);
+	uint8_t get_minor_linker_version() const;
+	uint8_t get_major_linker_version() const;
+	uint32_t get_size_of_initialized_data() const;
+	uint32_t get_size_of_uninitialized_data() const;
 
 public: //ADDRESS CONVERTIONS
 	//Virtual Address (VA) to Relative Virtual Address (RVA) convertions

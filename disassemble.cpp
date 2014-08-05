@@ -24,6 +24,9 @@ using namespace pe_win;
 DisassembleTask::DisassembleTask(VirtualMemory *_VM)
 {
 
+	DCount = 0;
+
+
 	JUMP_SIZE = 1024*1024;
 
 	Loaded_from_Cache = 0;

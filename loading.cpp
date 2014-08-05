@@ -76,6 +76,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 		 // this means it should find all code coverage from entry and disassemble correctly.. linear pass later
 		 _IA->QueueAddressForDisassembly(EntryPoint, 10, 0, (image->get_image_base_32() + HighestAddressInEntrySection) - EntryPoint, 0);
 
+		 printf("section alignment: %d\n", image->get_section_alignment());
 		 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
 			 const section &s = *it;
 
@@ -96,6 +97,8 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 					 << "addr: " << (image->get_image_base_32() + s.get_virtual_address()) << std::endl
 					 << std::endl;
 
+			 VirtualMemory::Memory_Section *mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
+			//mptr->Section_Type = s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE;
 
 			 // write section into virtual memory...
 			 _VM->MemDataWrite((image->get_image_base_32() + s.get_virtual_address()),

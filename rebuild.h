@@ -16,6 +16,7 @@ typedef struct _modified_addresses {
 	  int RebuildInstructionsSetsModifications();
 	  int RealignInstructions();
 	  int WriteBinaryPE();
+	  int WriteBinaryPE2();
 	  void SetBinaryLoader(BinaryLoader *BL);
 	  int ModifyRelocations();
 	  void Add_Modified_Address(DisassembleTask::CodeAddr Original_Address, DisassembleTask::CodeAddr New_Address);

@@ -100,6 +100,15 @@ public: //PE HEADER
 	//Sets stack size reserve for PE32 and PE64 respectively
 	virtual void set_stack_size_reserve(uint32_t size);
 	virtual void set_stack_size_reserve(uint64_t size);
+
+	virtual void set_size_of_initialized_data(uint32_t size);
+	virtual uint32_t get_size_of_initialized_data() const;
+	virtual void set_size_of_uninitialized_data(uint32_t size);
+	virtual uint32_t get_size_of_uninitialized_data() const;
+	virtual void set_linker_version(uint16_t minor, uint16_t major);
+	virtual uint32_t get_minor_linker_version() const;
+	virtual uint32_t get_major_linker_version() const;
+
 	
 	//Returns heap size commit for PE32 and PE64 respectively
 	virtual uint32_t get_heap_size_commit_32() const;
@@ -228,8 +237,10 @@ public:
 	virtual void set_file_alignment_unchecked(uint32_t alignment);
 	//Sets base of code
 	virtual void set_base_of_code(uint32_t base);
+	virtual void set_base_of_data(uint32_t base);
 	//Returns base of code
 	virtual uint32_t get_base_of_code() const;
+	virtual uint32_t get_base_of_data() const;
 	//Returns needed PE magic for PE or PE+ (from template parameters)
 	virtual uint32_t get_needed_magic() const;
 };

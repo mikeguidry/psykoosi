@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
 	DisassembleTask::InstructionInformation *ah = new DisassembleTask::InstructionInformation;
 	std::memset(ah, 0, sizeof(DisassembleTask::InstructionInformation));
 	ah->RawData = new unsigned char[64];
-	ah->Size = 1;
+	ah->Size = (argc == 4) ? atoi(argv[3]) : 1;
 	for (int i = 0; i < ah->Size; i++) ah->RawData[i] = 0x90;
 	ah->FromInjection = 1;
 	DisassembleTask::InstructionInformation *Ientry = op.disasm->GetInstructionInformationByAddress(entry, DisassembleTask::LIST_TYPE_NEXT, 0, NULL);
@@ -151,5 +151,5 @@ int main(int argc, char *argv[]) {
 		printf("next count %d inj %d\n", next_count, inj_count);
 
 	master.ModifyRelocations();
-	master.WriteBinaryPE();
+	master.WriteBinaryPE2();
 }

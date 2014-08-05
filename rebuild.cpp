@@ -29,6 +29,10 @@ Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory
 
 	_BL = 0;
 	Modified_Addresses = 0;
+	CodeEnd = 0;
+	CodeStart = 0;
+	CodeSize = 0;
+	final_chr = 0;
 
 	final_i = 0;
 	warp = 0;
@@ -81,22 +85,23 @@ DisassembleTask::CodeAddr Rebuilder::CheckForModifiedAddress(DisassembleTask::Co
 int Rebuilder::RebuildInstructionsSetsModifications() {
 	DisassembleTask::CodeAddr CurNewAddr = 0;
 
-	//DisassembleTask::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
+	DisassembleTask::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
 
 	// loop and create a new instruction set with modifications and new addresses...
-	 const section_list sections(_PE->get_image_sections());
+	 section_list sections(_PE->get_image_sections());
 	 DisassembleTask::InstructionInformation *InsInfo = 0;
 	 int increase_raw = 0;
-	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
+	 for(section_list::iterator it = sections.begin(); it != sections.end(); ++it) {
 		 section &s = (section &)*it;
-		 /*
+
+
 		 DisassembleTask::CodeAddr Section_Virtual_Address = s.get_virtual_address();
 		 DisassembleTask::CodeAddr HighestSectionAddr = pe_bliss::pe_utils::align_up(GHighestSectionAddr + s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
 
 		 DisassembleTask::CodeAddr LowestSectionAddr = pe_bliss::pe_utils::align_down(HighestSectionAddr, _PE->get_section_alignment());
 
 		 DisassembleTask::CodeAddr New_Section_High = pe_bliss::pe_utils::align_up(s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
-
+/*
 		 LowestSectionAddr = 0x407000;
 		 if (increase_raw) {
 			 uint32_t ptr = s.get_pointer_to_raw_data();
@@ -109,15 +114,15 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 				 increase_raw += 1024*30;
 				 s.set_virtual_address(LowestSectionAddr);
 			 }
-*/
 
+*/
 			 DisassembleTask::CodeAddr StartAddr = (uint32_t)(s.get_virtual_address() + _PE->get_image_base_32());
 			 DisassembleTask::CodeAddr EndAddr = (uint32_t)(_PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());//+ s.get_aligned_virtual_size(_PE->get_file_alignment());
 			 DisassembleTask::CodeAddr CurAddr = (uint32_t)( _PE->get_image_base_32() + s.get_virtual_address());
 
 			 if (CurNewAddr > CurAddr) {
 				 printf("Section not big enough\n");
-				 Must_Rebase_Section = 1;
+				 //Must_Rebase_Section = 1;
 			 }
 
 
@@ -134,7 +139,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 					 a2++;
 					 printf("Address %p already in injected! verify %p\n", CurAddr, verify->Address);
 				 }
-qq				 if ((verify = _DT->GetInstructionInformationByAddress(CurNewAddr, DisassembleTask::LIST_TYPE_NEXT, 1)) != NULL) {
+				 if ((verify = _DT->GetInstructionInformationByAddress(CurNewAddr, DisassembleTask::LIST_TYPE_NEXT, 1)) != NULL) {
 					 a3++;
 					 printf("NEW Address %p already in next! verify %p\n", CurNewAddr, verify->Address);
 				 }
@@ -338,13 +343,16 @@ int Rebuilder::RealignInstructions() {
 				 		case 1:
 				 			dist8 = (signed) (distance & 0xff);
 				 			if ((dist8 > 128) || (dist8 < -128)) {
-				 				printf("fuck distance %d\n", dist8);
+				 				printf("FUCK distance %d\n", dist8);
 				 			}
 				 			std::memcpy(NewIns->RawData+NewIns->Size-1, (void *)&dist8, 1);
 				 			break;
 
 				 		case 4:
 				 			dist32 = (long)(distance&0xffffffff);
+				 			if ((dist8 > 1024) || (dist8 < -1024)) {
+				 				printf("FUCK %d\n", distance);
+				 			}
 							std::memcpy(NewIns->RawData+NewIns->Size-4, (void *)&dist32, 4);
 							break;
 
@@ -493,6 +501,7 @@ int Rebuilder::WriteBinaryPE() {
 		 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
 			 section &s = (section &)*it;
 
+			 printf("%p\n", s.get_virtual_address());
 
 		 // should also modify other areas later.. if we end up moving around data etc
 		 if (s.executable()) {
@@ -557,4 +566,146 @@ int Rebuilder::WriteBinaryPE() {
 	}
 
 	return 1;
+}
+
+
+int Rebuilder::WriteBinaryPE2() {
+	// If we have to rebase the section.. then we fail
+	if (Must_Rebase_Section) return 0;
+	final_size = final_i;
+
+	int to_increase = 0;
+	// load the input file again.. (maybe we should keep it in memory from BinaryLoader)
+	std::ifstream pe_file(FileName, std::ios::in | std::ios::binary);
+	if (!pe_file) {
+		std::cout << "Cannot open input file " << FileName << std::endl;
+		return 0;
+	}
+	try {
+		// create the new image blank
+		std::auto_ptr<pe_base> new_image;
+
+		{
+			// load the original file
+			pe_base image(pe_factory::create_pe(pe_file));
+
+			//Создаем новый пустой образ
+
+			// setup some information on the new image
+			new_image.reset(image.get_pe_type() == pe_type_32
+				? static_cast<pe_base*>(new pe_base(pe_properties_32(), image.get_section_alignment()))
+				: static_cast<pe_base*>(new pe_base(pe_properties_64(), image.get_section_alignment())));
+
+			new_image->set_characteristics(image.get_characteristics());
+			new_image->set_dll_characteristics(image.get_dll_characteristics());
+			new_image->set_file_alignment(image.get_file_alignment());
+			new_image->set_heap_size_commit(image.get_heap_size_commit_64());
+			new_image->set_heap_size_reserve(image.get_heap_size_reserve_64());
+			new_image->set_stack_size_commit(image.get_stack_size_commit_64());
+			new_image->set_stack_size_reserve(image.get_stack_size_reserve_64());
+			new_image->set_image_base(image.get_image_base_32());
+			new_image->set_ep(image.get_ep());
+			new_image->set_number_of_rvas_and_sizes(image.get_number_of_rvas_and_sizes());
+			new_image->set_subsystem(image.get_subsystem());
+			new_image->set_stub_overlay(image.get_stub_overlay());
+			new_image->set_time_date_stamp(image.get_time_date_stamp());
+			new_image->set_machine(image.get_machine());
+			new_image->set_base_of_code(image.get_base_of_code());
+			new_image->set_os_version(image.get_major_os_version(), image.get_minor_os_version());
+ 			new_image->set_size_of_initialized_data(image.get_size_of_initialized_data());
+			new_image->set_size_of_uninitialized_data(image.get_size_of_uninitialized_data());
+			new_image->set_linker_version(image.get_minor_linker_version(), image.get_major_linker_version());
+			new_image->set_base_of_data(image.get_base_of_data());
+
+
+			// add directories.. maybe do relocations a diff way
+			for(unsigned long i = 0; i < image.get_number_of_rvas_and_sizes(); ++i) {
+
+				// still have to finish this one
+				//if (i != image_directory_entry_basereloc && 1==0) {
+					new_image->set_directory_rva(i, image.get_directory_rva(i));
+					new_image->set_directory_size(i, image.get_directory_size(i));
+				//} else {
+					// rebuild relocation from our internal structures
+				//}
+			}
+
+			// add sections from our list..
+			{
+				for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+
+					printf("name %s chr %x vaddr %p vsize %d ptr %d size %d\n", sptr->Name, sptr->Characteristics,
+							sptr->Address,
+							sptr->VirtualSize, sptr->RVA, sptr->RawSize);
+
+					section new_section;
+					//std::memset(&new_section, 0, sizeof(section));
+					new_section.set_characteristics(sptr->Characteristics);
+					new_section.set_name(sptr->Name);
+					new_section.set_virtual_address(sptr->Address);
+					new_section.set_virtual_size(sptr->VirtualSize);
+					printf("setting vsize %X\n", sptr->VirtualSize);
+					new_section.set_pointer_to_raw_data(sptr->RVA);
+					//new_section.set_size_of_raw_data(sptr->RawSize);
+					//new_section.set_size_of_raw_data(final_size);
+					new_section.get_raw_data().resize(sptr->RawSize);
+					//std::string *blah = new std::string((const char *)final_chr, final_size);
+					//new_section.set_raw_data(blah);
+					//new_section.raw_data_ = *blah;
+					//new_section.raw_data_.resize(final_size);
+					if (new_section.executable()) {
+						printf("doing exe %s\n", sptr->Name);
+						std::memcpy((void *)new_section.get_raw_data().data(),(const void *) final_chr , final_size);
+						if (final_size > sptr->RawSize) {
+							//to_increase = final_size - sptr->RawSize;
+						}
+					} else {
+						printf("doing %s\n", sptr->Name);
+						char buffer[sptr->RawSize+1];
+						_VM->MemDataRead(sptr->Address + image.get_image_base_32(), (unsigned char *)buffer, sptr->RawSize);
+						std::memcpy((void *)new_section.get_raw_data().data(),(const void *)&buffer, sptr->RawSize);
+					}
+					new_section.set_size_of_raw_data(sptr->RawSize);
+
+			        section& added_section = new_image->add_section(new_section);
+			        added_section.set_characteristics(sptr->Characteristics);
+			        added_section.set_name(sptr->Name);
+			        added_section.set_virtual_address(sptr->Address);
+			        added_section.set_virtual_size(sptr->VirtualSize);
+			        new_section.set_pointer_to_raw_data(sptr->RVA + to_increase);
+	                new_image->set_section_virtual_size(added_section, sptr->VirtualSize);
+				}
+				/*const section_list& pe_sections = image.get_image_sections();
+				for(section_list::const_iterator it = pe_sections.begin(); it  != pe_sections.end(); ++it) {
+					new_image->set_section_virtual_size(new_image->add_section(*it), (*it).get_virtual_size());
+				}*/
+			}
+		}
+
+
+		std::stringstream temp_pe(std::ios::out | std::ios::in | std::ios::binary);
+		rebuild_pe(*new_image, temp_pe);
+
+		new_image->set_checksum(calculate_checksum(temp_pe));
+
+		std::string base_file_name(FileName);
+		std::string::size_type slash_pos;
+		if((slash_pos = base_file_name.find_last_of("/\\")) != std::string::npos)
+			base_file_name = base_file_name.substr(slash_pos + 1);
+
+		base_file_name = "new_" + base_file_name;
+		std::ofstream new_pe_file(base_file_name.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
+		if(!new_pe_file) {
+			std::cout << "Cannot create output file " << base_file_name << std::endl;
+			return -1;
+		}
+
+
+		rebuild_pe(*new_image, new_pe_file);
+
+		} catch(const pe_exception& e) {
+			std::cout << "Error: " << e.what() << std::endl;
+			return -1;
+		}
+
 }

@@ -91,6 +91,16 @@ public: //PE HEADER
 	virtual uint32_t get_stack_size_reserve_32() const = 0;
 	virtual uint64_t get_stack_size_reserve_64() const = 0;
 
+
+	public:
+        virtual void set_size_of_initialized_data(uint32_t size) = 0;
+        virtual uint32_t get_size_of_initialized_data() const = 0;
+        virtual void set_size_of_uninitialized_data(uint32_t size) = 0;
+        virtual uint32_t get_size_of_uninitialized_data() const = 0;
+        virtual void set_linker_version(uint16_t minor, uint16_t major) = 0;
+        virtual uint32_t get_minor_linker_version() const = 0;
+        virtual uint32_t get_major_linker_version() const = 0;
+
 	//Returns virtual size of image
 	virtual uint32_t get_size_of_image() const = 0;
 
@@ -207,8 +217,10 @@ public:
 	virtual void set_file_alignment_unchecked(uint32_t alignment) = 0;
 	//Sets base of code
 	virtual void set_base_of_code(uint32_t base) = 0;
+	virtual void set_base_of_data(uint32_t base) = 0;
 	//Returns base of code
 	virtual uint32_t get_base_of_code() const = 0;
+	virtual uint32_t get_base_of_data() const = 0;
 	//Returns needed PE magic for PE or PE+ (from template parameters)
 	virtual uint32_t get_needed_magic() const = 0;
 };
