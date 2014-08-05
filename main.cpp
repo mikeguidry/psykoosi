@@ -44,9 +44,22 @@ typedef struct _sculpture_parameters {
 } Sculpture;
 */
 
+
+
+// was getting  messy
+char * Cache_Filename(char *filename, char *type, char *dest) {
+	char *tmpb = strrchr(filename, '/');
+	if (tmpb == NULL) tmpb = filename; else tmpb++;
+
+	sprintf(dest, "%s.%s.cache", tmpb, type);
+
+	return dest;
+}
+
+
 // our main function... lets try to keep as small as possible (as opposed to how many things were in asmrealign)
 int main(int argc, char *argv[]) {
-
+	char filename[1024];
 	if (argc < 2) {
 		printf("psykoosi - binary modification platform\nusage: %s <binary> <module>\n", argv[0]);
 		exit(-1);
@@ -79,22 +92,19 @@ int main(int argc, char *argv[]) {
 
 
 	int start = time(0);
-	// try to load cache...
-	char cfile[1024];
-	sprintf(cfile, "%s.cache.disasm", argv[1]);
-	if (op.disasm->Cache_Load(cfile)) {
-		sprintf(cfile, "%s.cache.analysis", argv[1]);
-		if (op.analysis->QueueCache_Load(cfile)) {
+
+	// this is a little better.. will do it differently later in another function
+	if (op.disasm->Cache_Load(Cache_Filename(argv[1], "disasm", (char *)&filename)) &&
+			op.analysis->QueueCache_Load(Cache_Filename(argv[1], "analysis", (char *)&filename)) &&
+			op.vmem.Cache_Load(Cache_Filename(argv[1], "vmem", (char *)&filename))) {
 			from_cache = 1;
 			int now = time(0);
 			printf("Loaded cache! [%d seconds]\n", now - start);
-//			op.analysis->CleanInstructionAnalysis();
-	//		op.analysis->Complete_Analysis_Queue(1);
 		} else {
 			op.disasm->Clear_Instructions();
 			printf("Only loaded instructions.. clearing\n");
 		}
-	}
+
 
 	if (!from_cache) {
 		//op.disasm->Clear_Instructions();
@@ -106,13 +116,11 @@ int main(int argc, char *argv[]) {
 
 		start = time(0);
 		from_cache = 0;
-		sprintf(cfile, "%s.cache.disasm", argv[1]);
-		if (op.disasm->Cache_Save(cfile)) {
-			sprintf(cfile, "%s.cache.analysis", argv[1]);
-			if (op.analysis->QueueCache_Save(cfile)) {
-				from_cache = 1;
-			}
-		}
+
+		op.disasm->Cache_Save(Cache_Filename(argv[1], "disasm", (char *)&filename));
+		op.analysis->QueueCache_Save(Cache_Filename(argv[1], "analysis", (char *)&filename));
+		op.vmem.Cache_Save(Cache_Filename(argv[1], "vmem", (char *)&filename));
+
 		now = time(0);
 		printf("Saved cache in %d seconds\n", now - start);
 	}

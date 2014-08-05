@@ -4,6 +4,7 @@
 #include <cstring>
 #include <inttypes.h>
 #include <stdio.h>
+#include <fstream>
 #include "virtualmemory.h"
 // 64k pages...
 #define PAGE_SIZE 4096*2*2*2*2*sizeof(unsigned char *)
@@ -132,3 +133,84 @@ VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint
 
 	return sptr;
 }
+
+//we now need to cache load/save under virtualmemory class since we are using internal sections..
+// must re-evaluate where all of these functions should be later to clean up call graph! :)
+int VirtualMemory::Cache_Save(char *filename) {
+	if (Section_List == NULL) return 0;
+	Memory_Section *sptr = Section_List;
+
+	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
+	if (!qcout) return 0;
+
+
+	uint32_t header = 0x3E3021;
+	qcout.write((char *)&header, sizeof(uint32_t));
+
+	for (; sptr != NULL; sptr = sptr->next) {
+		// write size first and maybe pull my putint() function from other project... :) to stop duplicate code
+		int w_size = (int)strlen(sptr->Name);
+		qcout.write((char *)&w_size, sizeof(int));
+
+		qcout.write((char *)sptr, sizeof(Memory_Section));
+
+		qcout.write(sptr->Name, strlen(sptr->Name));
+		qcout.write((const char *)sptr->RawData, sptr->RawSize);
+
+	}
+
+	qcout.close();
+
+
+	return 1;
+}
+
+
+int VirtualMemory::Cache_Load(char *filename) {
+	int count = 0;
+		Memory_Section *qptr, *last = NULL;
+
+		std::ifstream qcin(filename, std::ios::in | std::ios::binary);
+		if (!qcin) return 0;
+
+		uint32_t header = 0x3E3021;
+		uint32_t verify = 0;
+		qcin.read((char *)&verify, sizeof(uint32_t));
+		if (header != verify) {
+			printf("Cache header fail!\n");
+			throw;
+			return 0;
+		}
+
+		Section_List = Section_Last = NULL;
+
+		while (!qcin.eof()) {
+			int name_size = 0, raw_size = 0;
+			qcin.read((char *)&name_size, sizeof(int));
+
+			qptr = new Memory_Section;
+			qcin.read((char *)qptr, sizeof(Memory_Section));
+			qptr->next = 0; qptr->prev = 0;
+
+			qptr->RawData = new unsigned char[qptr->RawSize];
+			qptr->Name = new char[name_size];
+
+			qcin.read((char *)qptr->Name, name_size);
+			qcin.read((char *)qptr->RawData, qptr->RawSize);
+
+			if (Section_Last == NULL) {
+
+				Section_List = Section_Last = qptr;
+			} else {
+				Section_Last->next  = qptr;
+				Section_Last = qptr;
+			}
+
+			count++;
+		}
+
+		//if (count) Loaded_from_Cache = 1;
+		qcin.close();
+		printf("Loaded %d from file\n", count);
+}
+

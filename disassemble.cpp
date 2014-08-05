@@ -511,6 +511,7 @@ void DisassembleTask::Clear_Instructions() {
 }
 
 
+
 int DisassembleTask::Cache_Save(char *filename) {
 	if (Instructions[LIST_TYPE_NEXT] == NULL) return 0;
 
