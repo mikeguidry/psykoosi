@@ -1,0 +1,10 @@
+analysis.cpp
+disassemble.cpp
+fileformats.cpp
+loading.cpp
+logging.cpp
+main.cpp
+modules.cpp
+rebuild.cpp
+utilities.cpp
+virtualmemory.cpp
