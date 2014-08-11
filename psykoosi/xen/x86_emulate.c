@@ -1214,7 +1214,7 @@ x86_emulate(
     const struct x86_emulate_ops  *ops)
 {
     /* Shadow copy of register state. Committed on successful emulation. */
-    struct cpu_user_regs _regs = *ctxt->regs;
+    struct cpu_user_regs _regs;
 
     uint8_t b, d, sib, sib_index, sib_base, twobyte = 0, rex_prefix = 0;
     uint8_t modrm = 0, modrm_mod = 0, modrm_reg = 0, modrm_rm = 0;
@@ -1232,6 +1232,7 @@ x86_emulate(
     struct operand ea = { .type = OP_MEM };
     ea.mem.seg = x86_seg_ds; /* gcc may reject anon union initializer */
 
+    memcpy((void *)&_regs, (void *)ctxt->regs, sizeof(struct cpu_user_regs));
     ctxt->retire.byte = 0;
 
     op_bytes = def_op_bytes = ad_bytes = def_ad_bytes = ctxt->addr_size/8;
@@ -3485,7 +3486,8 @@ x86_emulate(
 
     /* Commit shadow register state. */
     _regs.eflags &= ~EFLG_RF;
-    *ctxt->regs = _regs;
+    //*ctxt->regs = _regs;
+    memcpy((void *)ctxt->regs, (void *)&_regs, sizeof(struct cpu_user_regs));
 
  done:
     return rc;

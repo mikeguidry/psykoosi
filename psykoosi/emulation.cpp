@@ -34,12 +34,12 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 
-VirtualMemory *_VM2;
+VirtualMemory *_VM2 = NULL;
 
 static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
 	 //struct x86_emulate_ctxt *sh_ctxt = ctxt;
 //VirtualMemory *_VM = (VirtualMemory *)ctxt;
-printf("read\n");
+
 	    printf("read seg %d offset %X data %X bytes %d ctxt %p\n", seg, offset, p_data, bytes, ctxt);
 
 	    _VM2->MemDataRead(offset,(unsigned char *) p_data, bytes);
@@ -126,14 +126,14 @@ Emulation::EmulationLog *Emulation::StepInstruction(CodeAddr Address, int Max_Si
 	EmulationLog *ret = NULL;
 
 	// initialize registers and context..
-	/*if (emulation_ctx.addr_size == 0) {
+	//if (emulation_ctx.addr_size == 0) {
 		emulation_ctx.addr_size = 32;
 		emulation_ctx.sp_size = 32;
 		emulation_ctx.regs = &registers;
 
 		// copy to last so we know changes!
 		std::memcpy(&registers_last, &registers, sizeof(cpu_user_regs_t));
-	}*/
+	//}
 
 	registers.eip = Address;
 
@@ -207,10 +207,12 @@ Emulation::EmulationLog *Emulation::CreateLog() {
 
 	if (registers.eip != registers_last.eip) {
 		Monitor |= REG_EIP;
+		printf("changed eip %p -> %p\n", registers_last.eip, registers.eip);
 		CreateChangeEntry(&logptr->Changes, REG_EIP, (unsigned char *)&registers_last.eip,  (unsigned char *)&registers.eip, sizeof(uint32_t));
 	}
 	if (registers.eax != registers_last.eax) {
 		Monitor |= REG_EAX;
+		printf("changed eax %X %X\n", registers_last.eax, registers.eax);
 		CreateChangeEntry(&logptr->Changes, REG_EAX,  (unsigned char *)&registers_last.eax, (unsigned char *) &registers.eax, sizeof(uint32_t));
 	}
 	if (registers.ebx != registers_last.ebx) {
