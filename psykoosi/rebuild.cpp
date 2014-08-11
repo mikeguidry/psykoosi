@@ -15,6 +15,7 @@ extern "C" {
 #include "loading.h"
 #include "rebuild.h"
 #include "structures.h"
+#include "emulation.h"
 
 using namespace psykoosi;
 using namespace pe_bliss;
@@ -250,6 +251,8 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 int Rebuilder::RealignInstructions() {
 	if (Must_Rebase_Section) return 0;
 
+	Emulation emulator(vmem);
+
 	raw_final.clear();
 	final_chr = new unsigned char[final_size + 16];
 
@@ -364,10 +367,12 @@ int Rebuilder::RealignInstructions() {
 				 			printf("New: ");
 				 			_DT->disasm_str(NewIns->Address, (char *)NewIns->RawData, NewIns->Size);
 				 		}
+
+
 				 	}
 
 				 	// mark as done..
-					NewIns->Requires_Realignment = 0;
+					//NewIns->Requires_Realignment = 0;
 
 				 }
 				 // end realignment code
@@ -381,6 +386,19 @@ int Rebuilder::RealignInstructions() {
 				 // add some logic for injecting before/after/removing original instruction(s)
 				 //if (!InjInfo->InjectInstructionsBefore) {}
 				 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
+
+				 // now verify it worked!
+				 Emulation::EmulationLog *emu_log = emulator.StepInstruction(CurAddr, 13);
+				 printf("Emu Log %p\n", emu_log);
+				 if (emu_log == NULL) {
+					 //__asm int3
+
+				 } else {
+				 if (NewIns->Requires_Realignment && !(emu_log->Monitor & Emulation::REG_EIP)) {
+					 printf("didnt modify eip?!? wtf?\n");
+					 //throw;
+				 } else printf("Did modify EIP %p\n", emu_log->Changes->Result&0xffffffff);
+				 }
 
 				 NewIns->Lists[DisassembleTask::LIST_TYPE_REBASED] = _DT->Instructions[DisassembleTask::LIST_TYPE_REBASED];
 				 _DT->Instructions[DisassembleTask::LIST_TYPE_REBASED] = NewIns;

@@ -10,6 +10,8 @@ add_executable (psykoosi
                         rebuild.cpp
                         utilities.cpp
                         virtualmemory.cpp
+			emulation.cpp
+			xen/x86_emulate.c
                         )
 
 target_link_libraries(psykoosi pe_bliss capstone-static udis86)
