@@ -160,7 +160,7 @@ Emulation::RegChanges *Emulation::CreateChangeEntry(Emulation::RegChanges **chan
 
 
 	switch (size) {
-		case 32:
+		case sizeof(uint32_t):
 			uint32_t orig_32, new_32;
 			std::memcpy(&orig_32, orig, sizeof(uint32_t));
 			std::memcpy(&new_32, cur, sizeof(uint32_t));
@@ -168,7 +168,7 @@ Emulation::RegChanges *Emulation::CreateChangeEntry(Emulation::RegChanges **chan
 			change->Type |= (new_32 > orig_32) ? CHANGE_INCREASE : CHANGE_DECREASE;
 			change->Result = new_32;
 			break;
-		case 16:
+		case sizeof(uint16_t):
 			uint16_t orig_16, new_16;
 			std::memcpy(&orig_16, orig, sizeof(uint16_t));
 			std::memcpy(&new_16, cur, sizeof(uint16_t));
@@ -176,7 +176,7 @@ Emulation::RegChanges *Emulation::CreateChangeEntry(Emulation::RegChanges **chan
 			change->Type |= (new_16 > orig_16) ? CHANGE_INCREASE : CHANGE_DECREASE;
 			change->Result = new_16;
 			break;
-		case 8:
+		case sizeof(uint8_t):
 			uint8_t orig_8, new_8;
 			std::memcpy(&orig_8, orig, sizeof(uint8_t));
 			std::memcpy(&new_8, cur, sizeof(uint8_t));
@@ -201,18 +201,21 @@ Emulation::EmulationLog *Emulation::CreateLog() {
 
 	logptr = new EmulationLog;
 
+	std::memset(logptr, 0, sizeof(EmulationLog));
+
+
 	logptr->Address = registers_last.eip;
 	// this might change if it changes EIP jmp,call,etc.. should grab from the database...
 	logptr->Size = registers.eip - registers_last.eip;
 
 	if (registers.eip != registers_last.eip) {
 		Monitor |= REG_EIP;
-		printf("changed eip %p -> %p\n", registers_last.eip, registers.eip);
+		printf("changed eip %d %p -> %p\n", Monitor & REG_EIP, registers_last.eip, registers.eip);
 		CreateChangeEntry(&logptr->Changes, REG_EIP, (unsigned char *)&registers_last.eip,  (unsigned char *)&registers.eip, sizeof(uint32_t));
 	}
 	if (registers.eax != registers_last.eax) {
 		Monitor |= REG_EAX;
-		printf("changed eax %X %X\n", registers_last.eax, registers.eax);
+		printf("changed eax %X %X %d\n", registers_last.eax, registers.eax, Monitor & REG_EAX);
 		CreateChangeEntry(&logptr->Changes, REG_EAX,  (unsigned char *)&registers_last.eax, (unsigned char *) &registers.eax, sizeof(uint32_t));
 	}
 	if (registers.ebx != registers_last.ebx) {
@@ -271,6 +274,9 @@ Emulation::EmulationLog *Emulation::CreateLog() {
 		Monitor |= REG_SS;
 		CreateChangeEntry(&logptr->Changes, REG_SS,  (unsigned char *)&registers_last.ss, (unsigned char *) &registers.ss, sizeof(uint16_t));
 	}
+
+	// duh! we need it in our structure!
+	logptr->Monitor = Monitor;
 
 	logptr->next = LogList;
 	LogList = logptr;

@@ -36,7 +36,7 @@ Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory
 	final_chr = 0;
 
 	final_i = 0;
-	warp = 0;
+	warp = 32;
 	final_size = 0;
 	// if our additional code goes into another section.. we have to rebase the entire thing
 	// either move the code section, or move data, or whatever...
@@ -249,6 +249,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 // once i fully implement backwards references then i can realign the moment the new instruction structure
 // is created
 int Rebuilder::RealignInstructions() {
+	char testit[1024];
 	if (Must_Rebase_Section) return 0;
 
 	Emulation emulator(vmem);
@@ -264,7 +265,7 @@ int Rebuilder::RealignInstructions() {
 		 // should also modify other areas later.. if we end up moving around data etc
 		 if (s.executable()) {
 			 DisassembleTask::CodeAddr StartAddr = s.get_virtual_address() + _PE->get_image_base_32();
-			 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data() + warp;
+			 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data() + 1024;
 			 DisassembleTask::CodeAddr CurAddr = StartAddr;
 			 DisassembleTask::InstructionInformation *InsInfo = 0;
 			 for (; CurAddr < EndAddr; ) {
@@ -298,6 +299,7 @@ int Rebuilder::RealignInstructions() {
 				 NewIns->Original_Address = InsInfo->Original_Address;
 				 NewIns->OriginalInstructionInformation = InsInfo->OriginalInstructionInformation;
 				 NewIns->InsDetail = InsInfo->InsDetail;
+				 NewIns->Size = InsInfo->Size;
 
 				 NewIns->RawData = new unsigned char[InsInfo->Size];
 				 std::memcpy(NewIns->RawData, InsInfo->RawData, InsInfo->Size);
@@ -305,7 +307,6 @@ int Rebuilder::RealignInstructions() {
 				 if (InsInfo->InstructionMnemonicString)
 					 NewIns->InstructionMnemonicString = InsInfo->InstructionMnemonicString;
 
-				 NewIns->Size = InsInfo->Size;
 
 				 NewIns->FromInjection = InsInfo->FromInjection;
 				 if (InsInfo->IsEntryPoint) {
@@ -321,6 +322,7 @@ int Rebuilder::RealignInstructions() {
 				 // need to realign here....
 
 				 if (1==1 && NewIns->Requires_Realignment && NewIns->OpDstAddress){// && !NewIns->IsPointer) {
+					 sprintf(testit, "%p", NewIns->OpDstAddress);
 					 signed char dist8 = 0;
 					 int32_t dist32 = 0;
 					//DisassembleTask::CodeAddr ToAddr = 0;
@@ -334,10 +336,10 @@ int Rebuilder::RealignInstructions() {
 				 	//if (distance != 0) {
 				 	if (distance != 0) {//&& InsInfo->Displacement_Type != 0) {
 
-				 		if (InsInfo->orig != distance) {
-				 			printf("Realigning instruction [%p] P %d:\nOriginal: ", InsInfo->Address, InsInfo->IsPointer);
+				 		//if (InsInfo->orig != distance) {
+				 			//printf("Realigning instruction [%p] P %d:\nOriginal: ", InsInfo->Address, InsInfo->IsPointer);
 				 			_DT->disasm_str(NewIns->Original_Address, ( char *)NewIns->RawData, NewIns->Size);
-				 		}
+				 		//}
 
 				 		//printf("%p:%d distance %d disp off %d  dtype %d [%p]\n", InsInfo->Address, InsInfo->Size, distance, InsInfo->Displacement_Offset, InsInfo->Displacement_Type, InsInfo->Original_Address);
 
@@ -360,13 +362,34 @@ int Rebuilder::RealignInstructions() {
 							break;
 
 				 		}
+
+						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
+						 // now verify it worked!
+						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(CurAddr, 13);
+						 printf("Emu Log %p\n", emu_log);
+						 if (emu_log == NULL) {
+							 printf("ERROR Was unable to analyze instruction at address %p", NewIns->Address);
+
+						 } else {
+						 if (NewIns->Requires_Realignment && !(emu_log->Monitor & Emulation::REG_EIP)) {
+							 printf("didnt modify eip?!? wtf? [Wanted %p]\n", InsInfo->OpDstAddress);
+							 //throw;
+						 } else printf("Did modify EIP %p [Want %p]\n", emu_log->Changes->Result, InsInfo->OpDstAddress);
+						 }
+				 		std::string verifyasm = _DT->disasm_str(NewIns->Original_Address, ( char *)NewIns->RawData, NewIns->Size);
+				 		if (emu_log != NULL && emu_log->Changes != NULL && !(emu_log->Changes->Result == InsInfo->OpDstAddress))
+				 		if (strstr(verifyasm.c_str(), testit)==NULL) {
+				 			printf("ERROR %s [wanted %p]\n", verifyasm.c_str(), NewIns->OpDstAddress);
+				 		}
+				 		printf("--\n");
+
 				 		//if (InsInfo->orig != distance) printf("CHANGED\n");
 
 				 		//printf("new (supposed to go to %p) orig %d new %d:", InsInfo->OpDstAddress, InsInfo->orig, distance);
-				 		if (InsInfo->orig != distance) {
-				 			printf("New: ");
-				 			_DT->disasm_str(NewIns->Address, (char *)NewIns->RawData, NewIns->Size);
-				 		}
+				 		//if (InsInfo->orig != distance) {
+				 			//printf("New: ");
+				 			//_DT->disasm_str(NewIns->Address, (char *)NewIns->RawData, NewIns->Size);
+				 		//}
 
 
 				 	}
@@ -387,18 +410,6 @@ int Rebuilder::RealignInstructions() {
 				 //if (!InjInfo->InjectInstructionsBefore) {}
 				 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
 
-				 // now verify it worked!
-				 Emulation::EmulationLog *emu_log = emulator.StepInstruction(CurAddr, 13);
-				 printf("Emu Log %p\n", emu_log);
-				 if (emu_log == NULL) {
-					 //__asm int3
-
-				 } else {
-				 if (NewIns->Requires_Realignment && !(emu_log->Monitor & Emulation::REG_EIP)) {
-					 printf("didnt modify eip?!? wtf?\n");
-					 //throw;
-				 } else printf("Did modify EIP %p\n", emu_log->Changes->Result&0xffffffff);
-				 }
 
 				 NewIns->Lists[DisassembleTask::LIST_TYPE_REBASED] = _DT->Instructions[DisassembleTask::LIST_TYPE_REBASED];
 				 _DT->Instructions[DisassembleTask::LIST_TYPE_REBASED] = NewIns;
@@ -430,6 +441,9 @@ int Rebuilder::RealignInstructions() {
 				  	  *Addr = InsInfo->Address;
 				 }
 			 }
+			 vmem->MemDataWrite(s.get_virtual_address() + _PE->get_image_base_32(), data_ptr, data_size);
+		 } else {
+			 vmem->MemDataWrite(s.get_virtual_address() + _PE->get_image_base_32(), (unsigned char *)s.get_raw_data().data(), s.get_size_of_raw_data());
 		 }
 
 	 }
@@ -535,7 +549,7 @@ int Rebuilder::WriteBinaryPE() {
 				//std::cout << "size: " << final_size << " i " << final_i << " code size " << s.get_size_of_raw_data() << std::endl;
 				//std::string ah ( "hello" );
 				//s.set_raw_data(ah);
-			 to_increase += final_size - s.get_size_of_raw_data();
+			 to_increase += 16;
 				std::memcpy((void *)s.raw_data_.data(),(const void *) final_chr , final_size);
 				//std::memcpy((void *)s.raw_data_.data()+final_size-32,(const void *) "hello",5);
 			 //s.set_raw_data(raw_final);
@@ -592,6 +606,15 @@ int Rebuilder::WriteBinaryPE2() {
 	if (Must_Rebase_Section) return 0;
 	final_size = final_i;
 
+	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+if (sptr->Characteristics == 0) {
+	printf("ERROR something corrupted in section 1!\n");
+	continue;
+}
+						printf("name %s chr %x vaddr %p vsize %d ptr %d size %d\n", sptr->Name, sptr->Characteristics,
+								sptr->Address,
+								sptr->VirtualSize, sptr->RVA, sptr->RawSize);
+	}
 	int to_increase = 0;
 	// load the input file again.. (maybe we should keep it in memory from BinaryLoader)
 	std::ifstream pe_file(FileName, std::ios::in | std::ios::binary);
@@ -651,7 +674,10 @@ int Rebuilder::WriteBinaryPE2() {
 			// add sections from our list..
 			{
 				for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
-
+					if (sptr->Characteristics == 0) {
+						printf("ERROR something corrupted in section 2!\n");
+						continue;
+					}
 					printf("name %s chr %x vaddr %p vsize %d ptr %d size %d\n", sptr->Name, sptr->Characteristics,
 							sptr->Address,
 							sptr->VirtualSize, sptr->RVA, sptr->RawSize);
@@ -666,23 +692,31 @@ int Rebuilder::WriteBinaryPE2() {
 					new_section.set_pointer_to_raw_data(sptr->RVA);
 					//new_section.set_size_of_raw_data(sptr->RawSize);
 					//new_section.set_size_of_raw_data(final_size);
-					new_section.get_raw_data().resize(sptr->RawSize);
+
 					//std::string *blah = new std::string((const char *)final_chr, final_size);
 					//new_section.set_raw_data(blah);
 					//new_section.raw_data_ = *blah;
 					//new_section.raw_data_.resize(final_size);
 					if (new_section.executable()) {
 						printf("doing exe %s\n", sptr->Name);
-						std::memcpy((void *)new_section.get_raw_data().data(),(const void *) final_chr , final_size);
+						sptr->RawSize += warp;
 						if (final_size > sptr->RawSize) {
+							printf("ERROR bigger %d %d\n", final_size, sptr->RawSize);
+							//sptr->RawSize += final_size;
 							//to_increase = final_size - sptr->RawSize;
 						}
-					} else {
-						printf("doing %s\n", sptr->Name);
-						char buffer[sptr->RawSize+1];
-						_VM->MemDataRead(sptr->Address + image.get_image_base_32(), (unsigned char *)buffer, sptr->RawSize);
-						std::memcpy((void *)new_section.get_raw_data().data(),(const void *)&buffer, sptr->RawSize);
+
+						//new_section.get_raw_data().resize(sptr->RawSize);
+						//std::memcpy((void *)new_section.get_raw_data().data(),(const void *) final_chr , final_size);
+
 					}
+					//else {
+						printf("doing %s\n", sptr->Name);
+						unsigned char *buffer = new unsigned char[sptr->RawSize+1];
+						vmem->MemDataRead(sptr->Address + image.get_image_base_32(), (unsigned char *)buffer, sptr->RawSize);
+						new_section.get_raw_data().resize(sptr->RawSize);
+						std::memcpy((void *)new_section.get_raw_data().data(),(const void *)buffer, sptr->RawSize);
+					//}
 					new_section.set_size_of_raw_data(sptr->RawSize);
 
 			        section& added_section = new_image->add_section(new_section);

@@ -24,12 +24,13 @@ VirtualMemory::~VirtualMemory()
     MemPage *mptr = (MemPage *)Memory_Pages, *mptr2;
     
     // delete all memory pages we have information at...
-    do {
+    for (mptr = Memory_Pages; mptr; ) {
       mptr2 = mptr->next;
-      delete mptr->data;
+      if (mptr->data)
+    	  delete mptr->data;
       delete mptr;
       mptr = mptr2;
-    } while (mptr != NULL);
+    }
   }
 
 }
@@ -66,7 +67,7 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
     // size of this page
     mptr->size = PAGE_SIZE;
     // lets allocate the data
-    mptr->data = new unsigned char[PAGE_SIZE+1];
+    mptr->data = new unsigned char[PAGE_SIZE+16];
     std::memset(mptr->data, 0x00, PAGE_SIZE);
     
     return mptr;
@@ -74,8 +75,8 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
 
 int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *data, int len) {
     MemPage *mptr = NULL;
-    int i;
-    unsigned long pageaddr;
+    int i = 0;
+    unsigned long pageaddr = 0;
     int count=0;
     
     for (i = 0; i < len; i++) {
@@ -118,9 +119,9 @@ VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint
 	sptr->RawSize = Size;
 	sptr->Characteristics = Characteristics;
 	sptr->RVA = RVA;
-	sptr->Name = new char[std::strlen(Name)+1];
+	sptr->Name = new char[std::strlen(Name)+16];
 	std::strcpy(sptr->Name, Name);
-	sptr->RawData = new unsigned char[sptr->RawSize];
+	sptr->RawData = new unsigned char[sptr->RawSize+16];
 	std::memcpy(sptr->RawData, Data, sptr->RawSize);
 
 
@@ -128,7 +129,10 @@ VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint
 		Section_List = Section_Last = sptr;
 	} else {
 		Section_Last->next = sptr;
+
 		Section_Last = sptr;
+		printf("ERROR Setting next to %p for %s [%p]\n", sptr->next, sptr->Name, &sptr->next);
+		//if (strstr(sptr->Name, ".data")) __asm("int3");
 	}
 
 	return sptr;
