@@ -12,12 +12,12 @@
 #include <inttypes.h>
 #include <capstone/capstone.h>
 #include <pe_lib/pe_bliss.h>
-#include "virtualmemory.h"
-#include "disassemble.h"
-#include "analysis.h"
-#include "loading.h"
-#include "rebuild.h"
-#include "structures.h"
+#include <psykoosi_lib/virtualmemory.h>
+#include <psykoosi_lib/disassemble.h>
+#include <psykoosi_lib/analysis.h>
+#include <psykoosi_lib/loading.h>
+#include <psykoosi_lib/rebuild.h>
+#include <psykoosi_lib/structures.h>
 
 using namespace psykoosi;
 using namespace pe_bliss;
