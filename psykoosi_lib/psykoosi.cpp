@@ -44,7 +44,12 @@ Disasm::InstructionIterator Psykoosi::InstructionsEnd() {
 }
 
 void Psykoosi::Commit() {
-    Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, nullptr);
+    throw std::string("unimplemented");
+}
+
+void Psykoosi::Save(const std::string &fileName) {
+    // todo: split this stuff into commit and save to be able make several commits before store final binary
+    Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, fileName.c_str());
     master.SetBinaryLoader(op.loader);
     master.RebuildInstructionsSetsModifications();
     master.RealignInstructions();
@@ -53,10 +58,6 @@ void Psykoosi::Commit() {
     printf("next count %d inj %d\n", next_count, inj_count);
 
     master.ModifyRelocations();
-}
-
-void Psykoosi::Save(const std::string &fileName) {
-    Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, fileName.c_str());
     master.WriteBinaryPE2();
 }
 

@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
 	}
 
     string fileName = argv[1];
-    Psykoosi psy(fileName, ".");
+    Psykoosi psy(fileName, ".", true);
 
     // loaded
 
@@ -47,6 +47,6 @@ int main(int argc, char *argv[]) {
 
     // injected
 
-    psy.Commit();
+//    psy.Commit();
     psy.Save(fileName);
 }
