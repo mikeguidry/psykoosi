@@ -12,6 +12,7 @@
 
 #include <psykoosi_lib/psykoosi.h>
 
+#include <unistd.h>
 
 using namespace psykoosi;
 using namespace std;
@@ -25,6 +26,7 @@ int main(int argc, char *argv[]) {
 
     string fileName = argv[1];
     Psykoosi psy(fileName, ".", true);
+	nice(20);
 
     // loaded
 
@@ -32,9 +34,11 @@ int main(int argc, char *argv[]) {
 
     Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
     std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
-	ah->RawData = new unsigned char[64];
-	ah->Size = (argc == 4) ? atoi(argv[3]) : 1;
-	for (int i = 0; i < ah->Size; i++) ah->RawData[i] = 0x90;
+	int to_add = atoi(argv[3]);
+	if (!to_add) to_add = 16;
+	ah->RawData = new unsigned char[to_add + 1];
+	ah->Size = to_add;
+	for (int i = 0; i < to_add; i++) ah->RawData[i] = 0x90;
 	ah->FromInjection = 1;
     Disasm::InstructionIterator it = psy.GetInstruction(entry);
     if (it == psy.InstructionsEnd()) {
