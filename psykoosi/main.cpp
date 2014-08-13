@@ -5,159 +5,48 @@
  *
  * README CONTAINS INFORMATION
  */
-#include <cstddef>
 #include <iostream>
+#include <string>
+#include <stdint.h>
 #include <cstring>
-#include <stdio.h>
-#include <inttypes.h>
-#include <capstone/capstone.h>
-#include <pe_lib/pe_bliss.h>
-#include <psykoosi_lib/virtualmemory.h>
-#include <psykoosi_lib/disassemble.h>
-#include <psykoosi_lib/analysis.h>
-#include <psykoosi_lib/loading.h>
-#include <psykoosi_lib/rebuild.h>
-#include <psykoosi_lib/structures.h>
+
+#include <psykoosi_lib/psykoosi.h>
+
 
 using namespace psykoosi;
-using namespace pe_bliss;
-using namespace pe_win;
-/*
-// Sculpture of our masterpiece....
-// Handles some CTORs and allows pointers for other pointers required for class CTORS
-// anyways im up for rewriting this later depending on final stage (DLL, Service, EXE, etc)
-typedef struct _sculpture_parameters {
-  // Virtual Memory is so we can have a snapshot of the binary in memory to work on
-  VirtualMemory vmem;
-  VirtualMemory *TemporaryVMEM;
-
-  // binary loader handles loading from PE into virtual memory
-  BinaryLoader *loader;
-
-  // disassembler (should be easy enough to swap out with another for other architectures not avail)
-  DisassembleTask *disasm;
-  // analysis class after disassembler has ran its course for the first time anyhow
-  InstructionAnalysis *analysis;
-
-  // until later versions and completely modular.. lets make this PE specific
-  pe_base *pe_image;
-} Sculpture;
-*/
-
-
-
-// was getting  messy
-char * Cache_Filename(char *filename, char *type, char *dest) {
-	char *tmpb = strrchr(filename, '/');
-	if (tmpb == NULL) tmpb = filename; else tmpb++;
-
-	sprintf(dest, "%s.%s.cache", tmpb, type);
-
-	return dest;
-}
-
+using namespace std;
 
 // our main function... lets try to keep as small as possible (as opposed to how many things were in asmrealign)
 int main(int argc, char *argv[]) {
-	char filename[1024];
 	if (argc < 2) {
 		printf("psykoosi - binary modification platform\nusage: %s <binary> <module>\n", argv[0]);
 		exit(-1);
 	}
 
-	// Lets initialize our main class....
-	Sculpture op;
-	op.disasm = new DisassembleTask(&op.vmem);
-	op.analysis = new InstructionAnalysis(op.disasm);
-  	op.loader = new BinaryLoader(op.disasm, op.analysis, &op.vmem);
-	op.pe_image = op.loader->LoadFile(0,0,(char *)argv[1]);
+    string fileName = argv[1];
+    Psykoosi psy(fileName, ".");
 
-	if (!op.pe_image) {
-		printf("Cannot open file: %s\n", argv[1]);
-		exit(0);
-	}
-	int next_count, inj_count;
-	int from_cache = 0;
+    // loaded
 
-	next_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT);
-	inj_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_INJECTED);
-	printf("next count %d inj %d\n", next_count, inj_count);
+    Disasm::CodeAddr entry = psy.GetEntryPoint();
 
-	uint32_t highest = op.loader->HighestAddress(1);
-	std::cout << "highest: " << highest << std::endl;
-
-	op.disasm->SetBinaryLoaderHA(highest);
-	op.disasm->SetPEHandle(op.pe_image);
-	std::cout << "highest: " << highest << std::endl;
-
-
-	int start = time(0);
-
-	// this is a little better.. will do it differently later in another function
-	if (op.disasm->Cache_Load(Cache_Filename(argv[1], "disasm", (char *)&filename)) &&
-			op.analysis->QueueCache_Load(Cache_Filename(argv[1], "analysis", (char *)&filename)) &&
-			op.vmem.Cache_Load(Cache_Filename(argv[1], "vmem", (char *)&filename))) {
-			from_cache = 1;
-			int now = time(0);
-			printf("Loaded cache! [%d seconds]\n", now - start);
-		} else {
-			op.disasm->Clear_Instructions();
-			printf("Only loaded instructions.. clearing\n");
-		}
-
-
-	if (!from_cache) {
-		//op.disasm->Clear_Instructions();
-		//op.analysis->Queue_Clear();
-		start = time(0);
-		op.analysis->Complete_Analysis_Queue(0);
-		int now = time(0);
-		printf("Disassembled first time! [%d seconds]\n", now - start);
-
-		start = time(0);
-		from_cache = 0;
-
-		op.disasm->Cache_Save(Cache_Filename(argv[1], "disasm", (char *)&filename));
-		op.analysis->QueueCache_Save(Cache_Filename(argv[1], "analysis", (char *)&filename));
-		op.vmem.Cache_Save(Cache_Filename(argv[1], "vmem", (char *)&filename));
-
-		now = time(0);
-		printf("Saved cache in %d seconds\n", now - start);
-	}
-
-	printf("%d Instructions after loading\n", op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT));
-
-
-	std::cout << "Disasm Count " << op.disasm->DCount << std::endl;
-	std::cout << "Call Count " << op.analysis->CallCount << std::endl;
-	std::cout << "Push Count " << op.analysis->PushCount << std::endl;
-	std::cout << "Realign Count " << op.analysis->RealignCount << std::endl;
-
-	uint32_t entry = op.pe_image->get_image_base_32() + op.pe_image->get_ep();
-
-	DisassembleTask::InstructionInformation *ah = new DisassembleTask::InstructionInformation;
-	std::memset(ah, 0, sizeof(DisassembleTask::InstructionInformation));
+    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
+    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
 	ah->RawData = new unsigned char[64];
 	ah->Size = (argc == 4) ? atoi(argv[3]) : 1;
 	for (int i = 0; i < ah->Size; i++) ah->RawData[i] = 0x90;
 	ah->FromInjection = 1;
-	DisassembleTask::InstructionInformation *Ientry = op.disasm->GetInstructionInformationByAddress(entry, DisassembleTask::LIST_TYPE_NEXT, 0, NULL);
-	if (!Ientry) {
-		printf("There was an issue finding the entry point.. maybe the file didnt load, or cache is damaged\n");
-		throw;
+    Disasm::InstructionIterator it = psy.GetInstruction(entry);
+    if (it == psy.InstructionsEnd()) {
+        throw string("There was an issue finding the entry point.. maybe the file didnt load, or cache is damaged\n");
 	}
-	printf("Ientry: %p Addr %p size %d\n", Ientry, Ientry->Address, Ientry->Size);
+    printf("Ientry: %p Addr %p size %d\n", it.get(), it->Address, it->Size);
 
 	if (argc > 2)
-		Ientry->InjectedInstructions = ah;
-	Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, argv[1]);
-	master.SetBinaryLoader(op.loader);
-	master.RebuildInstructionsSetsModifications();
-	master.RealignInstructions();
-	next_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT);
-		inj_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_INJECTED);
-		printf("next count %d inj %d\n", next_count, inj_count);
+        it->InjectedInstructions = ah;
 
-	master.ModifyRelocations();
-	master.WriteBinaryPE2();
+    // injected
+
+    psy.Commit();
+    psy.Save(fileName);
 }

@@ -19,7 +19,7 @@ typedef struct _sculpture_parameters {
   BinaryLoader *loader;
 
   // disassembler (should be easy enough to swap out with another for other architectures not avail)
-  DisassembleTask *disasm;
+  Disasm *disasm;
   // analysis class after disassembler has ran its course for the first time anyhow
   InstructionAnalysis *analysis;
 

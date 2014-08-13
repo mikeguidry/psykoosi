@@ -136,7 +136,7 @@ VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint
 
 //we now need to cache load/save under virtualmemory class since we are using internal sections..
 // must re-evaluate where all of these functions should be later to clean up call graph! :)
-int VirtualMemory::Cache_Save(char *filename) {
+int VirtualMemory::Cache_Save(const char *filename) {
 	if (Section_List == NULL) return 0;
 	Memory_Section *sptr = Section_List;
 
@@ -166,7 +166,7 @@ int VirtualMemory::Cache_Save(char *filename) {
 }
 
 
-int VirtualMemory::Cache_Load(char *filename) {
+int VirtualMemory::Cache_Load(const char *filename) {
 	int count = 0;
 		Memory_Section *qptr, *last = NULL;
 

@@ -1,10 +1,14 @@
 #ifndef DISASSEMBLE_H
 #define DISASSEMBLE_H
 #include <udis86.h>
+#include <capstone/capstone.h>
+#include <pe_lib/pe_bliss.h>
+
+#include "virtualmemory.h"
 
 namespace psykoosi {
 
-  class DisassembleTask {
+  class Disasm {
 
 
     //typedef void * DisassembleHandle;
@@ -76,10 +80,24 @@ namespace psykoosi {
 		  int RelocationType;
 	  } InstructionInformation;
   
+      class InstructionIterator {
+      public:
+          InstructionIterator(InstructionInformation* ptr);
+          InstructionIterator(const InstructionIterator&) = default;
+          bool operator==(const InstructionIterator& other);
+          InstructionInformation* operator->();
+          void operator++();
+          void operator--();
+          void jump();
+          InstructionInformation* get();
+          // todo: over operations
+      private:
+          InstructionInformation *InstInfoPtr = nullptr;
+      };
   
   public:
-    DisassembleTask(VirtualMemory *);
-    ~DisassembleTask();
+    Disasm(VirtualMemory *);
+    ~Disasm();
     
     void Clear_Instructions();
 
@@ -87,7 +105,7 @@ namespace psykoosi {
     // disassemble a single instruction.. returning InstructionInformation for it
     int DisassembleSingleInstruction(CodeAddr Address, InstructionInformation **, int priority);
     // task to disassemble a section or cluster.. puts in the classes array of Instructrions
-    int RunDisassembleTask(CodeAddr StartAddress, int priority, int MaxRawSize, int MaxInstructions);
+    int RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int MaxInstructions);
 
     int DeleteAddressRange(CodeAddr Address, int Size, int priority);
     int DeleteInstruction(InstructionInformation *InsInfoPtr, CodeAddr Address, int strict, int priority);
@@ -98,15 +116,15 @@ namespace psykoosi {
     // mark the current instructions array as a specific type (initial, rebased, etc)
     int SetCurrentListAsListType(int type);
 
-    int Cache_Load(char *filename);
-    int Cache_Save(char *filename);
+    int Cache_Load(const char *filename);
+    int Cache_Save(const char *filename);
 
     void SetBinaryLoaderHA(CodeAddr Addr);
     int DeleteInstruction(InstructionInformation *InsInfoPtr, CodeAddr Address);
     // return a linked list of instructions of a particular type (to be used for allow other classes to access the data)
     InstructionInformation *GetInstructionsData(int type) {	return Instructions[type]; }
     InstructionInformation *GetInstructionInformationByAddress(CodeAddr Address, int type, int strict, InstructionInformation *InsInfo);
-    DisassembleTask::InstructionInformation *GetInstructionInformationByAddressOriginal(CodeAddr Address, int type, int strict, InstructionInformation *InsInfo);
+    Disasm::InstructionInformation *GetInstructionInformationByAddressOriginal(CodeAddr Address, int type, int strict, InstructionInformation *InsInfo);
     int DCount;
     InstructionInformation **Instructions;
     InstructionInformation **Instructions_Jump;
@@ -121,9 +139,6 @@ namespace psykoosi {
 
   };
 }
-
-
-
 
 
 

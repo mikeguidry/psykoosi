@@ -21,7 +21,7 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 
-Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory *VM, pe_bliss::pe_base *PE, char *FileName) {
+Rebuilder::Rebuilder(Disasm *DT, InstructionAnalysis *IA, VirtualMemory *VM, pe_bliss::pe_base *PE, const char *FileName) {
 	_DT = DT;
 	_IA = IA;
 	_VM = VM;
@@ -43,13 +43,15 @@ Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory
 
 	EntryPointInstruction = NULL;
 
-	// setup output filename.. psykoosi.exe = psykoosi_output.exe
-	std::strcpy(FileName_output, FileName);
-	char *sptr = std::strrchr(FileName_output, '.');
-	if (!sptr++) throw;
-	std::strcpy(sptr, "_output.exe");
+    if (FileName) {
+        // setup output filename.. psykoosi.exe = psykoosi_output.exe
+        std::strcpy(FileName_output, FileName);
+        char *sptr = std::strrchr(FileName_output, '.');
+        if (!sptr++) throw;
+        std::strcpy(sptr, "_output.exe");
 
-	std::strcpy(this->FileName, FileName);
+        std::strcpy(this->FileName, FileName);
+    }
 	vmem = new VirtualMemory;
 }
 
@@ -63,7 +65,7 @@ void Rebuilder::SetBinaryLoader(BinaryLoader *BL) {
 }
 
 //free these up later...
-void Rebuilder::Add_Modified_Address(DisassembleTask::CodeAddr Original_Address, DisassembleTask::CodeAddr New_Address) {
+void Rebuilder::Add_Modified_Address(Disasm::CodeAddr Original_Address, Disasm::CodeAddr New_Address) {
 	ModifiedAddresses *mptr = new ModifiedAddresses;
 	std::memset(mptr, 0, sizeof(ModifiedAddresses));
 
@@ -74,7 +76,7 @@ void Rebuilder::Add_Modified_Address(DisassembleTask::CodeAddr Original_Address,
 	Modified_Addresses = mptr;
 }
 
-DisassembleTask::CodeAddr Rebuilder::CheckForModifiedAddress(DisassembleTask::CodeAddr Lookup) {
+Disasm::CodeAddr Rebuilder::CheckForModifiedAddress(Disasm::CodeAddr Lookup) {
 	for (ModifiedAddresses *mptr = Modified_Addresses; mptr != NULL; mptr = mptr->next) {
 		if (mptr->Original_Address == Lookup)
 			return mptr->New_Address;
@@ -83,24 +85,24 @@ DisassembleTask::CodeAddr Rebuilder::CheckForModifiedAddress(DisassembleTask::Co
 }
 
 int Rebuilder::RebuildInstructionsSetsModifications() {
-	DisassembleTask::CodeAddr CurNewAddr = 0;
+    Disasm::CodeAddr CurNewAddr = 0;
 
-	DisassembleTask::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
+    Disasm::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
 
 	// loop and create a new instruction set with modifications and new addresses...
 	 section_list sections(_PE->get_image_sections());
-	 DisassembleTask::InstructionInformation *InsInfo = 0;
+     Disasm::InstructionInformation *InsInfo = 0;
 	 int increase_raw = 0;
 	 for(section_list::iterator it = sections.begin(); it != sections.end(); ++it) {
 		 section &s = (section &)*it;
 
 
-		 DisassembleTask::CodeAddr Section_Virtual_Address = s.get_virtual_address();
-		 DisassembleTask::CodeAddr HighestSectionAddr = pe_bliss::pe_utils::align_up(GHighestSectionAddr + s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
+         Disasm::CodeAddr Section_Virtual_Address = s.get_virtual_address();
+         Disasm::CodeAddr HighestSectionAddr = pe_bliss::pe_utils::align_up(GHighestSectionAddr + s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
 
-		 DisassembleTask::CodeAddr LowestSectionAddr = pe_bliss::pe_utils::align_down(HighestSectionAddr, _PE->get_section_alignment());
+         Disasm::CodeAddr LowestSectionAddr = pe_bliss::pe_utils::align_down(HighestSectionAddr, _PE->get_section_alignment());
 
-		 DisassembleTask::CodeAddr New_Section_High = pe_bliss::pe_utils::align_up(s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
+         Disasm::CodeAddr New_Section_High = pe_bliss::pe_utils::align_up(s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
 /*
 		 LowestSectionAddr = 0x407000;
 		 if (increase_raw) {
@@ -116,9 +118,9 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 			 }
 
 */
-			 DisassembleTask::CodeAddr StartAddr = (uint32_t)(s.get_virtual_address() + _PE->get_image_base_32());
-			 DisassembleTask::CodeAddr EndAddr = (uint32_t)(_PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());//+ s.get_aligned_virtual_size(_PE->get_file_alignment());
-			 DisassembleTask::CodeAddr CurAddr = (uint32_t)( _PE->get_image_base_32() + s.get_virtual_address());
+             Disasm::CodeAddr StartAddr = (uint32_t)(s.get_virtual_address() + _PE->get_image_base_32());
+             Disasm::CodeAddr EndAddr = (uint32_t)(_PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());//+ s.get_aligned_virtual_size(_PE->get_file_alignment());
+             Disasm::CodeAddr CurAddr = (uint32_t)( _PE->get_image_base_32() + s.get_virtual_address());
 
 			 if (CurNewAddr > CurAddr) {
 				 printf("Section not big enough\n");
@@ -131,25 +133,25 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 			 for (CurAddr = StartAddr; CurAddr <= EndAddr; ) {
 
 				 /*
-				 if ((verify = _DT->GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_NEXT, 1)) != NULL) {
+                 if ((verify = _DT->GetInstructionInformationByAddress(CurAddr, Disasm::LIST_TYPE_NEXT, 1)) != NULL) {
 					 a1++;
 					 printf("Address %p already in next! Verify %p\n", CurAddr, verify->Address);
 				 }
-				 if ((verify = _DT->GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_INJECTED, 1)) != NULL) {
+                 if ((verify = _DT->GetInstructionInformationByAddress(CurAddr, Disasm::LIST_TYPE_INJECTED, 1)) != NULL) {
 					 a2++;
 					 printf("Address %p already in injected! verify %p\n", CurAddr, verify->Address);
 				 }
-				 if ((verify = _DT->GetInstructionInformationByAddress(CurNewAddr, DisassembleTask::LIST_TYPE_NEXT, 1)) != NULL) {
+                 if ((verify = _DT->GetInstructionInformationByAddress(CurNewAddr, Disasm::LIST_TYPE_NEXT, 1)) != NULL) {
 					 a3++;
 					 printf("NEW Address %p already in next! verify %p\n", CurNewAddr, verify->Address);
 				 }
-				 if ((verify = _DT->GetInstructionInformationByAddress(CurNewAddr, DisassembleTask::LIST_TYPE_INJECTED, 1)) != NULL) {
+                 if ((verify = _DT->GetInstructionInformationByAddress(CurNewAddr, Disasm::LIST_TYPE_INJECTED, 1)) != NULL) {
 					 a4++;
 					 printf("NEW Address %p already in injected! Verify %p\n", CurNewAddr, verify->Address);
 				 }*/
 
 				 //printf("CHECKING %p\n", CurAddr);
-				 InsInfo = _DT->GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_NEXT, 1, InsInfo);
+                 InsInfo = _DT->GetInstructionInformationByAddress(CurAddr, Disasm::LIST_TYPE_NEXT, 1, InsInfo);
 
 				 // if we cannot find in instruction database.. push forward
 				 if (!InsInfo) {
@@ -165,11 +167,11 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 					 continue;
 				 }
 
-				 DisassembleTask::InstructionInformation *InjInfo;
+                 Disasm::InstructionInformation *InjInfo;
 				 for (InjInfo = InsInfo->InjectedInstructions; InjInfo != NULL; InjInfo = InjInfo->InjectedInstructions) {
 
-					 DisassembleTask::InstructionInformation *NewIns = new DisassembleTask::InstructionInformation;
-					 std::memset(NewIns, 0, sizeof(DisassembleTask::InstructionInformation));
+                     Disasm::InstructionInformation *NewIns = new Disasm::InstructionInformation;
+                     std::memset(NewIns, 0, sizeof(Disasm::InstructionInformation));
 
 					 NewIns->RawData = new unsigned char[InjInfo->Size + 1];
 					 std::memcpy(NewIns->RawData, InjInfo->RawData, InjInfo->Size);
@@ -186,14 +188,14 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 					 CurNewAddr += NewIns->Size;
 					 final_size += NewIns->Size;
 
-					 NewIns->Lists[DisassembleTask::LIST_TYPE_INJECTED] = _DT->Instructions[DisassembleTask::LIST_TYPE_INJECTED];
-					 _DT->Instructions[DisassembleTask::LIST_TYPE_INJECTED] = NewIns;
+                     NewIns->Lists[Disasm::LIST_TYPE_INJECTED] = _DT->Instructions[Disasm::LIST_TYPE_INJECTED];
+                     _DT->Instructions[Disasm::LIST_TYPE_INJECTED] = NewIns;
 					 warp += NewIns->Size;
 				 }
 
 				 if (!InsInfo->Removed) {
-					 DisassembleTask::InstructionInformation *NewIns = new DisassembleTask::InstructionInformation;
-					 std::memset(NewIns, 0, sizeof(DisassembleTask::InstructionInformation));
+                     Disasm::InstructionInformation *NewIns = new Disasm::InstructionInformation;
+                     std::memset(NewIns, 0, sizeof(Disasm::InstructionInformation));
 
 					 NewIns->Address = CurNewAddr;
 					 NewIns->Original_Address = InsInfo->Address;
@@ -225,8 +227,8 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 
 					 InsInfo->OpDstAddress_realigned = NewIns;
 
-					 NewIns->Lists[DisassembleTask::LIST_TYPE_INJECTED] = _DT->Instructions[DisassembleTask::LIST_TYPE_INJECTED];
-					 _DT->Instructions[DisassembleTask::LIST_TYPE_INJECTED] = NewIns;
+                     NewIns->Lists[Disasm::LIST_TYPE_INJECTED] = _DT->Instructions[Disasm::LIST_TYPE_INJECTED];
+                     _DT->Instructions[Disasm::LIST_TYPE_INJECTED] = NewIns;
 
 					 final_size += NewIns->Size;
 					 CurNewAddr += NewIns->Size;
@@ -260,12 +262,12 @@ int Rebuilder::RealignInstructions() {
 
 		 // should also modify other areas later.. if we end up moving around data etc
 		 if (s.executable()) {
-			 DisassembleTask::CodeAddr StartAddr = s.get_virtual_address() + _PE->get_image_base_32();
-			 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data() + warp;
-			 DisassembleTask::CodeAddr CurAddr = StartAddr;
-			 DisassembleTask::InstructionInformation *InsInfo = 0;
+             Disasm::CodeAddr StartAddr = s.get_virtual_address() + _PE->get_image_base_32();
+             Disasm::CodeAddr EndAddr = _PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data() + warp;
+             Disasm::CodeAddr CurAddr = StartAddr;
+             Disasm::InstructionInformation *InsInfo = 0;
 			 for (; CurAddr < EndAddr; ) {
-				 InsInfo = _DT->GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_INJECTED, 1, InsInfo);
+                 InsInfo = _DT->GetInstructionInformationByAddress(CurAddr, Disasm::LIST_TYPE_INJECTED, 1, InsInfo);
 
 				 // if we cannot find in instruction database.. push forward
 				 if (!InsInfo) {
@@ -288,8 +290,8 @@ int Rebuilder::RealignInstructions() {
 					 continue;
 				 }*/
 
-				 DisassembleTask::InstructionInformation *NewIns = new DisassembleTask::InstructionInformation;
-				 std::memset(NewIns, 0, sizeof(DisassembleTask::InstructionInformation));
+                 Disasm::InstructionInformation *NewIns = new Disasm::InstructionInformation;
+                 std::memset(NewIns, 0, sizeof(Disasm::InstructionInformation));
 
 				 NewIns->Address = CurAddr;
 				 NewIns->Original_Address = InsInfo->Original_Address;
@@ -320,12 +322,12 @@ int Rebuilder::RealignInstructions() {
 				 if (1==1 && NewIns->Requires_Realignment && NewIns->OpDstAddress){// && !NewIns->IsPointer) {
 					 signed char dist8 = 0;
 					 int32_t dist32 = 0;
-					//DisassembleTask::CodeAddr ToAddr = 0;
+                    //Disasm::CodeAddr ToAddr = 0;
 
 
 
 					//ud_operand_t *udop = (ud_operand_t *)ud_insn_opr(&InsInfo->ud_obj, 0);
-				 	int32_t distance = _IA->AddressDistance(InsInfo->Address, InsInfo->Size, InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED);
+                    int32_t distance = _IA->AddressDistance(InsInfo->Address, InsInfo->Size, InsInfo->OpDstAddress, Disasm::LIST_TYPE_INJECTED);
 				 	//printf("Comparing %p to %p ptr? %d %d\n", InsInfo->Address, InsInfo->OpDstAddress, InsInfo->IsPointer, distance);
 
 				 	//if (distance != 0) {
@@ -382,8 +384,8 @@ int Rebuilder::RealignInstructions() {
 				 //if (!InjInfo->InjectInstructionsBefore) {}
 				 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
 
-				 NewIns->Lists[DisassembleTask::LIST_TYPE_REBASED] = _DT->Instructions[DisassembleTask::LIST_TYPE_REBASED];
-				 _DT->Instructions[DisassembleTask::LIST_TYPE_REBASED] = NewIns;
+                 NewIns->Lists[Disasm::LIST_TYPE_REBASED] = _DT->Instructions[Disasm::LIST_TYPE_REBASED];
+                 _DT->Instructions[Disasm::LIST_TYPE_REBASED] = NewIns;
 
 				 CurAddr += InsInfo->Size;
 			 }
@@ -393,18 +395,18 @@ int Rebuilder::RealignInstructions() {
 		 if (s.get_characteristics() == 0xc0000040 || (strstr((const char *)s.get_name().c_str(),(const char *) ".data") != NULL)) {
 			 unsigned char *data_ptr = (unsigned char *)s.get_raw_data().data();
 			 int data_size = s.get_size_of_raw_data();
-			 int Total = data_size;// / sizeof(DisassembleTask::CodeAddr);
+             int Total = data_size;// / sizeof(Disasm::CodeAddr);
 
 
-			 DisassembleTask::CodeAddr *Last = 0;
-			 DisassembleTask::CodeAddr LastOrig = 0;
+             Disasm::CodeAddr *Last = 0;
+             Disasm::CodeAddr LastOrig = 0;
 
 
-			 DisassembleTask::InstructionInformation *InsInfo = 0;
+             Disasm::InstructionInformation *InsInfo = 0;
 			 for (int ModCount = 0; ModCount < Total; ModCount += 4) {
-				 DisassembleTask::CodeAddr *Addr = (DisassembleTask::CodeAddr *)(data_ptr+ModCount);
+                 Disasm::CodeAddr *Addr = (Disasm::CodeAddr *)(data_ptr+ModCount);
 				 if (*Addr == 0) continue;
-				 InsInfo = _DT->GetInstructionInformationByAddressOriginal(*Addr, DisassembleTask::LIST_TYPE_INJECTED, 1, InsInfo);
+                 InsInfo = _DT->GetInstructionInformationByAddressOriginal(*Addr, Disasm::LIST_TYPE_INJECTED, 1, InsInfo);
 				 if (InsInfo != NULL) {
 					 LastOrig = *Addr;
 					 printf("Data Section [%p]: Replacing %p in data section with %p [name: %s]\n", Addr, *Addr, InsInfo->Address, (char *)s.get_name().c_str());
@@ -441,14 +443,14 @@ int Rebuilder::ModifyRelocations() {
 			if ((table.get_rva() >= s.get_virtual_address()) && (table.get_rva() < (s.get_virtual_address() + s.get_virtual_size()))) {
 				// found section of this specific relocation table's RVA
 				const relocation_table::relocation_list& relocs = table.get_relocations();
-				DisassembleTask::InstructionInformation *InsInfo = 0;
+                Disasm::InstructionInformation *InsInfo = 0;
 				for(relocation_table::relocation_list::const_iterator reloc_it = relocs.begin(); reloc_it != relocs.end(); ++reloc_it) {
 					// calculate the address this relocation entry is pointing to..
-					DisassembleTask::CodeAddr CodeAddr = (DisassembleTask::CodeAddr)(_PE->get_image_base_32() + (*reloc_it).get_rva() + table.get_rva());
+                    Disasm::CodeAddr CodeAddr = (Disasm::CodeAddr)(_PE->get_image_base_32() + (*reloc_it).get_rva() + table.get_rva());
 					// and load that instructions structure using its original address (so we can change the RVA of the relocation entry if
 					// it was realigned)
 
-					InsInfo = _DT->GetInstructionInformationByAddressOriginal(CodeAddr, DisassembleTask::LIST_TYPE_INJECTED, 0, InsInfo);
+                    InsInfo = _DT->GetInstructionInformationByAddressOriginal(CodeAddr, Disasm::LIST_TYPE_INJECTED, 0, InsInfo);
 					// offset is how many bytes into the instruction that the actual relocation entry modifies
 					int offset = 0;
 					if (InsInfo) {

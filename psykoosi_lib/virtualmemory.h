@@ -1,3 +1,5 @@
+#pragma once
+
 namespace psykoosi {
 
   class VirtualMemory {
@@ -72,8 +74,8 @@ namespace psykoosi {
       int MemDataRead(unsigned long addr, unsigned char *result, int len);
       int MemDataWrite(unsigned long addr, unsigned char *data, int len);
       
-      int Cache_Load(char *filename);
-      int Cache_Save(char *filename);
+      int Cache_Load(const char *filename);
+      int Cache_Save(const char *filename);
 
 
       Memory_Section *Add_Section(CodeAddr Address, uint32_t Size, uint32_t VSize,SectionType Type, uint32_t Characteristics, uint32_t RVA, char *name, unsigned char *Data);

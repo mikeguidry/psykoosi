@@ -9,6 +9,7 @@ add_library (psykoosi_lib
                         rebuild.cpp
                         utilities.cpp
                         virtualmemory.cpp
+                        psykoosi.cpp
                         )
 
 target_link_libraries(psykoosi_lib pe_bliss capstone-static udis86)
