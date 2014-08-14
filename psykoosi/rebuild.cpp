@@ -322,6 +322,7 @@ int Rebuilder::RealignInstructions() {
 	}
 
 	Emulation emulator(vmem);
+	emulator.Master.EmuVMEM.SetParent(vmem);
 
 	raw_final.clear();
 	final_chr = new unsigned char[final_size + 16];
@@ -431,15 +432,17 @@ int Rebuilder::RealignInstructions() {
 				 		}
 
 						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
+
 						 // now verify it worked!
-						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(CurAddr, 13);
+						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr, 13);
 						 printf("Emu Log %p\n", emu_log);
 						 if (emu_log == NULL) {
 							 printf("ERROR Was unable to analyze instruction at address %p", NewIns->Address);
 
 						 } else {
 						 if (NewIns->Requires_Realignment && !(emu_log->Monitor & Emulation::REG_EIP)) {
-							 printf("didnt modify eip?!? wtf? [Wanted %p]\n", InsInfo->OpDstAddress);
+							 DisassembleTask::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED, 0, NULL);
+							 printf("didnt modify eip?!? wtf? [Wanted %p] trust?%d\n", InsDstInfo ? InsDstInfo->Address : InsInfo->OpDstAddress, InsDstInfo!=NULL);
 							 //throw;
 						 } else printf("Did modify EIP %p [Want %p]\n", emu_log->Changes->Result, InsInfo->OpDstAddress);
 						 }

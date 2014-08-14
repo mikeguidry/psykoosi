@@ -62,6 +62,7 @@ char * Cache_Filename(char *filename, char *type, char *dest) {
 
 
 DisassembleTask::InstructionInformation *Inj_LoadFile(char *filename) {
+	if (!strlen(filename)) return NULL;
 	std::ifstream qcin(filename, std::ios::in | std::ios::binary);
 	if (!qcin) return 0;
 
@@ -206,10 +207,10 @@ int main(int argc, char *argv[]) {
 			sscanf(argv[2], "%x", (void *)&InjAddr);
 		if (argc >= 4) { // have filename of shellcode
 			InjEntry = Inj_LoadFile(argv[3]);
-			if (InjEntry == NULL) {
+		}
+		if (InjEntry == NULL) {
 				printf("Inj_LoadFile(\"%s\") failed.. using  2048 NOPs\n", argv[3]);
 				InjEntry = Inj_NOP(2048);
-			}
 		}
 
 	}

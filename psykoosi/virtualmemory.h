@@ -68,13 +68,21 @@ namespace psykoosi {
     public:
       VirtualMemory();
       ~VirtualMemory();
+
       unsigned long roundupto(unsigned long n, unsigned long block);
       MemPage *MemPagePtr(unsigned long addr);
+      MemPage *MemPagePtrIfExists(unsigned long addr);
+
       int MemDataRead(unsigned long addr, unsigned char *result, int len);
       int MemDataWrite(unsigned long addr, unsigned char *data, int len);
       
       int Cache_Load(char *filename);
       int Cache_Save(char *filename);
+
+      void SetParent(VirtualMemory *Parent);
+      void ReleaseParent();
+      void AddChild();
+      void ReleaseChild();
 
 
       Memory_Section *Add_Section(CodeAddr Address, uint32_t Size, uint32_t VSize,SectionType Type, uint32_t Characteristics, uint32_t RVA, char *name, unsigned char *Data);
@@ -85,6 +93,8 @@ namespace psykoosi {
     private:
       int MemDataIO(int operation, unsigned long addr, unsigned char *result, int len);
       MemPage *Memory_Pages;
+      VirtualMemory *VMParent;
+      int Children;
 
   };
 

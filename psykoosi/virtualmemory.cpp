@@ -35,14 +35,31 @@ VirtualMemory::~VirtualMemory()
 
 }
 
+void VirtualMemory::SetParent(VirtualMemory *Parent) {
+	VMParent = Parent;
+	VMParent->AddChild();
+}
+
+void VirtualMemory::ReleaseParent() {
+	VMParent->ReleaseChild();
+	VMParent = NULL;
+}
+
+void VirtualMemory::AddChild() {
+	Children++;
+}
+
+void VirtualMemory::ReleaseChild() {
+	Children--;
+}
+
 unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
     if(block <= 1) return n;
     block--;
     return (n + block) & ~block;
 }
 
-// find the specific page
-VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
+VirtualMemory::MemPage *VirtualMemory::MemPagePtrIfExists(unsigned long addr) {
     MemPage *mptr = (MemPage *)Memory_Pages;
     unsigned long round = roundupto(addr, PAGE_SIZE); // round up to 64k pages
     if (mptr != NULL) {
@@ -51,6 +68,17 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
 	      return mptr;
       }
     }
+    return NULL;
+}
+
+// find the specific page
+VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
+    MemPage *mptr = MemPagePtrIfExists(addr);
+
+    if (mptr != NULL) return mptr;
+
+    unsigned long round = roundupto(addr, PAGE_SIZE); // round up to 64k pages
+
     // couldnt find so allocate..
     mptr = new MemPage;
 
