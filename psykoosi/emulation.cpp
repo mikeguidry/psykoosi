@@ -37,25 +37,19 @@ using namespace pe_win;
 VirtualMemory *_VM2 = NULL;
 
 static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
-	 //struct x86_emulate_ctxt *sh_ctxt = ctxt;
-//VirtualMemory *_VM = (VirtualMemory *)ctxt;
-
 	    printf("read seg %d offset %X data %X bytes %d ctxt %p\n", seg, offset, p_data, bytes, ctxt);
 
 	    _VM2->MemDataRead(offset,(unsigned char *) p_data, bytes);
 
 	    return X86EMUL_OKAY;
-
 }
 
 static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
-//	VirtualMemory *_VM = (VirtualMemory *)ctxt;
 	    printf("write seg %d offset %X data %p bytes %d ctxt %p\n", seg, offset, p_data, bytes, ctxt);
 
 	    _VM2->MemDataWrite(offset,(unsigned char *) p_data, bytes);
 
 	    return X86EMUL_OKAY;
-
 }
 
 
@@ -64,11 +58,14 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	LogList = NULL;
 
 	std::memset((void *)&emulate_ops, 0, sizeof(struct hack_x86_emulate_ops));
-
+	std::memset((void *)&emulation_ctx, 0, sizeof(struct x86_emulate_ctxt));
 	emulate_ops.read = (void *)&emulated_read;
 	emulate_ops.insn_fetch = (void *)&emulated_read;
 	emulate_ops.write = (void *)&emulated_write;
 
+	emulation_ctx.addr_size = 32;
+	emulation_ctx.sp_size = 32;
+	emulation_ctx.regs = &registers;
 }
 
 
@@ -127,11 +124,6 @@ Emulation::EmulationLog *Emulation::StepInstruction(CodeAddr Address, int Max_Si
 
 	// initialize registers and context..
 	//if (emulation_ctx.addr_size == 0) {
-		emulation_ctx.addr_size = 32;
-		emulation_ctx.sp_size = 32;
-		emulation_ctx.regs = &registers;
-
-		// copy to last so we know changes!
 		std::memcpy(&registers_last, &registers, sizeof(cpu_user_regs_t));
 	//}
 
@@ -192,6 +184,55 @@ Emulation::RegChanges *Emulation::CreateChangeEntry(Emulation::RegChanges **chan
 
 	return change;
 }
+
+void Emulation::SetRegister(int Monitor, uint32_t value) {
+	if (Monitor & REG_EAX) {
+	        registers.eax = (uint32_t)value;
+	}
+	if (Monitor & REG_EBX) {
+	        registers.ebx = (uint32_t)value;
+	}
+	if (Monitor & REG_ECX) {
+	        registers.ecx = (uint32_t)value;
+	}
+	if (Monitor & REG_EDX) {
+	        registers.edx = (uint32_t)value;
+	}
+	if (Monitor & REG_ESI) {
+	        registers.esi = (uint32_t)value;
+	}
+	if (Monitor & REG_EDI) {
+	        registers.edi = (uint32_t)value;
+	}
+	if (Monitor & REG_ESP) {
+	        registers.esp = (uint32_t)value;
+	}
+	if (Monitor & REG_EBP) {
+	        registers.ebp = (uint32_t)value;
+	}
+	if (Monitor & REG_EFLAGS) {
+	        registers.eflags = (uint32_t)value;
+	}
+	if (Monitor & REG_CS) {
+	        registers.cs = (uint16_t)value;
+	}
+	if (Monitor & REG_ES) {
+	        registers.es = (uint16_t)value;
+	}
+	if (Monitor & REG_DS) {
+	        registers.ds = (uint16_t)value;
+	}
+	if (Monitor & REG_FS) {
+	        registers.fs = (uint16_t)value;
+	}
+	if (Monitor & REG_GS) {
+	        registers.gs = (uint16_t)value;
+	}
+	if (Monitor & REG_SS) {
+	        registers.ss = (uint16_t)value;
+	}
+}
+
 
 Emulation::EmulationLog *Emulation::CreateLog() {
 	EmulationLog *logptr;

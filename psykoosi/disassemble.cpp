@@ -427,10 +427,14 @@ DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformat
 	}
 
 
-
 	for (InstructionInformation *InsInfoPtr = Instructions[type]; InsInfoPtr != NULL; InsInfoPtr = InsInfoPtr->Lists[type]) {
 		//if (type== LIST_TYPE_INJECTED)printf("InsInfoPtr: Type %d Info Addresss %p [Looking for %p]\n", type, InsInfoPtr->Address, Address);
 		// find by address...
+		// if we have an injection.. and it wants to takeover all of the calls of the address we injected it at...
+		if (InsInfoPtr->Address == Address  && InsInfoPtr->FromInjection && InsInfoPtr->CatchOriginalRelativeDestinations) {
+				return InsInfoPtr;
+		}
+
 		if (InsInfoPtr->Address == Address ||
 			// if not strict.. then we determine if the address lands on this instruction whatsoever
 			(!strict && ((Address >= InsInfoPtr->Address)
@@ -478,10 +482,17 @@ DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformat
 	for (InstructionInformation *InsInfoPtr = Instructions[type]; InsInfoPtr != NULL; InsInfoPtr = InsInfoPtr->Lists[type]) {
 		//if (type== LIST_TYPE_INJECTED)printf("InsInfoPtr: Type %d Info Addresss %p [Looking for %p]\n", type, InsInfoPtr->Address, Address);
 		// find by address...
-		if (InsInfoPtr->Original_Address == Address ||
+
+		// if we have an injection.. and it wants to takeover all of the calls of the address we injected it at...
+		/*if (InsInfoPtr->Address == Address  && InsInfoPtr->FromInjection && InsInfoPtr->CatchOriginalRelativeDestinations) {
+				return InsInfoPtr;
+		}*/
+
+
+		if ((InsInfoPtr->Original_Address == Address ||
 			// if not strict.. then we determine if the address lands on this instruction whatsoever
 			(!strict && ((Address >= InsInfoPtr->Original_Address)
-					&& (Address < InsInfoPtr->Original_Address + InsInfoPtr->Size)))) {
+					&& (Address < InsInfoPtr->Original_Address + InsInfoPtr->Size))))) {
 			// winner winner chicken dinner
 			return InsInfoPtr;
 		}

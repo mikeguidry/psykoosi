@@ -42,7 +42,7 @@ namespace psykoosi {
 		  int Requires_Realignment;
 
 
-		  int InjectInstructionsBefore;
+		  int CatchOriginalRelativeDestinations;
 		  struct _instruction_information *InjectedInstructions;
 
 		  // some quick ways to scan over these later.. push/call are important

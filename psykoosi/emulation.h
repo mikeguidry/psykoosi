@@ -126,6 +126,8 @@ namespace psykoosi {
 	  void ClearLogEntry(EmulationLog *lptr);
 	  void ClearLogs();
 	  void DeleteMemoryAddresses(MemAddresses  *mptr);
+	  void SetRegister(int Monitor, uint32_t Value);
+
 
 	  EmulationLog *StepInstruction(Emulation::CodeAddr Address, int Max_Size);
 	  EmulationLog *CreateLog();

@@ -54,11 +54,14 @@ long InstructionAnalysis::InstructionAddressDistance(DisassembleTask::CodeAddr A
 long InstructionAnalysis::AddressDistance(DisassembleTask::CodeAddr first, int Size, DisassembleTask::CodeAddr second, int type) {
 	DisassembleTask::InstructionInformation *FirstPtr;
 	DisassembleTask::InstructionInformation *SecondPtr;
+	DisassembleTask::InstructionInformation *SecondPtrInj;
 
 	type = 0;
 
+
 	FirstPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((DisassembleTask::CodeAddr)first, type, 1, NULL);
 	SecondPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((DisassembleTask::CodeAddr)second, type, 1, NULL);
+	SecondPtrInj = Disassembler_Handle->GetInstructionInformationByAddress((DisassembleTask::CodeAddr)second, DisassembleTask::LIST_TYPE_REBASED, 1, NULL);
 
 	//std::cout << "FirstPtr: " << static_cast<void *>(FirstPtr) << " " << first << " SecondPtr: " << static_cast<void *>(SecondPtr) << " " << second << std::endl;
 	//printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
@@ -69,6 +72,14 @@ long InstructionAnalysis::AddressDistance(DisassembleTask::CodeAddr first, int S
 
 	if (FirstPtr != NULL)
 	  FirstPtr = FirstPtr->OpDstAddress_realigned;
+
+	// if our injected function wants control over what it has taken over!
+	if (SecondPtrInj) {
+		//printf("Second Ptr %p inj %d catch %d\n",SecondPtrInj->Address, SecondPtrInj->FromInjection, SecondPtrInj->CatchOriginalRelativeDestinations);
+		if (SecondPtrInj->FromInjection == 1 && SecondPtrInj->CatchOriginalRelativeDestinations == 1) {
+			return InstructionAddressDistance(first, Size, SecondPtrInj);
+		}
+	}
 
 	SecondPtr = SecondPtr->OpDstAddress_realigned;
 	if (!SecondPtr) {
@@ -159,6 +170,7 @@ int InstructionAnalysis::AnalyzeInstruction(DisassembleTask::InstructionInformat
 
 		if (InsInfo->Address == EntryPoint) InsInfo->IsEntryPoint = 1;
 
+		if (InsInfo->Size > 1)
 		for (int n = 0; realign[n] != NULL; n++) {
 			if (strstr(AssemblyCodeString, realign[n]) != NULL || (strstr(ud_insn_asm(&InsInfo->ud_obj), realign[n]))) {
 				InsInfo->Requires_Realignment = 1;

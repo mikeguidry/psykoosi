@@ -91,19 +91,26 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	DisassembleTask::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
 
 	// loop and create a new instruction set with modifications and new addresses...
+	// loop and modify all addresses to relate to the new base
+	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		 if (sptr->RawSize == 0) continue;
+		 if (!(sptr->Characteristics == 0x60000020)) continue;
+		 printf("building sets %s\n", sptr->Name);
+		 DisassembleTask::InstructionInformation *InsInfo = 0;
+/*
 	 section_list sections(_PE->get_image_sections());
-	 DisassembleTask::InstructionInformation *InsInfo = 0;
+
 	 int increase_raw = 0;
 	 for(section_list::iterator it = sections.begin(); it != sections.end(); ++it) {
 		 section &s = (section &)*it;
+*/
 
-
-		 DisassembleTask::CodeAddr Section_Virtual_Address = s.get_virtual_address();
-		 DisassembleTask::CodeAddr HighestSectionAddr = pe_bliss::pe_utils::align_up(GHighestSectionAddr + s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
+		 DisassembleTask::CodeAddr Section_Virtual_Address = sptr->Address;
+		 DisassembleTask::CodeAddr HighestSectionAddr = pe_bliss::pe_utils::align_up(GHighestSectionAddr + sptr->RawSize + (1024*30), _PE->get_section_alignment());
 
 		 DisassembleTask::CodeAddr LowestSectionAddr = pe_bliss::pe_utils::align_down(HighestSectionAddr, _PE->get_section_alignment());
 
-		 DisassembleTask::CodeAddr New_Section_High = pe_bliss::pe_utils::align_up(s.get_size_of_raw_data() + (1024*30), _PE->get_section_alignment());
+		 DisassembleTask::CodeAddr New_Section_High = pe_bliss::pe_utils::align_up(sptr->RawSize + (1024*30), _PE->get_section_alignment());
 /*
 		 LowestSectionAddr = 0x407000;
 		 if (increase_raw) {
@@ -119,9 +126,9 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 			 }
 
 */
-			 DisassembleTask::CodeAddr StartAddr = (uint32_t)(s.get_virtual_address() + _PE->get_image_base_32());
-			 DisassembleTask::CodeAddr EndAddr = (uint32_t)(_PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());//+ s.get_aligned_virtual_size(_PE->get_file_alignment());
-			 DisassembleTask::CodeAddr CurAddr = (uint32_t)( _PE->get_image_base_32() + s.get_virtual_address());
+			 DisassembleTask::CodeAddr StartAddr = (uint32_t)(sptr->Address + _PE->get_image_base_32());
+			 DisassembleTask::CodeAddr EndAddr = (uint32_t)(_PE->get_image_base_32() + sptr->Address + sptr->RawSize);
+			 DisassembleTask::CodeAddr CurAddr = (uint32_t)( _PE->get_image_base_32() + sptr->Address);
 
 			 if (CurNewAddr > EndAddr) {
 				 printf("Section not big enough... will rebase as last in memory\n");
@@ -179,6 +186,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 
 					 NewIns->Size = InjInfo->Size;
 					 NewIns->FromInjection = 1;
+					 NewIns->CatchOriginalRelativeDestinations = InjInfo->CatchOriginalRelativeDestinations;
 					 NewIns->Priority = 500;
 
 					 NewIns->Address = CurNewAddr;
@@ -238,6 +246,9 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 				 CurAddr += InsInfo->Size;
 			 }
 
+			 if ((CurNewAddr - sptr->Address) > sptr->VirtualSize) {
+				 sptr->VirtualSize += warp;
+			 }
 	 }
 
 
@@ -305,6 +316,7 @@ int Rebuilder::RebaseCodeSection() {
 int Rebuilder::RealignInstructions() {
 	char testit[1024];
 	DisassembleTask::CodeAddr NewBase = 0;
+
 	if (Must_Rebase_Section) {
 		RebaseCodeSection();
 	}
@@ -363,6 +375,7 @@ int Rebuilder::RealignInstructions() {
 
 
 				 NewIns->FromInjection = InsInfo->FromInjection;
+				 NewIns->CatchOriginalRelativeDestinations = InsInfo->CatchOriginalRelativeDestinations;
 				 if (InsInfo->IsEntryPoint) {
 					 NewIns->IsEntryPoint = InsInfo->IsEntryPoint;
 					 EntryPointInstruction = NewIns;
@@ -388,7 +401,7 @@ int Rebuilder::RealignInstructions() {
 				 	//printf("Comparing %p to %p ptr? %d %d\n", InsInfo->Address, InsInfo->OpDstAddress, InsInfo->IsPointer, distance);
 
 				 	//if (distance != 0) {
-				 	if (distance != 0) {//&& InsInfo->Displacement_Type != 0) {
+				 	if (distance != 0 && InsInfo->Size > 1) {//&& InsInfo->Displacement_Type != 0) {
 
 				 		//if (InsInfo->orig != distance) {
 				 			//printf("Realigning instruction [%p] P %d:\nOriginal: ", InsInfo->Address, InsInfo->IsPointer);
@@ -470,6 +483,8 @@ int Rebuilder::RealignInstructions() {
 
 				 CurAddr += InsInfo->Size;
 			 }
+
+			 printf("end curaddr %p\n", CurAddr);
 		 } else
 
 		 // data section may have pointers.. might have to modify!
@@ -683,14 +698,17 @@ int Rebuilder::WriteBinaryPE2() {
 		} else if (sptr->Characteristics== 0x60000020) {
 			code_section = sptr;
 			printf("doing exe %s\n", sptr->Name);
-			sptr->RawSize += warp;
+
+
 			if (final_size > sptr->RawSize) {
 				printf("ERROR bigger final %d sptr raw %d warp %d\n", final_size, sptr->RawSize, warp);
 			}
+			sptr->RawSize += warp;
 			if (Must_Rebase_Section) {
 				//int align = pe_utils::align_up(sptr->VirtualSize, _PE->get_section_alignment());
 				int align2 = pe_utils::align_down(sptr->RawSize + warp, _PE->get_section_alignment());
 
+				printf("align2 %d\n", align2);
 				if (align2 > sptr->VirtualSize)
 					sptr->VirtualSize = pe_utils::align_up(sptr->VirtualSize + warp, _PE->get_section_alignment());
 
@@ -762,7 +780,8 @@ int Rebuilder::WriteBinaryPE2() {
 	        } else {
 	        	new_image->set_image_base(image.get_image_base_32());
 	        }
-			new_image->set_ep(image.get_ep());
+
+	        new_image->set_ep(image.get_ep());
 			new_image->set_number_of_rvas_and_sizes(image.get_number_of_rvas_and_sizes());
 			new_image->set_subsystem(image.get_subsystem());
 			new_image->set_stub_overlay(image.get_stub_overlay());
@@ -814,7 +833,7 @@ int Rebuilder::WriteBinaryPE2() {
 					new_section.set_name(sptr->Name);
 					new_section.set_virtual_address(sptr->Address);
 					new_section.set_virtual_size(sptr->VirtualSize);
-					new_section.set_pointer_to_raw_data(sptr->RVA);
+					new_section.set_pointer_to_raw_data(sptr->RVA + to_increase);
 
 
 					unsigned char *buffer = new unsigned char[sptr->RawSize+1];
@@ -838,12 +857,27 @@ int Rebuilder::WriteBinaryPE2() {
 			        if (warp) {
 			        	if (new_section.executable()) {
 			        		to_increase += warp;
-			        	} else {
+			        	}/* else {
 			        		new_section.set_pointer_to_raw_data(sptr->RVA + to_increase);
-			        	}
+			        	}*/
 			        }
 
 	                new_image->set_section_virtual_size(added_section, sptr->VirtualSize);
+
+					if (sptr->Characteristics == 0x60000020) {
+				        // fix up entry point
+				        uint32_t Entry = image.get_ep() + image.get_image_base_32();
+				        DisassembleTask::InstructionInformation *InsInfo = _DT->GetInstructionInformationByAddress(Entry, DisassembleTask::LIST_TYPE_INJECTED, 1, NULL);
+				        if (!InsInfo || !(InsInfo->FromInjection && InsInfo->CatchOriginalRelativeDestinations))
+				        	InsInfo = _DT->GetInstructionInformationByAddressOriginal(Entry, DisassembleTask::LIST_TYPE_INJECTED, 1, NULL);
+				        if (!InsInfo) {
+				        	printf("WriteBinaryPE: Couldn't find original entry point instruction in database.. [%p]\n", Entry);
+				        	throw;
+				        }
+
+						new_image->set_ep(InsInfo->Address -  new_image->get_image_base_32());
+						printf("Set entry point: %p\n", new_image->get_ep());
+					}
 
 	                //if (new_section.executable() && warp) to_increase += warp;
 

@@ -12,6 +12,7 @@
 #include <inttypes.h>
 #include <capstone/capstone.h>
 #include <pe_lib/pe_bliss.h>
+#include <fstream>
 #include "virtualmemory.h"
 #include "disassemble.h"
 #include "analysis.h"
@@ -58,6 +59,58 @@ char * Cache_Filename(char *filename, char *type, char *dest) {
 
 	return dest;
 }
+
+
+DisassembleTask::InstructionInformation *Inj_LoadFile(char *filename) {
+	std::ifstream qcin(filename, std::ios::in | std::ios::binary);
+	if (!qcin) return 0;
+
+	qcin.seekg( 0, std::ios::end );
+	std::streampos fsize = qcin.tellg();
+	qcin.seekg( 0, std::ios::beg );
+	qcin.clear();
+
+	DisassembleTask::InstructionInformation *ah = new DisassembleTask::InstructionInformation;
+	std::memset(ah, 0, sizeof(DisassembleTask::InstructionInformation));
+
+	ah->RawData = new unsigned char [fsize];
+	qcin.read((char *)ah->RawData, fsize);
+	qcin.close();
+
+	ah->Size = fsize;
+	ah->FromInjection = 1;
+	ah->CatchOriginalRelativeDestinations = 1;
+
+	return ah;
+}
+
+DisassembleTask::InstructionInformation *Inj_Stream(unsigned char *buffer, int size) {
+	DisassembleTask::InstructionInformation *ah = new DisassembleTask::InstructionInformation;
+	std::memset(ah, 0, sizeof(DisassembleTask::InstructionInformation));
+
+	ah->RawData = new unsigned char [size];
+	std::memcpy((char *)ah->RawData, buffer, size);
+
+	ah->Size = size;
+	ah->FromInjection = 1;
+	ah->CatchOriginalRelativeDestinations = 1;
+
+	return ah;
+}
+
+DisassembleTask::InstructionInformation *Inj_NOP(int size) {
+	DisassembleTask::InstructionInformation *ah = NULL;
+	unsigned char *buf = new unsigned char[size];
+	for (int  i = 0; i < size; i++)
+		buf[i] = 0x90;
+
+	ah = Inj_Stream(buf, size);
+
+	delete buf;
+
+	return ah;
+}
+
 
 
 // our main function... lets try to keep as small as possible (as opposed to how many things were in asmrealign)
@@ -143,25 +196,40 @@ int main(int argc, char *argv[]) {
 	std::cout << "Push Count " << op.analysis->PushCount << std::endl;
 	std::cout << "Realign Count " << op.analysis->RealignCount << std::endl;
 
-	uint32_t entry = op.pe_image->get_image_base_32() + op.pe_image->get_ep();
+	DisassembleTask::CodeAddr InjAddr = op.pe_image->get_image_base_32() + op.pe_image->get_ep();
+	DisassembleTask::InstructionInformation *InjEntry = NULL;
 
-	DisassembleTask::InstructionInformation *ah = new DisassembleTask::InstructionInformation;
-	std::memset(ah, 0, sizeof(DisassembleTask::InstructionInformation));
-	int to_add = atoi(argv[3]);
-	if (!to_add) to_add = 16;
-	ah->RawData = new unsigned char[to_add + 1];
-	ah->Size = to_add;
-	for (int i = 0; i < to_add; i++) ah->RawData[i] = 0x90;
-	ah->FromInjection = 1;
-	DisassembleTask::InstructionInformation *Ientry = op.disasm->GetInstructionInformationByAddress(entry, DisassembleTask::LIST_TYPE_NEXT, 0, NULL);
-	if (!Ientry) {
-		printf("There was an issue finding the entry point.. maybe the file didnt load, or cache is damaged\n");
-		throw;
+	if (argc == 2) { // only have filename to modify
+		InjAddr = 0;
+	} else {
+		if (argc >= 3) // have address after filename for injection
+			sscanf(argv[2], "%x", (void *)&InjAddr);
+		if (argc >= 4) { // have filename of shellcode
+			InjEntry = Inj_LoadFile(argv[3]);
+			if (InjEntry == NULL) {
+				printf("Inj_LoadFile(\"%s\") failed.. using  2048 NOPs\n", argv[3]);
+				InjEntry = Inj_NOP(2048);
+			}
+		}
+
 	}
-	printf("Ientry: %p Addr %p size %d\n", Ientry, Ientry->Address, Ientry->Size);
 
-	if (argc > 2)
-		Ientry->InjectedInstructions = ah;
+	if (InjAddr) {
+		printf("Injection Address: %p\n", InjAddr);
+		printf("Injection Entry: Size = %d Ptr = %p\n", InjEntry->Size, InjEntry->RawData);
+
+		DisassembleTask::InstructionInformation *InjLoc = op.disasm->GetInstructionInformationByAddress(InjAddr, DisassembleTask::LIST_TYPE_NEXT, 0, NULL);
+		if (!InjLoc) {
+			printf("We could not find the instruction at location %p for injection\n", InjAddr);
+			throw;
+		}
+		printf("Instruction at Injection Location [%p] - Addr %p Size %d\n", InjLoc, InjLoc->Address, InjLoc->Size);
+		InjLoc->InjectedInstructions = InjEntry;
+	}
+
+
+
+
 	Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, argv[1]);
 	master.SetBinaryLoader(op.loader);
 	master.RebuildInstructionsSetsModifications();
