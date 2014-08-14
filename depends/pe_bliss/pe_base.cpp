@@ -301,7 +301,6 @@ section& pe_base::section_from_rva(uint32_t rva)
 			return s;
 	}
 
-	//__asm("int3");
 	throw pe_exception("No section found by presented address", pe_exception::no_section_found);
 }
 
@@ -317,7 +316,6 @@ const section& pe_base::section_from_rva(uint32_t rva) const
 			return s;
 	}
 
-	//__asm("int3");
 	throw pe_exception("No section found by presented address", pe_exception::no_section_found);
 }
 
@@ -1399,10 +1397,8 @@ uint32_t pe_base::file_offset_to_rva(uint32_t offset) const
 section_list::const_iterator pe_base::file_offset_to_section(uint32_t offset) const
 {
 	section_list::const_iterator it = std::find_if(sections_.begin(), sections_.end(), section_by_raw_offset(offset));
-	if(it == sections_.end()) {
-		//__asm("int3");
+	if(it == sections_.end())
 		throw pe_exception("No section found by presented file offset", pe_exception::no_section_found);
-	}
 
 	return it;
 }
@@ -1411,10 +1407,8 @@ section_list::const_iterator pe_base::file_offset_to_section(uint32_t offset) co
 section_list::iterator pe_base::file_offset_to_section(uint32_t offset)
 {
 	section_list::iterator it = std::find_if(sections_.begin(), sections_.end(), section_by_raw_offset(offset));
-	if(it == sections_.end()) {
-		//__asm("int3");
+	if(it == sections_.end())
 		throw pe_exception("No section found by presented file offset", pe_exception::no_section_found);
-	}
 	
 	return it;
 }

@@ -48,7 +48,6 @@ namespace psykoosi {
     	unsigned char *RawData;
 
     	CodeAddr Address;
-    	CodeAddr Address_before_Rebase;
 
     	unsigned long VirtualSize;
 

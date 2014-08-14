@@ -8,8 +8,6 @@
 #include <pe_lib/pe_bliss.h>
 extern "C" {
 #include <capstone/capstone.h>
-#include <unistd.h>
-
 }
 #include "virtualmemory.h"
 #include "disassemble.h"
@@ -38,7 +36,7 @@ Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory
 	final_chr = 0;
 
 	final_i = 0;
-	warp = 0;
+	warp = 32;
 	final_size = 0;
 	// if our additional code goes into another section.. we have to rebase the entire thing
 	// either move the code section, or move data, or whatever...
@@ -123,9 +121,9 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 			 DisassembleTask::CodeAddr EndAddr = (uint32_t)(_PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());//+ s.get_aligned_virtual_size(_PE->get_file_alignment());
 			 DisassembleTask::CodeAddr CurAddr = (uint32_t)( _PE->get_image_base_32() + s.get_virtual_address());
 
-			 if (CurNewAddr > EndAddr) {
-				 printf("Section not big enough... will rebase as last in memory\n");
-				 Must_Rebase_Section = 1;
+			 if (CurNewAddr > CurAddr) {
+				 printf("Section not big enough\n");
+				 //Must_Rebase_Section = 1;
 			 }
 
 
@@ -246,82 +244,30 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 
 
 
-int Rebuilder::RebaseCodeSection() {
-	DisassembleTask::CodeAddr NewBase = 0;
-
-	DisassembleTask::CodeAddr LastSectAddr = 0;
-	long NewBase_difference = 0;
-	// determinethe new base
-	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
-		DisassembleTask::CodeAddr EndSect = sptr->Address + sptr->VirtualSize + _PE->get_image_base_32();
-		if (EndSect > LastSectAddr)
-		 LastSectAddr = EndSect;
-		printf("LastSect: %p EndSect\n", LastSectAddr, EndSect);
-	}
-
-	 if (LastSectAddr == 0) throw;
-
-	 NewBase = LastSectAddr + _PE->get_section_alignment();
-	 printf("new base = %p\n", NewBase);
-
-
-	// loop and modify all addresses to relate to the new base
-	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
-		 if (sptr->Characteristics == 0x60000020) {
-					 DisassembleTask::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
-					 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->RawSize + sptr->Address + warp;
-					 DisassembleTask::CodeAddr CurAddr = StartAddr;
-					 DisassembleTask::InstructionInformation *InsInfo = 0;
-					 NewBase_difference = NewBase - StartAddr;
-
-
-					 for (; CurAddr < EndAddr; ) {
-						 InsInfo = _DT->GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_INJECTED, 1, InsInfo);
-
-						 if  (!InsInfo) {
-							 CurAddr++;
-							 continue;
-						 }
-
-						 InsInfo->Address = CurAddr + NewBase_difference;
-						 InsInfo->OpDstAddress += NewBase_difference;
-
-						 CurAddr += InsInfo->Size;
-					 }
-
-					 sptr->Address_before_Rebase = sptr->Address;
-					 printf("Increasing base by %d [%p]\n", NewBase_difference, sptr->Address);
-					 //sleep(3);
-					 sptr->Address += NewBase_difference;
-		 }
-	 }
-	return 1;
-}
-
 // this very similar to the code above although that code has to complete before this one can be called..
 // just in case something jumps in the past/future... maybe ill put into one function in the future
 // once i fully implement backwards references then i can realign the moment the new instruction structure
 // is created
 int Rebuilder::RealignInstructions() {
 	char testit[1024];
-	DisassembleTask::CodeAddr NewBase = 0;
-	if (Must_Rebase_Section) {
-		RebaseCodeSection();
-	}
+	if (Must_Rebase_Section) return 0;
 
 	Emulation emulator(vmem);
 
 	raw_final.clear();
 	final_chr = new unsigned char[final_size + 16];
 
-	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+	// loop and create a new instruction set with modifications and new addresses...
+	 const section_list sections(_PE->get_image_sections());
+	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
+		 const section &s = *it;
 
-		 if (sptr->Characteristics == 0x60000020) {
-			 DisassembleTask::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
-			 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->Address + sptr->RawSize + warp;
+		 // should also modify other areas later.. if we end up moving around data etc
+		 if (s.executable()) {
+			 DisassembleTask::CodeAddr StartAddr = s.get_virtual_address() + _PE->get_image_base_32();
+			 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data() + 1024;
 			 DisassembleTask::CodeAddr CurAddr = StartAddr;
 			 DisassembleTask::InstructionInformation *InsInfo = 0;
-
 			 for (; CurAddr < EndAddr; ) {
 				 InsInfo = _DT->GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_INJECTED, 1, InsInfo);
 
@@ -473,9 +419,9 @@ int Rebuilder::RealignInstructions() {
 		 } else
 
 		 // data section may have pointers.. might have to modify!
-		 if (sptr->Characteristics == 0xc0000040 || (strstr((const char *)sptr->Name,(const char *) ".data") != NULL)) {
-			 unsigned char *data_ptr = (unsigned char *)sptr->RawData;
-			 int data_size = sptr->RawSize;
+		 if (s.get_characteristics() == 0xc0000040 || (strstr((const char *)s.get_name().c_str(),(const char *) ".data") != NULL)) {
+			 unsigned char *data_ptr = (unsigned char *)s.get_raw_data().data();
+			 int data_size = s.get_size_of_raw_data();
 			 int Total = data_size;// / sizeof(DisassembleTask::CodeAddr);
 
 
@@ -490,14 +436,14 @@ int Rebuilder::RealignInstructions() {
 				 InsInfo = _DT->GetInstructionInformationByAddressOriginal(*Addr, DisassembleTask::LIST_TYPE_INJECTED, 1, InsInfo);
 				 if (InsInfo != NULL) {
 					 LastOrig = *Addr;
-					 printf("Data Section [%p]: Replacing %p in data section with %p [name: %s]\n", Addr, *Addr, InsInfo->Address, (char *)sptr->Name);
+					 printf("Data Section [%p]: Replacing %p in data section with %p [name: %s]\n", Addr, *Addr, InsInfo->Address, (char *)s.get_name().c_str());
 
 				  	  *Addr = InsInfo->Address;
 				 }
 			 }
-			 vmem->MemDataWrite(sptr->Address + _PE->get_image_base_32(), data_ptr, data_size);
+			 vmem->MemDataWrite(s.get_virtual_address() + _PE->get_image_base_32(), data_ptr, data_size);
 		 } else {
-			 vmem->MemDataWrite(sptr->Address + _PE->get_image_base_32(), (unsigned char *)sptr->RawData, sptr->RawSize);
+			 vmem->MemDataWrite(s.get_virtual_address() + _PE->get_image_base_32(), (unsigned char *)s.get_raw_data().data(), s.get_size_of_raw_data());
 		 }
 
 	 }
@@ -517,18 +463,8 @@ int Rebuilder::ModifyRelocations() {
 	// iterate through the table lists (they each have a different RVA)
 	const relocation_table_list tables(get_relocations(*_PE));
 	for(relocation_table_list::const_iterator it = tables.begin(); it != tables.end(); ++it) {
-		 relocation_table& table = (relocation_table &)*it;
+		const relocation_table& table = *it;
 
-		if (Must_Rebase_Section) {
-			for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
-				if ((table.get_rva() >= sptr->Address) && (table.get_rva() < (sptr->Address + sptr->VirtualSize))) {
-					break;
-				}
-			if (sptr != NULL) {
-				table.set_rva(table.get_rva() + (sptr->Address - sptr->Address_before_Rebase));
-			}
-			}
-		}
 		// iterate through each section looping for the section that this table belongs to
 		section_list sections(_PE->get_image_sections());
 		for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
@@ -573,11 +509,6 @@ int Rebuilder::ModifyRelocations() {
 	section &reloc_sect = _PE->section_from_rva(_PE->get_directory_rva(image_directory_entry_basereloc));
 	// use pe bliss to rebuild the relocation data directory from the structures we were just enumerating and modifying
     rebuild_relocations(*_PE, tables, reloc_sect, 0, false, false);
-
-	section reloc_sect_new = _PE->section_from_rva(_PE->get_directory_rva(image_directory_entry_basereloc));
-	unsigned char *reloc_s = (unsigned char *)reloc_sect_new.get_raw_data().data();
-
-	vmem->MemDataWrite(reloc_sect_new.get_virtual_address() + _PE->get_image_base_32(),(unsigned char *) reloc_s, reloc_sect_new.get_size_of_raw_data());
 
 	return 1;
 }
@@ -672,58 +603,14 @@ int Rebuilder::WriteBinaryPE() {
 
 int Rebuilder::WriteBinaryPE2() {
 	// If we have to rebase the section.. then we fail
-	//if (Must_Rebase_Section) return 0;
+	if (Must_Rebase_Section) return 0;
 	final_size = final_i;
-	VirtualMemory::Memory_Section *code_section = NULL, *last_section_ptr = NULL;
 
 	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
-		if (sptr->Characteristics == 0) {
-			printf("ERROR something corrupted in section 1!\n");
-			continue;
-		} else if (sptr->Characteristics== 0x60000020) {
-			code_section = sptr;
-			printf("doing exe %s\n", sptr->Name);
-			sptr->RawSize += warp;
-			if (final_size > sptr->RawSize) {
-				printf("ERROR bigger final %d sptr raw %d warp %d\n", final_size, sptr->RawSize, warp);
-			}
-			if (Must_Rebase_Section) {
-				//int align = pe_utils::align_up(sptr->VirtualSize, _PE->get_section_alignment());
-				int align2 = pe_utils::align_down(sptr->RawSize + warp, _PE->get_section_alignment());
-
-				if (align2 > sptr->VirtualSize)
-					sptr->VirtualSize = pe_utils::align_up(sptr->VirtualSize + warp, _PE->get_section_alignment());
-
-				// move to last section because i think necessary
-				if (last_section_ptr != NULL) {
-					last_section_ptr = sptr->next;
-					while (last_section_ptr->next != NULL) {
-						last_section_ptr = last_section_ptr->next;
-					}
-					last_section_ptr->next = sptr;
-				} else {
-					// this means its the first.. find last link
-					last_section_ptr = sptr->next;
-					while (last_section_ptr->next != NULL) {
-						last_section_ptr = last_section_ptr->next;
-					}
-
-					// put it behind last (since we are giving it a higher virtual address)
-					last_section_ptr->next = sptr;
-
-					// set first to next one
-					_VM->Section_List = sptr->next;
-
-					//_VM->Section_List->Address = sptr->Address_before_Rebase;
-					_VM->Section_List->VirtualSize += sptr->VirtualSize;
-					// no more behind us.. or infinite loop
-					sptr->next = NULL;
-				}
-
-			}
-			last_section_ptr = sptr;
-		}
-
+if (sptr->Characteristics == 0) {
+	printf("ERROR something corrupted in section 1!\n");
+	continue;
+}
 						printf("name %s chr %x vaddr %p vsize %d ptr %d size %d\n", sptr->Name, sptr->Characteristics,
 								sptr->Address,
 								sptr->VirtualSize, sptr->RVA, sptr->RawSize);
@@ -757,11 +644,7 @@ int Rebuilder::WriteBinaryPE2() {
 			new_image->set_heap_size_reserve(image.get_heap_size_reserve_64());
 			new_image->set_stack_size_commit(image.get_stack_size_commit_64());
 			new_image->set_stack_size_reserve(image.get_stack_size_reserve_64());
-	        if (Must_Rebase_Section) {
-	        	new_image->set_image_base(image.get_image_base_32());
-	        } else {
-	        	new_image->set_image_base(image.get_image_base_32());
-	        }
+			new_image->set_image_base(image.get_image_base_32());
 			new_image->set_ep(image.get_ep());
 			new_image->set_number_of_rvas_and_sizes(image.get_number_of_rvas_and_sizes());
 			new_image->set_subsystem(image.get_subsystem());
@@ -779,22 +662,13 @@ int Rebuilder::WriteBinaryPE2() {
 			// add directories.. maybe do relocations a diff way
 			for(unsigned long i = 0; i < image.get_number_of_rvas_and_sizes(); ++i) {
 
-				if (image.get_directory_rva(i) == 0) continue;
+				// still have to finish this one
 				//if (i != image_directory_entry_basereloc && 1==0) {
-				// if we add more relocations.. fix this! give it higher rva...
-				// same for exports
-
-				/* This has to be  changed if for some reason directories RVAs are after code we added
-				 * if (Must_Rebase_Section) {
-					if (image.get_directory_rva(i) > code_section->RVA) {
-						new_image->set_directory_rva(i, image.get_directory_rva(i));
-					} else {
-						// its ok.. normal is fine
-						new_image->set_directory_rva(i, image.get_directory_rva(i));
-					}
-				}*/
-				new_image->set_directory_rva(i, image.get_directory_rva(i));
-				new_image->set_directory_size(i, image.get_directory_size(i));
+					new_image->set_directory_rva(i, image.get_directory_rva(i));
+					new_image->set_directory_size(i, image.get_directory_size(i));
+				//} else {
+					// rebuild relocation from our internal structures
+				//}
 			}
 
 			// add sections from our list..
@@ -814,13 +688,35 @@ int Rebuilder::WriteBinaryPE2() {
 					new_section.set_name(sptr->Name);
 					new_section.set_virtual_address(sptr->Address);
 					new_section.set_virtual_size(sptr->VirtualSize);
+					printf("setting vsize %X\n", sptr->VirtualSize);
 					new_section.set_pointer_to_raw_data(sptr->RVA);
+					//new_section.set_size_of_raw_data(sptr->RawSize);
+					//new_section.set_size_of_raw_data(final_size);
 
+					//std::string *blah = new std::string((const char *)final_chr, final_size);
+					//new_section.set_raw_data(blah);
+					//new_section.raw_data_ = *blah;
+					//new_section.raw_data_.resize(final_size);
+					if (new_section.executable()) {
+						printf("doing exe %s\n", sptr->Name);
+						sptr->RawSize += warp;
+						if (final_size > sptr->RawSize) {
+							printf("ERROR bigger %d %d\n", final_size, sptr->RawSize);
+							//sptr->RawSize += final_size;
+							//to_increase = final_size - sptr->RawSize;
+						}
 
-					unsigned char *buffer = new unsigned char[sptr->RawSize+1];
-					vmem->MemDataRead(sptr->Address + image.get_image_base_32(), (unsigned char *)buffer, sptr->RawSize);
-					new_section.get_raw_data().resize(sptr->RawSize);
-					std::memcpy((void *)new_section.get_raw_data().data(),(const void *)buffer, sptr->RawSize);
+						//new_section.get_raw_data().resize(sptr->RawSize);
+						//std::memcpy((void *)new_section.get_raw_data().data(),(const void *) final_chr , final_size);
+
+					}
+					//else {
+						printf("doing %s\n", sptr->Name);
+						unsigned char *buffer = new unsigned char[sptr->RawSize+1];
+						vmem->MemDataRead(sptr->Address + image.get_image_base_32(), (unsigned char *)buffer, sptr->RawSize);
+						new_section.get_raw_data().resize(sptr->RawSize);
+						std::memcpy((void *)new_section.get_raw_data().data(),(const void *)buffer, sptr->RawSize);
+					//}
 					new_section.set_size_of_raw_data(sptr->RawSize);
 
 			        section& added_section = new_image->add_section(new_section);
@@ -828,25 +724,8 @@ int Rebuilder::WriteBinaryPE2() {
 			        added_section.set_name(sptr->Name);
 			        added_section.set_virtual_address(sptr->Address);
 			        added_section.set_virtual_size(sptr->VirtualSize);
-
-			        if (Must_Rebase_Section) {
-						if (new_section.executable()) {
-							new_image->set_base_of_code((sptr->Address - sptr->Address_before_Rebase) + _PE->get_base_of_code());
-						}
-			        }
-
-			        if (warp) {
-			        	if (new_section.executable()) {
-			        		to_increase += warp;
-			        	} else {
-			        		new_section.set_pointer_to_raw_data(sptr->RVA + to_increase);
-			        	}
-			        }
-
+			        new_section.set_pointer_to_raw_data(sptr->RVA + to_increase);
 	                new_image->set_section_virtual_size(added_section, sptr->VirtualSize);
-
-	                //if (new_section.executable() && warp) to_increase += warp;
-
 				}
 				/*const section_list& pe_sections = image.get_image_sections();
 				for(section_list::const_iterator it = pe_sections.begin(); it  != pe_sections.end(); ++it) {
@@ -855,10 +734,9 @@ int Rebuilder::WriteBinaryPE2() {
 			}
 		}
 
-		printf("rebuild\n");
 
 		std::stringstream temp_pe(std::ios::out | std::ios::in | std::ios::binary);
-		rebuild_pe(*new_image, temp_pe, false, false, false);
+		rebuild_pe(*new_image, temp_pe);
 
 		new_image->set_checksum(calculate_checksum(temp_pe));
 

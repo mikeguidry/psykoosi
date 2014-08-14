@@ -81,10 +81,10 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 			 const section &s = *it;
 
 			 if (Last_Section_Addr == 0) {
-				 Last_Section_Addr = s.get_pointer_to_raw_data() + s.get_virtual_address();
+				 Last_Section_Addr = s.get_virtual_size() + s.get_virtual_address();
 			 } else {
-				 int space = (s.get_virtual_address()) - Last_Section_Addr;
-				 printf("Space in-between section: %d\n", space);
+				 int  space = (s.get_virtual_address()) - Last_Section_Addr;
+				 printf("Space inbetween section: %d\n", space);
 			 }
 
 			 std::cout << "Section [" << s.get_name() << "]" << std::endl
@@ -93,7 +93,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 					 << "Size of raw data: " << s.get_size_of_raw_data() << std::endl
 					 << "Virtual address: " << s.get_virtual_address() << std::endl
 					 << "Virtual size: " << s.get_virtual_size() << std::endl
-					 << "Raw Data Size: " << s.get_size_of_raw_data() << std::endl
+					 << " Raw Data Size: " << s.get_size_of_raw_data() << std::endl
 					 << "addr: " << (image->get_image_base_32() + s.get_virtual_address()) << std::endl
 					 << std::endl;
 
