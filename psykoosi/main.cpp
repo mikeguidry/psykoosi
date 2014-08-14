@@ -18,6 +18,9 @@
 #include "loading.h"
 #include "rebuild.h"
 #include "structures.h"
+extern "C" {
+#include <unistd.h>
+}
 
 using namespace psykoosi;
 using namespace pe_bliss;
@@ -64,6 +67,13 @@ int main(int argc, char *argv[]) {
 		printf("psykoosi - binary modification platform\nusage: %s <binary> <module>\n", argv[0]);
 		exit(-1);
 	}
+
+	// so my linux laptop can still move while testing/developing
+	// and soon i would like to add multithreading.. will design that shortly!
+	// splitting up disaassembling tasks into pthreads for the amount of cores from /proc/cpuinfo
+	// also need to optimzie the engine (maybe use emulator so we dont have to do some much verification
+	// and re-passes or ... keep strictly informatin so we know alignment isnt an issue)
+	nice(20);
 
 	// Lets initialize our main class....
 	Sculpture op;
