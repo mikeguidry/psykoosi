@@ -49,6 +49,7 @@ namespace psykoosi {
 		  int IsPush;
 		  int IsCall;
 		  int IsEntryPoint;
+		  int IsImmediate;
 
 		  // Operand destination information
 		  struct _instruction_information *OpDstInstructionInformation;

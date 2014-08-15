@@ -262,20 +262,24 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 			pInfo->Displacement_Offset = pInfo->InsDetail->x86.disp_offset;
 		else if (pInfo->InsDetail->x86.imm_offset)
 			pInfo->Displacement_Offset = pInfo->InsDetail->x86.imm_offset;
-/*
+
+		if (pInfo->Displacement_Offset == 255)
+			pInfo->Displacement_Offset = pInfo->InsDetail->x86.imm_offset;
+
+		/*
  printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
 				 pInfo->InsDetail->x86.disp,
-				 (uint8_t)pInfo->InsDetail->x86.imm_offset, dtype); */
-			/*for (int i = 0; i < pInfo->InsDetail->x86.op_count;i++) {
+				 (uint8_t)pInfo->InsDetail->x86.imm_offset, dtype);
+			for (int i = 0; i < pInfo->InsDetail->x86.op_count;i++) {
 				uint32_t disp = pInfo->InsDetail->x86.operands[i].mem.disp;
 				uint32_t disp2 = pInfo->InsDetail->x86.operands[i].imm;
 				printf("Op %d disp %X disp2 \n", i, disp, disp2);
 			}
 			printf("hex:");for (int a =0; a < len; a++) { printf("%02X", (unsigned char)Data[a]); }printf("\n");
-			*/
-			//disasm_str(Address, (char *)Data, len);
-		//for (int a = 0; a < pInfo->Size; a++) printf("%02X", (unsigned char)pInfo->RawData[a]);printf("\n");
 
+			disasm_str(Address, (char *)Data, len);
+		for (int a = 0; a < pInfo->Size; a++) printf("%02X", (unsigned char)pInfo->RawData[a]);printf("\n");
+*/
 
 		cs_free(DisFrameworkIns, 1);
 		DCount++;
@@ -597,7 +601,7 @@ int DisassembleTask::Cache_Load(char *filename) {
 		uint32_t verify = 0;
 		qcin.read((char *)&verify, sizeof(uint32_t));
 		if (header != verify) {
-			printf("Cache header fail!\n");
+			//printf("Cache header fail!\n");
 			throw;
 			return 0;
 		}

@@ -16,6 +16,7 @@ VirtualMemory::VirtualMemory()
 {
   Memory_Pages = NULL;
   Section_List = Section_Last = NULL;
+  VMParent = NULL;
 }
 
 VirtualMemory::~VirtualMemory()
@@ -54,9 +55,13 @@ void VirtualMemory::ReleaseChild() {
 }
 
 unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
+	unsigned long ret;
     if(block <= 1) return n;
     block--;
-    return (n + block) & ~block;
+
+    ret = (n + block) & ~block;
+
+    return ret;
 }
 
 VirtualMemory::MemPage *VirtualMemory::MemPagePtrIfExists(unsigned long addr) {
@@ -71,32 +76,61 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtrIfExists(unsigned long addr) {
     return NULL;
 }
 
+
+VirtualMemory::MemPage *VirtualMemory::ClonePage(MemPage *ParentOriginal) {
+	MemPage *mptr = NewPage(ParentOriginal->round, ParentOriginal->size);
+	if (mptr == NULL) {
+		printf("error cloning page!\n");
+		throw;
+		return NULL;
+	}
+	std::memcpy(mptr->data, ParentOriginal->data, mptr->size);
+
+	return mptr;
+}
+
+int VirtualMemory::IsMyPage(MemPage *mptr) {
+	return (mptr->ClassPtr == this);
+}
+
+VirtualMemory::MemPage *VirtualMemory::NewPage(unsigned long round, int size) {
+    MemPage *mptr = new MemPage;
+
+    std::memset(mptr, 0, sizeof(MemPage));
+
+   // push old back..
+   mptr->next = (MemPage *)Memory_Pages;
+   // insert in the beginning
+   Memory_Pages = mptr;
+
+   // what page range is this for
+   mptr->round = round;
+   // size of this page
+   mptr->size = PAGE_SIZE;
+   // lets allocate the data
+   mptr->data = new unsigned char[PAGE_SIZE+16];
+   std::memset(mptr->data, 0x00, PAGE_SIZE);
+
+   mptr->ClassPtr = this;
+
+   return mptr;
+
+}
+
 // find the specific page
 VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
     MemPage *mptr = MemPagePtrIfExists(addr);
+
+    // lets see if we have a parent.. and if it has this data.. if so we borrow the page
+    if (VMParent != NULL)
+    	mptr = VMParent->MemPagePtrIfExists(addr);
 
     if (mptr != NULL) return mptr;
 
     unsigned long round = roundupto(addr, PAGE_SIZE); // round up to 64k pages
 
     // couldnt find so allocate..
-    mptr = new MemPage;
-
-    //z c++ero out new memory
-    std::memset(mptr, 0, sizeof(MemPage));
-
-    // push old back..
-    mptr->next = (MemPage *)Memory_Pages;
-    // insert in the beginning
-    Memory_Pages = mptr;
-
-    // what page range is this for
-    mptr->round = round;
-    // size of this page
-    mptr->size = PAGE_SIZE;
-    // lets allocate the data
-    mptr->data = new unsigned char[PAGE_SIZE+16];
-    std::memset(mptr->data, 0x00, PAGE_SIZE);
+    mptr = NewPage(round, PAGE_SIZE);
     
     return mptr;
 }
@@ -109,6 +143,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
     
     for (i = 0; i < len; i++) {
         if ((mptr = MemPagePtr(addr+i)) == 0) return 0;
+
         // determine location on page
         pageaddr = (addr+i) - (mptr->round - PAGE_SIZE);
         // read byte
@@ -117,6 +152,11 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			data[i] = mptr->data[pageaddr];
 			break;
 		  case VMEM_WRITE:
+			// clone on write.... from parent
+			if (!IsMyPage(mptr)) {
+				mptr = ClonePage(mptr);
+				if (mptr==NULL) throw;
+			}
 			mptr->data[pageaddr] = data[i];
 			break;
 		  default:
@@ -134,7 +174,7 @@ int VirtualMemory::MemDataRead(unsigned long addr, unsigned char *result, int le
 
 // writes data into the virtual memory
 int VirtualMemory::MemDataWrite(unsigned long addr, unsigned char *data, int len) {
-  return MemDataIO(VMEM_WRITE, addr, data, len);
+	return MemDataIO(VMEM_WRITE, addr, data, len);
 }
 
 VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint32_t Size,uint32_t VirtualSize, SectionType Type, uint32_t Characteristics, uint32_t RVA, char *Name, unsigned char *Data) {

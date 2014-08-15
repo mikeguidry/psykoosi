@@ -94,7 +94,7 @@ DisassembleTask::InstructionInformation *Inj_Stream(unsigned char *buffer, int s
 
 	ah->Size = size;
 	ah->FromInjection = 1;
-	ah->CatchOriginalRelativeDestinations = 1;
+	ah->CatchOriginalRelativeDestinations = 0;
 
 	return ah;
 }
@@ -118,7 +118,7 @@ DisassembleTask::InstructionInformation *Inj_NOP(int size) {
 int main(int argc, char *argv[]) {
 	char filename[1024];
 	if (argc < 2) {
-		printf("psykoosi - binary modification platform\nusage: %s <binary> <module>\n", argv[0]);
+		printf("psykoosi - binary modification platform\nusage: %s <binary> <address to inject> <filename of shellcode or blank for NOPs>\n", argv[0]);
 		exit(-1);
 	}
 

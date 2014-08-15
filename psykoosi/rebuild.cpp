@@ -85,10 +85,40 @@ DisassembleTask::CodeAddr Rebuilder::CheckForModifiedAddress(DisassembleTask::Co
 	return 0;
 }
 
-int Rebuilder::RebuildInstructionsSetsModifications() {
-	DisassembleTask::CodeAddr CurNewAddr = 0;
 
+DisassembleTask::InstructionInformation *Inj_Stream(unsigned char *buffer, int size);
+
+
+
+int Rebuilder::RebuildInstructionsSetsModifications() {
+	int count = 0;
+	DisassembleTask::CodeAddr CurNewAddr = 0;
 	DisassembleTask::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
+
+	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		 if (sptr->RawSize == 0) continue;
+		 if (!(sptr->Characteristics == 0x60000020)) continue;
+
+		 /*
+		 DisassembleTask::InstructionInformation *In = _DT->Instructions[DisassembleTask::LIST_TYPE_NEXT];
+		 while (In) {
+			 if (!(count++ % 5)) {
+				 int size = 3+(rand()%2);
+				 DisassembleTask::InstructionInformation *InjIt = Inj_Stream((unsigned char *)"\x90\x90\x90", size);
+				 std::memset((void *)InjIt->RawData, 0x90, size);
+				 In->InjectedInstructions = InjIt;
+				 warp += InjIt->Size;
+			 }
+
+			 if (In->Address >= (_PE->get_image_base_32() + sptr->Address + (sptr->VirtualSize-warp-128))) {
+				 printf("breaking %p %d [high %p]\n", In->Address, warp, sptr->VirtualSize + sptr->Address + _PE->get_image_base_32());
+				 break;
+			 }
+			 In = In->Lists[DisassembleTask::LIST_TYPE_NEXT];
+
+		 }*/
+
+	 }
 
 	// loop and create a new instruction set with modifications and new addresses...
 	// loop and modify all addresses to relate to the new base
@@ -224,6 +254,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 					 NewIns->Displacement_Type = InsInfo->Displacement_Type;
 					 NewIns->Displacement_Offset = InsInfo->Displacement_Offset;
 					 NewIns->IsPointer = InsInfo->IsPointer;
+					 NewIns->IsImmediate = InsInfo->IsImmediate;
 
 					 std::memcpy((void *)&NewIns->ud_obj, (void *)&InsInfo->ud_obj, sizeof(ud_t));
 
@@ -309,6 +340,10 @@ int Rebuilder::RebaseCodeSection() {
 	return 1;
 }
 
+
+
+
+
 // this very similar to the code above although that code has to complete before this one can be called..
 // just in case something jumps in the past/future... maybe ill put into one function in the future
 // once i fully implement backwards references then i can realign the moment the new instruction structure
@@ -386,6 +421,7 @@ int Rebuilder::RealignInstructions() {
 				 NewIns->Requires_Realignment = InsInfo->Requires_Realignment;
 				 NewIns->IsPointer = InsInfo->IsPointer;
 				 NewIns->orig = InsInfo->orig;
+				 NewIns->IsImmediate = InsInfo->IsImmediate;
 
 				 // need to realign here....
 
@@ -398,8 +434,18 @@ int Rebuilder::RealignInstructions() {
 
 
 					//ud_operand_t *udop = (ud_operand_t *)ud_insn_opr(&InsInfo->ud_obj, 0);
-				 	int32_t distance = _IA->AddressDistance(InsInfo->Address, InsInfo->Size, InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED);
-				 	//printf("Comparing %p to %p ptr? %d %d\n", InsInfo->Address, InsInfo->OpDstAddress, InsInfo->IsPointer, distance);
+				 	int32_t distance = 0;
+				 	if (!InsInfo->IsImmediate) {
+				 		distance = _IA->AddressDistance(InsInfo->Address, InsInfo->Size, InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED);
+				 	} else {
+				 		DisassembleTask::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED, 0, NULL);
+				 		if (InsDstInfo) {
+				 			printf("ERROR Have an immediate (%p) found new %p\n", InsDstInfo->Address);
+				 			distance = InsDstInfo->Address;
+				 		}
+				 	}
+
+				 	printf("Comparing %p to %p ptr? %d %d [imm %d push %d call %d]\n", InsInfo->Address, InsInfo->OpDstAddress, InsInfo->IsPointer, distance, InsInfo->IsImmediate, InsInfo->IsPush, InsInfo->IsCall);
 
 				 	//if (distance != 0) {
 				 	if (distance != 0 && InsInfo->Size > 1) {//&& InsInfo->Displacement_Type != 0) {
@@ -409,7 +455,7 @@ int Rebuilder::RealignInstructions() {
 				 			_DT->disasm_str(NewIns->Original_Address, ( char *)NewIns->RawData, NewIns->Size);
 				 		//}
 
-				 		//printf("%p:%d distance %d disp off %d  dtype %d [%p]\n", InsInfo->Address, InsInfo->Size, distance, InsInfo->Displacement_Offset, InsInfo->Displacement_Type, InsInfo->Original_Address);
+				 		printf("%p:%d distance %d disp off %d  dtype %d [%p]\n", InsInfo->Address, InsInfo->Size, distance, InsInfo->Displacement_Offset, InsInfo->Displacement_Type, InsInfo->Original_Address);
 
 				 		int bytes = InsInfo->Size - InsInfo->Displacement_Offset;
 				 		switch (bytes) {
@@ -440,11 +486,12 @@ int Rebuilder::RealignInstructions() {
 							 printf("ERROR Was unable to analyze instruction at address %p", NewIns->Address);
 
 						 } else {
-						 if (NewIns->Requires_Realignment && !(emu_log->Monitor & Emulation::REG_EIP)) {
-							 DisassembleTask::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED, 0, NULL);
-							 printf("didnt modify eip?!? wtf? [Wanted %p] trust?%d\n", InsDstInfo ? InsDstInfo->Address : InsInfo->OpDstAddress, InsDstInfo!=NULL);
-							 //throw;
-						 } else printf("Did modify EIP %p [Want %p]\n", emu_log->Changes->Result, InsInfo->OpDstAddress);
+							 if (NewIns->Requires_Realignment && (emu_log->Monitor & Emulation::REG_EIP)) {
+								 DisassembleTask::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED, 0, NULL);
+								 if (InsDstInfo && InsDstInfo->Address != emu_log->Changes->Result) {
+									 printf("Did modify EIP %p [Want %p] %p %d\n", emu_log->Changes->Result, InsInfo->OpDstAddress,  InsDstInfo ? InsDstInfo->Address : InsInfo->OpDstAddress, InsDstInfo!=NULL);
+								 }
+							 }
 						 }
 				 		std::string verifyasm = _DT->disasm_str(NewIns->Original_Address, ( char *)NewIns->RawData, NewIns->Size);
 				 		if (emu_log != NULL && emu_log->Changes != NULL && !(emu_log->Changes->Result == InsInfo->OpDstAddress))
@@ -453,7 +500,7 @@ int Rebuilder::RealignInstructions() {
 				 		}
 				 		printf("--\n");
 
-				 		//if (InsInfo->orig != distance) printf("CHANGED\n");
+				 		//ifhyang(InsInfo->orig != distance) printf("CHANGED\n");
 
 				 		//printf("new (supposed to go to %p) orig %d new %d:", InsInfo->OpDstAddress, InsInfo->orig, distance);
 				 		//if (InsInfo->orig != distance) {
@@ -491,26 +538,28 @@ int Rebuilder::RealignInstructions() {
 		 } else
 
 		 // data section may have pointers.. might have to modify!
-		 if (sptr->Characteristics == 0xc0000040 || (strstr((const char *)sptr->Name,(const char *) ".data") != NULL)) {
+		 if (sptr->Characteristics == 0xc0000040 || (strstr((const char *)sptr->Name,(const char *) "data") != NULL)) {
 			 unsigned char *data_ptr = (unsigned char *)sptr->RawData;
 			 int data_size = sptr->RawSize;
 			 int Total = data_size;// / sizeof(DisassembleTask::CodeAddr);
 
 
 			 DisassembleTask::CodeAddr *Last = 0;
-			 DisassembleTask::CodeAddr LastOrig = 0;
+
 
 
 			 DisassembleTask::InstructionInformation *InsInfo = 0;
-			 for (int ModCount = 0; ModCount < Total; ModCount += 4) {
+			 for (int ModCount = 0; ModCount < Total; ModCount += 1) {
+				 InsInfo = NULL;
 				 DisassembleTask::CodeAddr *Addr = (DisassembleTask::CodeAddr *)(data_ptr+ModCount);
 				 if (*Addr == 0) continue;
-				 InsInfo = _DT->GetInstructionInformationByAddressOriginal(*Addr, DisassembleTask::LIST_TYPE_INJECTED, 1, InsInfo);
+				 InsInfo = _DT->GetInstructionInformationByAddressOriginal(*Addr, DisassembleTask::LIST_TYPE_INJECTED, 1, NULL);
 				 if (InsInfo != NULL) {
-					 LastOrig = *Addr;
-					 printf("Data Section [%p]: Replacing %p in data section with %p [name: %s]\n", Addr, *Addr, InsInfo->Address, (char *)sptr->Name);
+					 if (InsInfo->Address != InsInfo->Original_Address) {
+						 printf("Data Section [%p]: Replacing %p in data section with %p [name: %s] Old %p\n", Addr, *Addr, InsInfo->Address, (char *)sptr->Name, InsInfo->Original_Address);
 
-				  	  *Addr = InsInfo->Address;
+						 *Addr = InsInfo->Address;
+					 }
 				 }
 			 }
 			 vmem->MemDataWrite(sptr->Address + _PE->get_image_base_32(), data_ptr, data_size);

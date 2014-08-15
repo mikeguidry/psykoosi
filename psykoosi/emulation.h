@@ -135,7 +135,6 @@ namespace psykoosi {
 		  VirtualMemory EmuVMEM;
 
 		  struct hack_x86_emulate_ops emulate_ops;
-		  struct x86_emulate_ctxt emulation_ctx;
 		  struct cpu_user_regs registers;
 		  struct cpu_user_regs registers_shadow;
 		  int last_successful;

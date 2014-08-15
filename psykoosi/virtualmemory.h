@@ -36,6 +36,8 @@ namespace psykoosi {
 		int size;
 		//MemoryAddr **blocklist;
 		unsigned char *data;
+
+		VirtualMemory *ClassPtr;
     } MemPage;
     
     typedef uint32_t CodeAddr;
@@ -78,6 +80,11 @@ namespace psykoosi {
       
       int Cache_Load(char *filename);
       int Cache_Save(char *filename);
+
+      MemPage *NewPage(unsigned long round, int size);
+      MemPage *ClonePage(MemPage *ParentOriginal);
+      int IsMyPage(MemPage *mptr);
+
 
       void SetParent(VirtualMemory *Parent);
       void ReleaseParent();

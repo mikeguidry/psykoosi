@@ -38,7 +38,8 @@ VirtualMemory *_VM2[MAX_VMS];
 
 static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	    printf("read seg %d offset %X data %X bytes %d ctxt %p\n", seg, offset, p_data, bytes, ctxt);
+	    printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,
+	    		thread->ID, ctxt);
 
 	    VirtualMemory *pVM = _VM2[thread->ID];
 	    pVM->MemDataRead(offset,(unsigned char *) p_data, bytes);
@@ -48,7 +49,7 @@ static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_dat
 
 static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	    printf("write seg %d offset %X data %p bytes %d ctxt %p\n", seg, offset, p_data, bytes, ctxt);
+	    printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
 
 	    VirtualMemory *pVM = _VM2[thread->ID];
 	    pVM->MemDataWrite(offset,(unsigned char *) p_data, bytes);
@@ -66,6 +67,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 
 	std::memset((void *)&Master.emulate_ops, 0, sizeof(struct hack_x86_emulate_ops));
 	std::memset((void *)&Master.thread_ctx, 0, sizeof(struct _x86_thread));
+
 	Master.emulate_ops.read = (void *)&emulated_read;
 	Master.emulate_ops.insn_fetch = (void *)&emulated_read;
 	Master.emulate_ops.write = (void *)&emulated_write;
@@ -75,7 +77,8 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	Master.thread_ctx.emulation_ctx.sp_size = 32;
 	Master.thread_ctx.emulation_ctx.regs = &Master.registers;
 
-	// grabbed these from entry point on an app in IDA pro.. (after dlls+tls etc all loaded)
+	// grabbed these from entry point on an app in IDA pro.. (after dlls+tls etc all loaded
+
 	SetRegister(&Master, REG_EAX, 0);
 	SetRegister(&Master, REG_EBX, 0x7FFDE000);
 	SetRegister(&Master, REG_ECX, 0x0012FFB0);
@@ -145,9 +148,12 @@ void Emulation::ClearLogs(EmulationThread *thread) {
 
 Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, CodeAddr Address, int Max_Size) {
 	EmulationLog *ret = NULL;
-	thread->registers.eip = Address;
 
+	SetRegister(thread, REG_EIP, Address);
+	//thread->thread_ctx.emulation_ctx.regs->eip = Address;
+	CopyRegistersToShadow(thread);
 
+	printf("ctx %p\n", &thread->thread_ctx.emulation_ctx);
 	int r = x86_emulate(&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&thread->emulate_ops) == X86EMUL_OKAY;
 	if (!r) {
 		thread->last_successful = 0;
@@ -233,7 +239,10 @@ void Emulation::CopyRegistersToShadow(EmulationThread *thread) {
 
 void Emulation::SetRegister(EmulationThread *thread, int Monitor, uint32_t value) {
 	if (Monitor & REG_EAX) {
-	        thread->registers.eax = (uint32_t)value;
+		thread->registers.eax = (uint32_t)value;
+	}
+	if (Monitor & REG_EIP) {
+		thread->registers.eip = (uint32_t) value;
 	}
 	if (Monitor & REG_EBX) {
 		thread->registers.ebx = (uint32_t)value;
