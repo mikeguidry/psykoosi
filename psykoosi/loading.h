@@ -32,6 +32,8 @@ namespace psykoosi {
 
 	  uint32_t HighestAddress(int raw);
 
+	  int LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem);
+	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze);
 
 
 	  DisassembleTask *_DT;
@@ -39,6 +41,7 @@ namespace psykoosi {
 	  VirtualMemory *_VM;
 	  pe_bliss::section *code_section;
 
+	  uint32_t CheckImageBase(uint32_t Address);
 
   	  private:
 	  std::string InputData;

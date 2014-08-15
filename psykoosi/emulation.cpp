@@ -35,35 +35,50 @@ using namespace pe_win;
 
 
 VirtualMemory *_VM2[MAX_VMS];
+Emulation *EmuPtr[MAX_VMS];
+
 
 static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	    printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,
+	Emulation *VirtPtr = EmuPtr[thread->ID];
+	VirtualMemory *pVM = _VM2[thread->ID];
+
+    printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,
 	    		thread->ID, ctxt);
+	pVM->MemDataRead(offset,(unsigned char *) p_data, bytes);
 
-	    VirtualMemory *pVM = _VM2[thread->ID];
-	    pVM->MemDataRead(offset,(unsigned char *) p_data, bytes);
-
-	    return X86EMUL_OKAY;
+	return X86EMUL_OKAY;
 }
 
 static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	    printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
+	Emulation *VirtPtr = EmuPtr[thread->ID];
+	VirtualMemory *pVM = _VM2[thread->ID];
 
-	    VirtualMemory *pVM = _VM2[thread->ID];
-	    pVM->MemDataWrite(offset,(unsigned char *) p_data, bytes);
+	printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
 
-	    return X86EMUL_OKAY;
+	pVM->MemDataWrite(offset,(unsigned char *) p_data, bytes);
+
+    return X86EMUL_OKAY;
 }
 
 
 Emulation::Emulation(VirtualMemory *_VM) {
 	for (int i = 0; i < MAX_VMS; i++) _VM2[i] = NULL;
-	VM = _VM2[0] = _VM;
-	Master.LogList = NULL;
+	for (int i = 0; i < MAX_VMS; i++) EmuPtr[i] = NULL;
 
+	VM = _VM2[0] = _VM;
+	EmuPtr[0] = this;
+	Master.LogList = NULL;
+	// count of virtual machines and incremental ID
 	Current_VM_ID = 0;
+	// current VM being executed...
+	VM_Exec_ID = 0;
+
+	// default settings for virtual memory logging
+	Global_ChangeLog_Read = 0;
+	Global_ChangeLog_Write = 1;
+	Global_ChangeLog_Verify = 0;
 
 	std::memset((void *)&Master.emulate_ops, 0, sizeof(struct hack_x86_emulate_ops));
 	std::memset((void *)&Master.thread_ctx, 0, sizeof(struct _x86_thread));
@@ -78,7 +93,6 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	Master.thread_ctx.emulation_ctx.regs = &Master.registers;
 
 	// grabbed these from entry point on an app in IDA pro.. (after dlls+tls etc all loaded
-
 	SetRegister(&Master, REG_EAX, 0);
 	SetRegister(&Master, REG_EBX, 0x7FFDE000);
 	SetRegister(&Master, REG_ECX, 0x0012FFB0);
@@ -87,6 +101,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	SetRegister(&Master, REG_EDI, 0);
 	SetRegister(&Master, REG_EBP, 0x0012FFF0);
 	SetRegister(&Master, REG_EBP, 0x0012FFC4);
+
 	CopyRegistersToShadow(&Master);
 
 
@@ -150,10 +165,11 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, Cod
 	EmulationLog *ret = NULL;
 
 	SetRegister(thread, REG_EIP, Address);
-	//thread->thread_ctx.emulation_ctx.regs->eip = Address;
 	CopyRegistersToShadow(thread);
 
-	printf("ctx %p\n", &thread->thread_ctx.emulation_ctx);
+	thread->EmuVMEM.Configure(VirtualMemory::SettingType::SETTINGS_VM_LOGID, ++thread->LogID);
+	thread->EmuVMEM.Configure(VirtualMemory::SettingType::SETTINGS_VM_CPU_CYCLE, ++thread->CPUCycle);
+
 	int r = x86_emulate(&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&thread->emulate_ops) == X86EMUL_OKAY;
 	if (!r) {
 		thread->last_successful = 0;
@@ -162,7 +178,16 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, Cod
 		thread->last_successful = 1;
 
 
+	// create change logs of registers that were modified...
 	ret = CreateLog(thread);
+	if (!ret) throw;
+	// retrieve Virtual Memory changes from the VM subsystem...
+	ret->VMChangeLog = thread->EmuVMEM.ChangeLog_Retrieve(thread->LogID, &ret->VMChangeLog_Count);
+	// save registers for this specific execution as well for this exact cpu cycle
+	std::memcpy(&ret->registers_shadow, &ret->registers_shadow, sizeof(cpu_user_regs_t));
+	std::memcpy(&ret->registers, &ret->registers, sizeof(cpu_user_regs_t));
+
+	// now update shadow registers for our next execution
 	CopyRegistersToShadow(thread);
 
 	return ret;
@@ -175,8 +200,11 @@ Emulation::EmulationThread *Emulation::NewVirtualMachine(VirtualMemory *ParentMe
 	std::memset((void *)Thread, 0, sizeof(EmulationThread));
 
 	Thread->ID = ++Current_VM_ID;
+	Thread->CPUStart = Thread->CPUCycle = Master.CPUCycle;
 
 	Thread->EmuVMEM.SetParent(ParentMemory);
+	Thread->EmuVMEM.Configure(VirtualMemory::SettingType::SETTINGS_VM_ID, Thread->ID);
+	//Thread->EmuVMEM.Configure(VirtualMemory::SettingType::SETTINGS_VM_LOGID, 0);
 
 }
 
@@ -300,6 +328,8 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 	std::memset(logptr, 0, sizeof(EmulationLog));
 
 
+	logptr->LogID = thread->LogID;
+
 	logptr->Address = thread->registers_shadow.eip;
 	// this might change if it changes EIP jmp,call,etc.. should grab from the database...
 	logptr->Size = thread->registers.eip - thread->registers_shadow.eip;
@@ -377,4 +407,5 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 	logptr->next = thread->LogList;
 	thread->LogList = logptr;
 
+	return logptr;
 }

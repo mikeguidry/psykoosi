@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
 
 
 	int start = time(0);
-
+/*
 	// this is a little better.. will do it differently later in another function
 	if (op.disasm->Cache_Load(Cache_Filename(argv[1], "disasm", (char *)&filename)) &&
 			op.analysis->QueueCache_Load(Cache_Filename(argv[1], "analysis", (char *)&filename)) &&
@@ -166,9 +166,9 @@ int main(int argc, char *argv[]) {
 			printf("Loaded cache! [%d seconds]\n", now - start);
 		} else {
 			op.disasm->Clear_Instructions();
-			printf("Only loaded instructions.. clearing\n");
+			//printf("Only loaded instructions.. clearing\n");
 		}
-
+*/
 
 	if (!from_cache) {
 		//op.disasm->Clear_Instructions();

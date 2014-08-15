@@ -63,6 +63,9 @@ namespace psykoosi {
 	  typedef struct _memory_addresses {
 		  struct _memory_addresses *next;
 
+		  unsigned long LogID;
+		  unsigned long CpuCycle;
+
 		  int Operation; // DATA_[READ/WRITE]
 		  int Size;
 		  Emulation::CodeAddr *Source_Address;
@@ -75,6 +78,9 @@ namespace psykoosi {
 	  typedef struct _reg_changes_simple {
 		  struct _reg_changes_simple *next;
 
+		  unsigned long LogID;
+		  unsigned long CpyCycle;
+
 		  int Register;
 		  int Type;
 		  long long Result;
@@ -86,6 +92,8 @@ namespace psykoosi {
 	  typedef struct _emulation_log {
 		  struct _emulation_log *next;
 
+		  unsigned long LogID;
+
 		  Emulation::CodeAddr Address;
 		  int Size;
 
@@ -96,6 +104,13 @@ namespace psykoosi {
 		  RegChanges *Changes;
 
 		  Emulation::CodeAddr NextEIP;
+
+		  struct cpu_user_regs registers;
+		  struct cpu_user_regs registers_shadow;
+
+		  VirtualMemory::ChangeLog **VMChangeLog;
+		  int VMChangeLog_Count;
+
 	  } EmulationLog;
 
 
@@ -132,6 +147,11 @@ namespace psykoosi {
 
 		  int ID;
 
+		  // for branches..
+		  unsigned long CPUStart;
+
+		  unsigned long CPUCycle;
+		  unsigned long LogID;
 		  VirtualMemory EmuVMEM;
 
 		  struct hack_x86_emulate_ops emulate_ops;
@@ -141,6 +161,9 @@ namespace psykoosi {
 		  thread_ctx_t thread_ctx;
 
 		  EmulationLog *LogList;
+		  EmulationLog *LogLast;
+
+
 	  } EmulationThread;
 
 
@@ -165,10 +188,15 @@ namespace psykoosi {
 
 	  EmulationThread Master;
 
+	  int Global_ChangeLog_Read;
+	  int Global_ChangeLog_Write;
+	  int Global_ChangeLog_Verify;
+
   	  private:
 
 	  VirtualMemory *VM;
 	  int Current_VM_ID;
+	  int VM_Exec_ID;
 
   };
 

@@ -96,6 +96,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	DisassembleTask::CodeAddr GHighestSectionAddr = _BL->HighestAddress(0);
 
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		 if (sptr->IsDLL) continue;
 		 if (sptr->RawSize == 0) continue;
 		 if (!(sptr->Characteristics == 0x60000020)) continue;
 
@@ -123,6 +124,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	// loop and create a new instruction set with modifications and new addresses...
 	// loop and modify all addresses to relate to the new base
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		 if (sptr->IsDLL) continue;
 		 if (sptr->RawSize == 0) continue;
 		 if (!(sptr->Characteristics == 0x60000020)) continue;
 		 printf("building sets %s\n", sptr->Name);
@@ -295,6 +297,7 @@ int Rebuilder::RebaseCodeSection() {
 	long NewBase_difference = 0;
 	// determinethe new base
 	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		if (sptr->IsDLL) continue;
 		DisassembleTask::CodeAddr EndSect = sptr->Address + sptr->VirtualSize + _PE->get_image_base_32();
 		if (EndSect > LastSectAddr)
 		 LastSectAddr = EndSect;
@@ -309,6 +312,7 @@ int Rebuilder::RebaseCodeSection() {
 
 	// loop and modify all addresses to relate to the new base
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		 if (sptr->IsDLL) continue;
 		 if (sptr->Characteristics == 0x60000020) {
 					 DisassembleTask::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
 					 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->RawSize + sptr->Address + warp;
@@ -363,6 +367,7 @@ int Rebuilder::RealignInstructions() {
 	final_chr = new unsigned char[final_size + 16];
 
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		 if (sptr->IsDLL) continue;
 
 		 if (sptr->Characteristics == 0x60000020) {
 			 DisassembleTask::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
@@ -588,6 +593,7 @@ int Rebuilder::ModifyRelocations() {
 
 		if (Must_Rebase_Section) {
 			for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+				if (sptr->IsDLL) continue;
 				if ((table.get_rva() >= sptr->Address) && (table.get_rva() < (sptr->Address + sptr->VirtualSize))) {
 					break;
 				}
@@ -744,6 +750,8 @@ int Rebuilder::WriteBinaryPE2() {
 	VirtualMemory::Memory_Section *code_section = NULL, *last_section_ptr = NULL;
 
 	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+		if (sptr->IsDLL) continue;
+		printf("Section Base: %p\n", sptr->ImageBase);
 		if (sptr->Characteristics == 0) {
 			printf("ERROR something corrupted in section 1!\n");
 			continue;
@@ -871,6 +879,7 @@ int Rebuilder::WriteBinaryPE2() {
 			// add sections from our list..
 			{
 				for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+					if (sptr->IsDLL) continue;
 					if (sptr->Characteristics == 0) {
 						printf("ERROR something corrupted in section 2!\n");
 						continue;
