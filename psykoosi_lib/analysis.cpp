@@ -18,7 +18,7 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 
-InstructionAnalysis::InstructionAnalysis(DisassembleTask *Dism_Handle) {
+InstructionAnalysis::InstructionAnalysis(Disasm *Dism_Handle) {
 	Disassembler_Handle = Dism_Handle;
 	Analysis_Queue_List = Analysis_Queue_Last = NULL;
 	CallCount = 0;
@@ -40,7 +40,7 @@ InstructionAnalysis::~InstructionAnalysis() {
 	}
 }
 
-long InstructionAnalysis::InstructionAddressDistance(DisassembleTask::CodeAddr Address, int Size, DisassembleTask::InstructionInformation *second) {
+long InstructionAnalysis::InstructionAddressDistance(Disasm::CodeAddr Address, int Size, Disasm::InstructionInformation *second) {
 	long diff = 0;
 
 	if (!Address || !second) return 0;
@@ -51,17 +51,17 @@ long InstructionAnalysis::InstructionAddressDistance(DisassembleTask::CodeAddr A
 	return second->Address - diff;
 }
 
-long InstructionAnalysis::AddressDistance(DisassembleTask::CodeAddr first, int Size, DisassembleTask::CodeAddr second, int type) {
-	DisassembleTask::InstructionInformation *FirstPtr;
-	DisassembleTask::InstructionInformation *SecondPtr;
-	DisassembleTask::InstructionInformation *SecondPtrInj;
+long InstructionAnalysis::AddressDistance(Disasm::CodeAddr first, int Size, Disasm::CodeAddr second, int type) {
+    Disasm::InstructionInformation *FirstPtr;
+    Disasm::InstructionInformation *SecondPtr;
+    Disasm::InstructionInformation *SecondPtrInj;
 
 	type = 0;
 
 
-	FirstPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((DisassembleTask::CodeAddr)first, type, 1, NULL);
-	SecondPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((DisassembleTask::CodeAddr)second, type, 1, NULL);
-	SecondPtrInj = Disassembler_Handle->GetInstructionInformationByAddress((DisassembleTask::CodeAddr)second, DisassembleTask::LIST_TYPE_REBASED, 1, NULL);
+    FirstPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((Disasm::CodeAddr)first, type, 1, NULL);
+    SecondPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((Disasm::CodeAddr)second, type, 1, NULL);
+    SecondPtrInj = Disassembler_Handle->GetInstructionInformationByAddress((Disasm::CodeAddr)second, Disasm::LIST_TYPE_REBASED, 1, NULL);
 
 	//std::cout << "FirstPtr: " << static_cast<void *>(FirstPtr) << " " << first << " SecondPtr: " << static_cast<void *>(SecondPtr) << " " << second << std::endl;
 	//printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
@@ -125,7 +125,7 @@ int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priori
 }
 
 void InstructionAnalysis::CleanInstructionAnalysis() {
-	for (DisassembleTask::InstructionInformation *InsInfo = Disassembler_Handle->Instructions[DisassembleTask::LIST_TYPE_NEXT]; InsInfo != NULL; InsInfo = InsInfo->Lists[DisassembleTask::LIST_TYPE_NEXT]) {
+	for (Disasm::InstructionInformation *InsInfo = Disassembler_Handle->Instructions[Disasm::LIST_TYPE_NEXT]; InsInfo != NULL; InsInfo = InsInfo->Lists[Disasm::LIST_TYPE_NEXT]) {
 		InsInfo->Requires_Realignment = 0;
 		InsInfo->OpDstAddress = 0;
 		InsInfo->IsCall = 0;
@@ -145,12 +145,12 @@ void InstructionAnalysis::CleanInstructionAnalysis() {
 			qptr = qptr->next;
 		}
 }
-int InstructionAnalysis::AnalyzeInstruction(DisassembleTask::InstructionInformation *InsInfo) {
+int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsInfo) {
 	// these are the instructions for x86 that have to be realigned...
 	// make this modular later to handle other architectures!
 	const char *realign[] = { "call","jmp","jz","jnz","jbe","jle","jge","ja","jb","js","jl","jg","jnp","jo","jns","jp","jecxz","push", "jne","je", NULL};
 	char *AssemblyCodeString = 0;
-	DisassembleTask::CodeAddr DestAddr = 0;
+	Disasm::CodeAddr DestAddr = 0;
 
 	if (!InsInfo) return 0;
 
@@ -206,7 +206,7 @@ int InstructionAnalysis::AnalyzeInstruction(DisassembleTask::InstructionInformat
 	// modify capstone or find another solution (brute force?).. need a perm solution for all architectures
 	// maybe i can go backwards from the last byte of the instruction and determine from the instruction
 	// or i can learn more about ModRM and calulate it properly ;)
-	DisassembleTask::CodeAddr ToAddr = 0;
+	Disasm::CodeAddr ToAddr = 0;
 	signed char baby = 0;
 	uint16_t boy = 0;
 	uint32_t man = 0;
@@ -301,8 +301,8 @@ int InstructionAnalysis::AnalyzeInstruction(DisassembleTask::InstructionInformat
 		 const section_list sections(PE_Handle->get_image_sections());
 		 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
 			 const section &s = *it;
-			 DisassembleTask::CodeAddr SecStart = (DisassembleTask::CodeAddr)(PE_Handle->get_image_base_32() + s.get_virtual_address());
-			 DisassembleTask::CodeAddr SecEnd = (DisassembleTask::CodeAddr)(PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());
+			 Disasm::CodeAddr SecStart = (Disasm::CodeAddr)(PE_Handle->get_image_base_32() + s.get_virtual_address());
+			 Disasm::CodeAddr SecEnd = (Disasm::CodeAddr)(PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data());
 
 			 if (((uint32_t)(DestAddr) > (uint32_t)(0x4000)) && ((uint32_t)DestAddr >= SecStart && ((uint32_t)DestAddr < SecEnd))) {
 				 if (s.executable()) {
@@ -395,7 +395,7 @@ int InstructionAnalysis::Queue_Clear() {
 	return 1;
 }
 
-int InstructionAnalysis::QueueCache_Load(char *filename) {
+int InstructionAnalysis::QueueCache_Load(const char *filename) {
 	AnalysisQueue *qptr;
 	int n;
 
@@ -425,7 +425,7 @@ int InstructionAnalysis::QueueCache_Load(char *filename) {
 	return 1;
 }
 
-int InstructionAnalysis::QueueCache_Save(char *filename) {
+int InstructionAnalysis::QueueCache_Save(const char *filename) {
 	AnalysisQueue *qptr = Analysis_Queue_List;
 
 	if (qptr == NULL) return 0;
@@ -467,14 +467,14 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 				if (qptr->Count++ > 5) break;
 				//std::cout << "Analyse first time";
 
-				// run a disassembler task on this address with a max of 20 instructions...
-				int CountToAnalyze = Disassembler_Handle->RunDisassembleTask(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);
-				//std::cout << "EROR Count  " + CountToAnalyze << std::endl;
+                // run a disassembler task on this address with a max of 20 instructions...
+                int CountToAnalyze = Disassembler_Handle->RunDisasm(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);
+                //std::cout << "EROR Count  " + CountToAnalyze << std::endl;
 				// then we need to reanalyze the instructions it disassembled
 				CodeAddr AnalyzeAddr = qptr->Address;
 				while (CountToAnalyze--) {
 					// so obtain a pointer to the instruction information
-					DisassembleTask::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
+                    Disasm::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, Disasm::LIST_TYPE_NEXT, 1, NULL);
 					if (!InsInfo) {
 						//std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
 						if (!Max_Address_Not_Found--) {

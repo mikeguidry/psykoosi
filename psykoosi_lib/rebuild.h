@@ -4,13 +4,13 @@ namespace psykoosi {
 
 typedef struct _modified_addresses {
 	struct _modified_addresses *next;
-	DisassembleTask::CodeAddr Original_Address;
-	DisassembleTask::CodeAddr New_Address;
+    Disasm::CodeAddr Original_Address;
+    Disasm::CodeAddr New_Address;
 } ModifiedAddresses;
 
   class Rebuilder {
   	  public:
-	  Rebuilder(DisassembleTask *, InstructionAnalysis *, VirtualMemory *, pe_bliss::pe_base *, char *);
+      Rebuilder(Disasm *, InstructionAnalysis *, VirtualMemory *, pe_bliss::pe_base *, const char *);
 	  ~Rebuilder();
 
 	  int RebuildInstructionsSetsModifications();
@@ -19,12 +19,12 @@ typedef struct _modified_addresses {
 	  int WriteBinaryPE2();
 	  void SetBinaryLoader(BinaryLoader *BL);
 	  int ModifyRelocations();
-	  int RebaseCodeSection();
-	  void Add_Modified_Address(DisassembleTask::CodeAddr Original_Address, DisassembleTask::CodeAddr New_Address);
-	  DisassembleTask::CodeAddr CheckForModifiedAddress(DisassembleTask::CodeAddr Lookup);
-	  DisassembleTask::CodeAddr CodeStart;
-	  DisassembleTask::CodeAddr CodeEnd;
-	  DisassembleTask::CodeAddr CodeSize;
+      int RebaseCodeSection();
+      void Add_Modified_Address(Disasm::CodeAddr Original_Address, Disasm::CodeAddr New_Address);
+      Disasm::CodeAddr CheckForModifiedAddress(Disasm::CodeAddr Lookup);
+      Disasm::CodeAddr CodeStart;
+      Disasm::CodeAddr CodeEnd;
+      Disasm::CodeAddr CodeSize;
 
   	  private:
 
@@ -36,13 +36,13 @@ typedef struct _modified_addresses {
 	  std::string raw_final;
 	  int Must_Rebase_Section;
 	  int Must_Realign;
-	  DisassembleTask::InstructionInformation *EntryPointInstruction;
+      Disasm::InstructionInformation *EntryPointInstruction;
 	  char FileName_output[1024];
 	  char FileName[1024];
 
 
 	  pe_bliss::pe_base *_PE;
-	  DisassembleTask *_DT;
+      Disasm *_DT;
 	  InstructionAnalysis *_IA;
 	  VirtualMemory *_VM;
 

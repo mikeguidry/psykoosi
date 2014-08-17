@@ -9,4 +9,5 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 link_directories(${PROJECT_BINARY_DIR})
 
 add_subdirectory(depends)
+add_subdirectory(psykoosi_lib)
 add_subdirectory(psykoosi)

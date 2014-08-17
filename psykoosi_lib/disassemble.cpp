@@ -21,7 +21,7 @@ using namespace pe_win;
 #define PAGE_SIZE 4096*2*2*2*2
 
 
-DisassembleTask::DisassembleTask(VirtualMemory *_VM)
+Disasm::Disasm(VirtualMemory *_VM)
 {
 
 	DCount = 0;
@@ -52,21 +52,21 @@ DisassembleTask::DisassembleTask(VirtualMemory *_VM)
 	//cs_option((csh)EngineHandle, CS_OPT_SKIPDATA, CS_OPT_ON);
 }
 
-DisassembleTask::~DisassembleTask()
+Disasm::~Disasm()
 {
 	cs_close((csh *)&EngineHandle);
   
 	Clear_Instructions();
 }
 
-void DisassembleTask::SetPEHandle(pe_base *_PE) {
+void Disasm::SetPEHandle(pe_base *_PE) {
 	PE_Handle = _PE;
 }
 
 
-int DisassembleTask::InstructionsCount(int type) {
+int Disasm::InstructionsCount(int type) {
 	int count = 0;
-	DisassembleTask::InstructionInformation *iptr;
+    Disasm::InstructionInformation *iptr;
 
 	for (iptr = Instructions[type]; iptr != NULL; iptr = iptr->Lists[type]) {
 		count++;
@@ -76,13 +76,13 @@ int DisassembleTask::InstructionsCount(int type) {
 }
 
 
-void DisassembleTask::SetBinaryLoaderHA(CodeAddr Addr) {
+void Disasm::SetBinaryLoaderHA(CodeAddr Addr) {
 	HighestCode = Addr;
 }
 
 
 // removes a range of addresses from the instruction list
-int DisassembleTask::DeleteAddressRange(CodeAddr Address, int Size, int priority) {
+int Disasm::DeleteAddressRange(CodeAddr Address, int Size, int priority) {
 	int CountDeleted = 0;
 	CodeAddr CurrentAddress = Address;
 
@@ -95,7 +95,7 @@ int DisassembleTask::DeleteAddressRange(CodeAddr Address, int Size, int priority
 }
 
 // removes an instruction structure by its pointer, or address
-int DisassembleTask::DeleteInstruction(InstructionInformation *InsInfoPtr, CodeAddr Address, int strict, int priority) {
+int Disasm::DeleteInstruction(InstructionInformation *InsInfoPtr, CodeAddr Address, int strict, int priority) {
 	int CurrentList = 0;
 	InstructionInformation *InsInfo = NULL;
 	InstructionInformation *iptr = NULL, *iptr2 = NULL;
@@ -168,7 +168,7 @@ int DisassembleTask::DeleteInstruction(InstructionInformation *InsInfoPtr, CodeA
 }
 
 
-int DisassembleTask::SetCurrentListAsListType(int type) {
+int Disasm::SetCurrentListAsListType(int type) {
 	int Count = 0;
 	InstructionInformation *InsInfoPtr = Instructions[LIST_TYPE_NEXT];
 
@@ -188,7 +188,7 @@ int DisassembleTask::SetCurrentListAsListType(int type) {
 }
 
 
-int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionInformation **InsInfo, int priority)
+int Disasm::DisassembleSingleInstruction(CodeAddr Address, InstructionInformation **InsInfo, int priority)
 {
 		InstructionInformation *InsPtr = this->GetInstructionInformationByAddress(Address, LIST_TYPE_JUMP, 1, NULL);
 
@@ -287,7 +287,7 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 		return 1;
 }
 
-std::string DisassembleTask::disasm_str(CodeAddr Address, char *data, int len) {
+std::string Disasm::disasm_str(CodeAddr Address, char *data, int len) {
 	    ud_t ud_obj;
 	    int i;
 	    //char Data[13];
@@ -318,7 +318,7 @@ std::string DisassembleTask::disasm_str(CodeAddr Address, char *data, int len) {
 	    return std::string("");
 	}
 
-int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int MaxRawSize, int MaxInstructions)
+int Disasm::RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int MaxInstructions)
 {
 	CodeAddr CurAddr = StartAddress;
 	int DisassembledInstructionCount = 0;
@@ -414,8 +414,44 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 }
 
 
+
+Disasm::InstructionIterator::InstructionIterator(Disasm::InstructionInformation *ptr)
+    : InstInfoPtr(ptr)
+{
+}
+
+bool Disasm::InstructionIterator::operator==(const InstructionIterator& other) {
+    return InstInfoPtr == other.InstInfoPtr;
+}
+
+bool Disasm::InstructionIterator::operator!=(const InstructionIterator& other) {
+    return InstInfoPtr != other.InstInfoPtr;
+}
+
+Disasm::InstructionInformation *Disasm::InstructionIterator::operator->() {
+    return InstInfoPtr;
+}
+
+void Disasm::InstructionIterator::operator++() {
+    InstInfoPtr = InstInfoPtr->Lists[LIST_TYPE_NEXT];
+}
+
+void Disasm::InstructionIterator::operator--() {
+    InstInfoPtr = InstInfoPtr->Lists[LIST_TYPE_PREV];
+}
+
+void Disasm::InstructionIterator::jump() {
+    InstInfoPtr = InstInfoPtr->Lists[LIST_TYPE_JUMP];
+}
+
+Disasm::InstructionInformation *Disasm::InstructionIterator::get() {
+    return InstInfoPtr;
+}
+
+
+
 // return the structure relating to a specific address if it exists
-DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformationByAddress(CodeAddr Address, int type, int strict, InstructionInformation *LastPtr) {
+Disasm::InstructionInformation *Disasm::GetInstructionInformationByAddress(CodeAddr Address, int type, int strict, InstructionInformation *LastPtr) {
 
 	if (LastPtr && Loaded_from_Cache && LastPtr->Lists[type] != NULL && LastPtr->Lists[type]->Address==Address) return LastPtr->Lists[type];
 
@@ -443,7 +479,7 @@ DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformat
 			// if not strict.. then we determine if the address lands on this instruction whatsoever
 			(!strict && ((Address >= InsInfoPtr->Address)
 					&& (Address < InsInfoPtr->Address + InsInfoPtr->Size)))) {
-			//if (type==DisassembleTask::LIST_TYPE_INJECTED) printf("Found %p\n", Address);
+            //if (type==Disasm::LIST_TYPE_INJECTED) printf("Found %p\n", Address);
 			// winner winner chicken dinner
 			return InsInfoPtr;
 		}
@@ -468,7 +504,7 @@ DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformat
 }
 
 // return the structure relating to a specific address if it exists
-DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformationByAddressOriginal(CodeAddr Address, int type, int strict, InstructionInformation *LastPtr) {
+Disasm::InstructionInformation *Disasm::GetInstructionInformationByAddressOriginal(CodeAddr Address, int type, int strict, InstructionInformation *LastPtr) {
 
 	if (LastPtr && Loaded_from_Cache && LastPtr->Lists[type] != NULL && LastPtr->Lists[type]->Original_Address == Address) return LastPtr->Lists[type];
 
@@ -505,7 +541,7 @@ DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformat
 	return NULL;
 }
 
-void DisassembleTask::Clear_Instructions() {
+void Disasm::Clear_Instructions() {
 	for (int i = 0; i < LIST_TYPE_MAX; i++) {
 
 		if (Instructions[i] != NULL) {
@@ -527,7 +563,7 @@ void DisassembleTask::Clear_Instructions() {
 
 
 
-int DisassembleTask::Cache_Save(char *filename) {
+int Disasm::Cache_Save(const char *filename) {
 	if (Instructions[LIST_TYPE_NEXT] == NULL) return 0;
 
 	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -545,14 +581,14 @@ int DisassembleTask::Cache_Save(char *filename) {
 		 // should also modify other areas later.. if we end up moving around data etc
 		 if (s.executable()) {
 
-			 DisassembleTask::CodeAddr StartAddr = s.get_virtual_address() + PE_Handle->get_image_base_32();
-			 DisassembleTask::CodeAddr EndAddr = PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data();
-			 DisassembleTask::CodeAddr CurAddr = StartAddr;
+             Disasm::CodeAddr StartAddr = s.get_virtual_address() + PE_Handle->get_image_base_32();
+             Disasm::CodeAddr EndAddr = PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data();
+             Disasm::CodeAddr CurAddr = StartAddr;
 
-			 DisassembleTask::InstructionInformation *InsInfo = 0;
+             Disasm::InstructionInformation *InsInfo = 0;
 
 			 for (; CurAddr < EndAddr; ) {
-				 InsInfo = GetInstructionInformationByAddress(CurAddr, DisassembleTask::LIST_TYPE_JUMP, 1, InsInfo);
+                 InsInfo = GetInstructionInformationByAddress(CurAddr, Disasm::LIST_TYPE_JUMP, 1, InsInfo);
 
 				 // if we cannot find in instruction database.. push forward
 				 if (!InsInfo) {
@@ -590,7 +626,7 @@ int DisassembleTask::Cache_Save(char *filename) {
 }
 
 
-int DisassembleTask::Cache_Load(char *filename) {
+int Disasm::Cache_Load(const char *filename) {
 	int count = 0;
 		InstructionInformation *qptr, *last = NULL;
 
@@ -638,3 +674,5 @@ int DisassembleTask::Cache_Load(char *filename) {
 		qcin.close();
 		printf("Loaded %d from file\n", count);
 }
+
+

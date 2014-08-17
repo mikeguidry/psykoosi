@@ -16,22 +16,22 @@ namespace psykoosi {
 		  int Count;
 	  } AnalysisQueue;
 
-	  InstructionAnalysis(DisassembleTask *);
+      InstructionAnalysis(Disasm *);
 	  ~InstructionAnalysis();
-	  long InstructionAddressDistance(DisassembleTask::CodeAddr first, int Size, DisassembleTask::InstructionInformation *second);
-	  long AddressDistance(DisassembleTask::CodeAddr first, int Size, DisassembleTask::CodeAddr second, int type);
+      long InstructionAddressDistance(Disasm::CodeAddr first, int Size, Disasm::InstructionInformation *second);
+      long AddressDistance(Disasm::CodeAddr first, int Size, Disasm::CodeAddr second, int type);
 
 	  int QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo);
 
 	  int Complete_Analysis_Queue(int redo);
 
-	  int  QueueCache_Save(char *filename);
-	  int  QueueCache_Load(char *filename);
+      int  QueueCache_Save(const char *filename);
+      int  QueueCache_Load(const char *filename);
 	  int Queue_Clear();
 
 	  void CleanInstructionAnalysis();
 	  void SetPEHandle(pe_bliss::pe_base *);
-	  int AnalyzeInstruction(DisassembleTask::InstructionInformation *InsInfo);
+      int AnalyzeInstruction(Disasm::InstructionInformation *InsInfo);
 
 	  int CallCount;
 	  int PushCount;
@@ -39,7 +39,7 @@ namespace psykoosi {
   	  private:
 	  AnalysisQueue *Analysis_Queue_List;
 	  AnalysisQueue *Analysis_Queue_Last;
-	  DisassembleTask *Disassembler_Handle;
+      Disasm *Disassembler_Handle;
 	  pe_bliss::pe_base *PE_Handle;
   };
 }

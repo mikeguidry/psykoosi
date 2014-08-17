@@ -24,10 +24,10 @@ namespace psykoosi {
 		  INPUT_TYPE_MACHO
 	  };
 
-	  BinaryLoader(DisassembleTask *, InstructionAnalysis *, VirtualMemory *);
+      BinaryLoader(Disasm *, InstructionAnalysis *, VirtualMemory *);
 
 	  char *GetInputRaw(int *Size);
-	  pe_bliss::pe_base *LoadFile(int Arch, int FileFormat, char *FileName);
+      pe_bliss::pe_base *LoadFile(int Arch, int FileFormat, const char *FileName);
 	  int WriteFile(int Arch, int FileFormat, char *FileName);
 
 	  uint32_t HighestAddress(int raw);
@@ -36,7 +36,7 @@ namespace psykoosi {
 	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze);
 
 
-	  DisassembleTask *_DT;
+      Disasm *_DT;
 	  InstructionAnalysis *_IA;
 	  VirtualMemory *_VM;
 	  pe_bliss::section *code_section;

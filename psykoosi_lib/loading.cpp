@@ -19,7 +19,7 @@ using namespace psykoosi;
 using namespace pe_bliss;
 using namespace pe_win;
 
-BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory *VM) {
+BinaryLoader::BinaryLoader(Disasm *DT, InstructionAnalysis *IA, VirtualMemory *VM) {
 	image = NULL;
 
 	_DT = DT;
@@ -51,9 +51,9 @@ uint32_t BinaryLoader::HighestAddress(int raw) {
 }
 
 
-pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
+pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, const char *FileName) {
 	std::ifstream pe_file(FileName, std::ios::in | std::ios::binary);
-	DisassembleTask::CodeAddr Last_Section_Addr = 0;
+	Disasm::CodeAddr Last_Section_Addr = 0;
 
 	if (!pe_file) {
 		std::cout << "Cannot open " << FileName << std::endl;
@@ -113,7 +113,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 				 //int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo) {
 
 				 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
-				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
+                 //_DT->RunDisasm((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
 			 }
 
 		}

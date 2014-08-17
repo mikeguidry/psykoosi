@@ -1,3 +1,5 @@
+#pragma once
+
 namespace psykoosi {
 
   class VirtualMemory {
@@ -133,13 +135,14 @@ namespace psykoosi {
       int MemDataRead(unsigned long addr, unsigned char *result, int len);
       int MemDataWrite(unsigned long addr, unsigned char *data, int len);
       
+
       ChangeLog *ChangeLog_Add(int type, CodeAddr Addr, unsigned char *data, int len);
       int ChangeLog_Count(unsigned long LogID);
       ChangeLog **ChangeLog_Retrieve(unsigned long LogID, int *count);
 
 
-      int Cache_Load(char *filename);
-      int Cache_Save(char *filename);
+      int Cache_Load(const char *filename);
+      int Cache_Save(const char *filename);
 
       MemPage *NewPage(unsigned long round, int size);
       MemPage *ClonePage(MemPage *ParentOriginal);
