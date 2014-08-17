@@ -5,6 +5,7 @@ SET(CMAKE_CXX_FLAGS "-std=c++11 -Og -g")
 
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/depends/swig/Include)
 
 link_directories(${PROJECT_BINARY_DIR})
 
