@@ -674,5 +674,3 @@ int Disasm::Cache_Load(const char *filename) {
 		qcin.close();
 		printf("Loaded %d from file\n", count);
 }
-
-

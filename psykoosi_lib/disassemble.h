@@ -83,7 +83,7 @@ namespace psykoosi {
   
       class InstructionIterator {
       public:
-          InstructionIterator(InstructionInformation* ptr);
+          InstructionIterator(InstructionInformation* ptr = nullptr);
           InstructionIterator(const InstructionIterator&) = default;
           bool operator==(const InstructionIterator& other);
           bool operator!=(const InstructionIterator& other);

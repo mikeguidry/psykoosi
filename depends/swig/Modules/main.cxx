@@ -890,7 +890,7 @@ int SWIG_main(int argc, char *argv[], Language *l) {
     count++;
   }
   Delete(package_version);
-  assert(count == 3);		// Check version format is correct
+  //assert(count == 3);		// Check version format is correct
 
   /* Turn on contracts */
 
