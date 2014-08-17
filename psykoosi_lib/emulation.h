@@ -8,6 +8,9 @@
 #ifndef EMULATION_H_
 #define EMULATION_H_
 
+#define MAX_VMS 1024
+
+
 extern "C" {
 /*#ifdef __x86_64__
 #include "xen/xen-x86_64.h"
@@ -16,6 +19,13 @@ extern "C" {
 #include "xen/xen-x86_32.h"
 //#endif
 #include "xen/x86_emulate.h"
+
+typedef struct _x86_thread {
+		  struct x86_emulate_ctxt emulation_ctx;
+		  int ID;
+} thread_ctx_t;
+
+
 }
 #include <udis86.h>
 
@@ -52,10 +62,24 @@ namespace psykoosi {
   	  public:
 	  typedef struct _memory_addresses {
 		  struct _memory_addresses *next;
+
+		  unsigned long LogID;
+		  unsigned long CpuCycle;
+
+		  int Operation; // DATA_[READ/WRITE]
+		  int Size;
+		  Emulation::CodeAddr *Source_Address;
+		  Emulation::CodeAddr *Dest_Address;
+
+		  int Source_Operand;
+		  int Dest_Operand;
 	  } MemAddresses;
 
 	  typedef struct _reg_changes_simple {
 		  struct _reg_changes_simple *next;
+
+		  unsigned long LogID;
+		  unsigned long CpyCycle;
 
 		  int Register;
 		  int Type;
@@ -68,6 +92,8 @@ namespace psykoosi {
 	  typedef struct _emulation_log {
 		  struct _emulation_log *next;
 
+		  unsigned long LogID;
+
 		  Emulation::CodeAddr Address;
 		  int Size;
 
@@ -78,6 +104,13 @@ namespace psykoosi {
 		  RegChanges *Changes;
 
 		  Emulation::CodeAddr NextEIP;
+
+		  struct cpu_user_regs registers;
+		  struct cpu_user_regs registers_shadow;
+
+		  VirtualMemory::ChangeLog **VMChangeLog;
+		  int VMChangeLog_Count;
+
 	  } EmulationLog;
 
 
@@ -109,37 +142,61 @@ namespace psykoosi {
 		  void *invlpg;
 	  };
 
+	  typedef struct _emulation_thread {
+		  struct _emulation_thread *next;
+
+		  int ID;
+
+		  // for branches..
+		  unsigned long CPUStart;
+
+		  unsigned long CPUCycle;
+		  unsigned long LogID;
+		  VirtualMemory EmuVMEM;
+
+		  struct hack_x86_emulate_ops emulate_ops;
+		  struct cpu_user_regs registers;
+		  struct cpu_user_regs registers_shadow;
+		  int last_successful;
+		  thread_ctx_t thread_ctx;
+
+		  EmulationLog *LogList;
+		  EmulationLog *LogLast;
+
+
+	  } EmulationThread;
 
 
   	  public:
-	   //int emulated_read(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt);
-	   //int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt);
-
-	  struct hack_x86_emulate_ops emulate_ops;
-	  struct x86_emulate_ctxt emulation_ctx;
-	  struct cpu_user_regs registers;
 
 	  Emulation(VirtualMemory *_VM);
 	  ~Emulation();
 
   	  public:
-	  void ClearLogEntry(EmulationLog *lptr);
-	  void ClearLogs();
-	  void DeleteMemoryAddresses(MemAddresses  *mptr);
+	  void ClearLogEntry(EmulationThread *, EmulationLog *lptr);
+	  void ClearLogs(EmulationThread *);
+	  void DeleteMemoryAddresses(MemAddresses *mptr);
+	  void SetRegister(EmulationThread *, int Monitor, uint32_t Value);
+	  void CopyRegistersToShadow(EmulationThread *);
 
-	  EmulationLog *StepInstruction(Emulation::CodeAddr Address, int Max_Size);
-	  EmulationLog *CreateLog();
+	  EmulationLog *StepInstruction(EmulationThread *, Emulation::CodeAddr Address, int Max_Size);
+	  EmulationLog *CreateLog(EmulationThread *);
 	  Emulation::RegChanges *CreateChangeEntry(Emulation::RegChanges **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
 
+	  EmulationThread *NewVirtualMachine(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
+	  void DestroyVirtualMachine(EmulationThread *);
 
+	  EmulationThread Master;
 
-	  EmulationLog *LogList;
+	  int Global_ChangeLog_Read;
+	  int Global_ChangeLog_Write;
+	  int Global_ChangeLog_Verify;
 
   	  private:
 
-	  int last_successful;
 	  VirtualMemory *VM;
-	  struct cpu_user_regs registers_last;
+	  int Current_VM_ID;
+	  int VM_Exec_ID;
 
   };
 

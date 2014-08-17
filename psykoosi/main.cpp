@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <cstring>
 
+#include <fstream>
+
 #include <psykoosi_lib/psykoosi.h>
 
 #include <unistd.h>
@@ -17,10 +19,63 @@
 using namespace psykoosi;
 using namespace std;
 
+Disasm::InstructionInformation *Inj_LoadFile(char *filename) {
+	if (!strlen(filename)) return NULL;
+	std::ifstream qcin(filename, std::ios::in | std::ios::binary);
+	if (!qcin) return 0;
+
+	qcin.seekg( 0, std::ios::end );
+	std::streampos fsize = qcin.tellg();
+	qcin.seekg( 0, std::ios::beg );
+	qcin.clear();
+
+    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
+    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
+
+	ah->RawData = new unsigned char [fsize];
+	qcin.read((char *)ah->RawData, fsize);
+	qcin.close();
+
+	ah->Size = fsize;
+	ah->FromInjection = 1;
+	ah->CatchOriginalRelativeDestinations = 1;
+
+	return ah;
+}
+
+Disasm::InstructionInformation *Inj_Stream(unsigned char *buffer, int size) {
+    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
+    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
+
+	ah->RawData = new unsigned char [size];
+	std::memcpy((char *)ah->RawData, buffer, size);
+
+	ah->Size = size;
+	ah->FromInjection = 1;
+	ah->CatchOriginalRelativeDestinations = 0;
+
+	return ah;
+}
+
+Disasm::InstructionInformation *Inj_NOP(int size) {
+    Disasm::InstructionInformation *ah = NULL;
+	unsigned char *buf = new unsigned char[size];
+	for (int  i = 0; i < size; i++)
+		buf[i] = 0x90;
+
+	ah = Inj_Stream(buf, size);
+
+	delete buf;
+
+	return ah;
+}
+
+
+
 // our main function... lets try to keep as small as possible (as opposed to how many things were in asmrealign)
 int main(int argc, char *argv[]) {
 	if (argc < 2) {
-		printf("psykoosi - binary modification platform\nusage: %s <binary> <module>\n", argv[0]);
+		printf("psykoosi - binary modification platform\nusage: %s <binary> <address to inject> <filename of shellcode or blank for NOPs>\n", argv[0]);
 		exit(-1);
 	}
 
@@ -30,26 +85,37 @@ int main(int argc, char *argv[]) {
 
     // loaded
 
-    Disasm::CodeAddr entry = psy.GetEntryPoint();
+    Disasm::CodeAddr InjAddr = psy.GetEntryPoint();
+    Disasm::InstructionInformation *InjEntry = NULL;
 
-    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
-    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
-	int to_add = atoi(argv[3]);
-	if (!to_add) to_add = 16;
-	ah->RawData = new unsigned char[to_add + 1];
-	ah->Size = to_add;
-	for (int i = 0; i < to_add; i++) ah->RawData[i] = 0x90;
-	ah->FromInjection = 1;
-    Disasm::InstructionIterator it = psy.GetInstruction(entry);
-    if (it == psy.InstructionsEnd()) {
-        throw string("There was an issue finding the entry point.. maybe the file didnt load, or cache is damaged\n");
+	if (argc == 2) { // only have filename to modify
+		InjAddr = 0;
+	} else {
+		if (argc >= 3) // have address after filename for injection
+			sscanf(argv[2], "%x", (void *)&InjAddr);
+		if (argc >= 4) { // have filename of shellcode
+			InjEntry = Inj_LoadFile(argv[3]);
+		}
+		if (InjEntry == NULL) {
+				printf("Inj_LoadFile(\"%s\") failed.. using  2048 NOPs\n", argv[3]);
+				InjEntry = Inj_NOP(2048);
+		}
+
 	}
-    printf("Ientry: %p Addr %p size %d\n", it.get(), it->Address, it->Size);
 
-	if (argc > 2)
-        it->InjectedInstructions = ah;
+	if (InjAddr) {
+		printf("Injection Address: %p\n", InjAddr);
+		printf("Injection Entry: Size = %d Ptr = %p\n", InjEntry->Size, InjEntry->RawData);
 
-    // injected
+        Disasm::InstructionIterator InjLoc = psy.GetInstruction(InjAddr);
+
+        if (InjLoc != psy.InstructionsEnd()) {
+			printf("We could not find the instruction at location %p for injection\n", InjAddr);
+			throw;
+		}
+		printf("Instruction at Injection Location [%p] - Addr %p Size %d\n", InjLoc, InjLoc->Address, InjLoc->Size);
+		InjLoc->InjectedInstructions = InjEntry;
+	}
 
 //    psy.Commit();
     psy.Save(fileName);

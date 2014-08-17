@@ -52,13 +52,16 @@ long InstructionAnalysis::InstructionAddressDistance(Disasm::CodeAddr Address, i
 }
 
 long InstructionAnalysis::AddressDistance(Disasm::CodeAddr first, int Size, Disasm::CodeAddr second, int type) {
-	Disasm::InstructionInformation *FirstPtr;
-	Disasm::InstructionInformation *SecondPtr;
+    Disasm::InstructionInformation *FirstPtr;
+    Disasm::InstructionInformation *SecondPtr;
+    Disasm::InstructionInformation *SecondPtrInj;
 
 	type = 0;
 
-	FirstPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((Disasm::CodeAddr)first, type, 1, NULL);
-	SecondPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((Disasm::CodeAddr)second, type, 1, NULL);
+
+    FirstPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((Disasm::CodeAddr)first, type, 1, NULL);
+    SecondPtr = Disassembler_Handle->GetInstructionInformationByAddressOriginal((Disasm::CodeAddr)second, type, 1, NULL);
+    SecondPtrInj = Disassembler_Handle->GetInstructionInformationByAddress((Disasm::CodeAddr)second, Disasm::LIST_TYPE_REBASED, 1, NULL);
 
 	//std::cout << "FirstPtr: " << static_cast<void *>(FirstPtr) << " " << first << " SecondPtr: " << static_cast<void *>(SecondPtr) << " " << second << std::endl;
 	//printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
@@ -69,6 +72,14 @@ long InstructionAnalysis::AddressDistance(Disasm::CodeAddr first, int Size, Disa
 
 	if (FirstPtr != NULL)
 	  FirstPtr = FirstPtr->OpDstAddress_realigned;
+
+	// if our injected function wants control over what it has taken over!
+	if (SecondPtrInj) {
+		//printf("Second Ptr %p inj %d catch %d\n",SecondPtrInj->Address, SecondPtrInj->FromInjection, SecondPtrInj->CatchOriginalRelativeDestinations);
+		if (SecondPtrInj->FromInjection == 1 && SecondPtrInj->CatchOriginalRelativeDestinations == 1) {
+			return InstructionAddressDistance(first, Size, SecondPtrInj);
+		}
+	}
 
 	SecondPtr = SecondPtr->OpDstAddress_realigned;
 	if (!SecondPtr) {
@@ -143,6 +154,8 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 
 	if (!InsInfo) return 0;
 
+	//printf("Analyze Instruction %p\n", InsInfo->Address);
+
 	// analyzed an instruction and determines properties like where it might jmp, or call...
 	// whether it needs to add things into the queue... etc.. anything we need should be handled here
 
@@ -156,6 +169,8 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 
 		// change this later so it only executes once!
 		uint32_t EntryPoint = PE_Handle->get_image_base_32() + PE_Handle->get_ep();
+
+		//printf("ERROR Analyzing %p\n", InsInfo->Address);
 
 		if (InsInfo->Address == EntryPoint) InsInfo->IsEntryPoint = 1;
 
@@ -173,7 +188,9 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 
 	InsInfo->AnalysisCount++;
 
-	if (!InsInfo->Requires_Realignment) return 1;
+	if (!InsInfo->Requires_Realignment) {
+		return 1;
+	}
 
 	/*
 	if (ud_insn_opr(&InsInfo->ud_obj, 1) != NULL) {
@@ -211,11 +228,13 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 				break;
 		}
 		if (udop->type == UD_OP_MEM) InsInfo->IsPointer = 1;
+		else if (udop->type == UD_OP_IMM) InsInfo->IsImmediate = 1;
 	}
 
 	if (InsInfo->_InsDetail.x86.operands[0].type != X86_OP_REG) {
 		if (InsInfo->_InsDetail.x86.operands[0].type ==X86_OP_IMM) {
 			DestAddr = (uint32_t)InsInfo->_InsDetail.x86.operands[0].imm;
+			InsInfo->IsImmediate = 1;
 
 		} else if (InsInfo->_InsDetail.x86.operands[0].type == X86_OP_MEM) {
 			DestAddr = (uint32_t)InsInfo->_InsDetail.x86.operands[0].mem.disp;
@@ -226,6 +245,7 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 		}
 	}
 
+	//printf("[%p] ERROR Addr %p\n", InsInfo->Address, DestAddr);
 
 	// Check if both engines match each other....
 	/*if (InsInfo->OpDstAddress && InsInfo->OpDstAddress != ToAddr) {
@@ -271,7 +291,7 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 
 	DestAddr = newaddr2;
 	//if (InsInfo->IsPointer)
-	printf("[%p:%d] %d \"%s\" which %X Orig goes to: %p [got %p] %d %ld %d\n", InsInfo->Address, InsInfo->Size,InsInfo->IsPointer, AssemblyCodeString, which, newaddr, InsInfo->OpDstAddress, dist8, dist32, ToAddr);
+	//printf("[%p:%d] %d \"%s\" which %X Orig goes to: %p [got %p] %d %ld %d\n", InsInfo->Address, InsInfo->Size,InsInfo->IsPointer, AssemblyCodeString, which, newaddr, InsInfo->OpDstAddress, dist8, dist32, ToAddr);
 	//printf("[%p:%d] %d \"%s\" which %X Orig goes to: %p [got %p] [%s] %d\n", InsInfo->Address, InsInfo->Size, InsInfo->IsPointer, AssemblyCodeString, which, newaddr2, InsInfo->OpDstAddress, (char *)Disassembler_Handle->disasm_str(InsInfo->Address,(char *) InsInfo->RawData, InsInfo->Size).c_str(), ToAddr);
 	InsInfo->orig = ToAddr;
 
@@ -291,12 +311,18 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 				 }
 			 }
 
-			 if ((ToAddr > 0x4000) && (ToAddr < 0xefff0000) &&
-					 ((uint32_t)ToAddr >= SecStart) &&
-					 ((uint32_t)ToAddr < SecEnd)) {
-				 if (s.executable()) {
-					 found2 = 1;
-				 	 break;
+			 if ((which >= SecStart) && (which < SecEnd)) {
+				 ToAddr = DestAddr = which;
+				 InsInfo->IsImmediate = 1;
+				 found2 = 1;
+			 } else {
+				 if ((ToAddr > 0x4000) && (ToAddr < 0xefff0000) &&
+						 ((uint32_t)ToAddr >= SecStart) &&
+						 ((uint32_t)ToAddr < SecEnd)) {
+					 if (s.executable()) {
+						 found2 = 1;
+						 break;
+					 }
 				 }
 			 }
 
@@ -304,20 +330,27 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 		 }
 	}
 
+	if (InsInfo->IsImmediate && !found2) {
+		InsInfo->IsImmediate = 0;
+	}
 	if (found || found2) InsInfo->OpDstAddress = DestAddr;
+
 
 	// various other checks..
 	if (strstr((const char *)AssemblyCodeString,(const char *) "push")) {
 		PushCount++;
 		InsInfo->IsPush = 1;
 		if ((ud_insn_opr(&InsInfo->ud_obj, 2) != NULL)) {// || ((ToAddr < 0x4000) || (ToAddr > 0xefffff0000))) {
-			printf("Removing %p toaddr %p point %d %s\n", InsInfo->Original_Address, ToAddr, InsInfo->IsPointer, (char *)Disassembler_Handle->disasm_str(InsInfo->Address,(char *) InsInfo->RawData, InsInfo->Size).c_str());
+			//printf("Removing %p toaddr %p point %d %s\n", InsInfo->Original_Address, ToAddr, InsInfo->IsPointer, (char *)Disassembler_Handle->disasm_str(InsInfo->Address,(char *) InsInfo->RawData, InsInfo->Size).c_str());
 			//printf("push %p not found %p\n", InsInfo->Address, DestAddr);
 			InsInfo->Requires_Realignment = 0;
 			InsInfo->OpDstAddress = 0;
 			InsInfo->orig = 0;
 		} else {
-			//printf("push  %p %p found %p - %d %d %p\n", InsInfo->Address, ToAddr, DestAddr, found, found2, ud_insn_opr(&InsInfo->ud_obj, 1));
+			//printf("ERROR push %p %X found %p - %d %d %p [op count%d]\n", InsInfo->Address, which, ToAddr, DestAddr, found, found2, ud_insn_opr(&InsInfo->ud_obj, 1));
+			//InsInfo->OpDstAddress = ((InsInfo->Address + InsInfo->Size) + which) & 0xffffffff;
+			//printf("ERROR push %X %p %p found %p - %d %d %p [[%X]]\n", which, InsInfo->Address, ToAddr, DestAddr, found, found2, ud_insn_opr(&InsInfo->ud_obj, 1), InsInfo->OpDstAddress&0xffffffff);
+			InsInfo->OpDstAddress = ToAddr;
 		}
 	}
 
@@ -325,7 +358,7 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 		CallCount++;
 		InsInfo->IsCall = 1;
 		if ((ud_insn_opr(&InsInfo->ud_obj, 2) != NULL)) {// || ((ToAddr < 0x4000) || (ToAddr > 0xefffff0000))) {
-			printf("Removing %p toaddr %p point %d - %s\n", InsInfo->Original_Address, ToAddr, InsInfo->IsPointer, (char *)Disassembler_Handle->disasm_str(InsInfo->Address,(char *) InsInfo->RawData, InsInfo->Size).c_str());
+			//printf("Removing %p toaddr %p point %d - %s\n", InsInfo->Original_Address, ToAddr, InsInfo->IsPointer, (char *)Disassembler_Handle->disasm_str(InsInfo->Address,(char *) InsInfo->RawData, InsInfo->Size).c_str());
 
 			InsInfo->Requires_Realignment = 0;
 			InsInfo->OpDstAddress = 0;
@@ -337,7 +370,7 @@ int InstructionAnalysis::AnalyzeInstruction(Disasm::InstructionInformation *InsI
 	// just in case it leads us to other branches
 	if (found == 1 && ((InsInfo->IsCall || InsInfo->IsPush))) {
 		//Queue(Addr Of Ins Dest, Current Priority, 50 instructions max, 0 bytes max, redo?);
-		QueueAddressForDisassembly(InsInfo->OpDstAddress, InsInfo->Priority, 50, 0, 0);
+		QueueAddressForDisassembly(InsInfo->OpDstAddress, InsInfo->Priority, 500, 0, 0);
 	}
 
 	return 1;
@@ -419,10 +452,12 @@ int InstructionAnalysis::QueueCache_Save(const char *filename) {
 
 // loops through queue till it completes...
 int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
-	int Max_Address_Not_Found = 100;
+	int Max_Address_Not_Found = 500;
 	int TotalAnalyzedCount = 0;
 	int AnalyzedCount = 0;
 	do {
+
+		//printf("Complete analysis\n");
 		AnalyzedCount = 0;
 		AnalysisQueue *qptr = Analysis_Queue_List;
 
@@ -432,16 +467,16 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 				if (qptr->Count++ > 5) break;
 				//std::cout << "Analyse first time";
 
-				// run a disassembler task on this address with a max of 20 instructions...
+                // run a disassembler task on this address with a max of 20 instructions...
                 int CountToAnalyze = Disassembler_Handle->RunDisasm(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);
-				std::cout << " " + CountToAnalyze << std::endl;
+                //std::cout << "EROR Count  " + CountToAnalyze << std::endl;
 				// then we need to reanalyze the instructions it disassembled
 				CodeAddr AnalyzeAddr = qptr->Address;
 				while (CountToAnalyze--) {
 					// so obtain a pointer to the instruction information
-					Disasm::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, Disasm::LIST_TYPE_NEXT, 1, NULL);
+                    Disasm::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, Disasm::LIST_TYPE_NEXT, 1, NULL);
 					if (!InsInfo) {
-						std::cout << "Address not found: " << AnalyzeAddr << std::endl;
+						//std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
 						if (!Max_Address_Not_Found--) {
 							std::cout << "We hit the limit of 100 on this queue.. moving on" << std::endl;
 							break;
@@ -449,6 +484,8 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 						// this should never happen.. the instruction should exist if it returned the count saying it added it
 						AnalyzeAddr++;
 						continue;
+					} else {
+						//std::cout << "ERROR Found in cache " << AnalyzeAddr << std::endl;
 					}
 					// and analyze it (because it may relate to other previous unknown addresses
 					// which also have to be queued...

@@ -46,13 +46,14 @@ namespace psykoosi {
 		  int Requires_Realignment;
 
 
-		  int InjectInstructionsBefore;
+		  int CatchOriginalRelativeDestinations;
 		  struct _instruction_information *InjectedInstructions;
 
 		  // some quick ways to scan over these later.. push/call are important
 		  int IsPush;
 		  int IsCall;
 		  int IsEntryPoint;
+		  int IsImmediate;
 
 		  // Operand destination information
 		  struct _instruction_information *OpDstInstructionInformation;
@@ -85,6 +86,7 @@ namespace psykoosi {
           InstructionIterator(InstructionInformation* ptr);
           InstructionIterator(const InstructionIterator&) = default;
           bool operator==(const InstructionIterator& other);
+          bool operator!=(const InstructionIterator& other);
           InstructionInformation* operator->();
           void operator++();
           void operator--();

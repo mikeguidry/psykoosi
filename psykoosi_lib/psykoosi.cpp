@@ -83,7 +83,7 @@ void Psykoosi::Load(const std::string &fileName) {
 
 
     int start = time(0);
-
+/*
     // this is a little better.. will do it differently later in another function
     if (!CacheDir.empty() && op.disasm->Cache_Load(CacheFileName(fileName, "disasm").c_str()) &&
             op.analysis->QueueCache_Load(CacheFileName(fileName, "analysis").c_str()) &&
@@ -96,7 +96,7 @@ void Psykoosi::Load(const std::string &fileName) {
         op.disasm->Clear_Instructions();
         dprintf("Only loaded instructions.. clearing\n");
     }
-
+*/
 
     if (!from_cache) {
         //op.disasm->Clear_Instructions();

@@ -5,9 +5,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <fstream>
+#include <pe_lib/pe_bliss.h>
+
 #include "virtualmemory.h"
-// 64k pages...
-#define PAGE_SIZE 4096*2*2*2*2*sizeof(unsigned char *)
 
 using namespace psykoosi;
 
@@ -16,6 +16,16 @@ VirtualMemory::VirtualMemory()
 {
   Memory_Pages = NULL;
   Section_List = Section_Last = NULL;
+  LogList = LogLast = NULL;
+  VMParent = NULL;
+
+  for (int i = 0; i < SettingType::SETTINGS_MAX; i++) {
+	  Settings[i] = 0;
+  }
+
+  // lower kb since we'll start cloning, etc...bigger the number = more clones
+  Settings[SETTINGS_PAGE_SIZE] = 1024*4;
+
 }
 
 VirtualMemory::~VirtualMemory()
@@ -35,67 +45,193 @@ VirtualMemory::~VirtualMemory()
 
 }
 
-unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
-    if(block <= 1) return n;
-    block--;
-    return (n + block) & ~block;
+void VirtualMemory::SetParent(VirtualMemory *Parent) {
+	VMParent = Parent;
+	VMParent->AddChild();
 }
 
-// find the specific page
-VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
+void VirtualMemory::ReleaseParent() {
+	VMParent->ReleaseChild();
+	VMParent = NULL;
+}
+
+void VirtualMemory::AddChild() {
+	Children++;
+}
+
+void VirtualMemory::ReleaseChild() {
+	Children--;
+}
+
+unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
+	unsigned long ret;
+    if(block <= 1) return n;
+    block--;
+
+    ret = (n + block) & ~block;
+
+    return ret;
+}
+
+VirtualMemory::MemPage *VirtualMemory::MemPagePtrIfExists(unsigned long addr) {
     MemPage *mptr = (MemPage *)Memory_Pages;
-    unsigned long round = roundupto(addr, PAGE_SIZE); // round up to 64k pages
+    unsigned long round = roundupto(addr, Settings[SETTINGS_PAGE_SIZE]); // round up to 64k pages
     if (mptr != NULL) {
       for (; mptr != NULL; mptr = mptr->next) {
 	  if ((unsigned long)round == mptr->round)
 	      return mptr;
       }
     }
-    // couldnt find so allocate..
-    mptr = new MemPage;
+    return NULL;
+}
 
-    //z c++ero out new memory
+
+VirtualMemory::MemPage *VirtualMemory::ClonePage(MemPage *ParentOriginal) {
+	MemPage *mptr = NewPage(ParentOriginal->round, ParentOriginal->size);
+	if (mptr == NULL) {
+		printf("error cloning page!\n");
+		throw;
+		return NULL;
+	}
+	std::memcpy(mptr->data, ParentOriginal->data, mptr->size);
+
+	mptr->Original_Parent = ParentOriginal->ClassPtr;
+	mptr->clone_cycle = Settings[SettingType::SETTINGS_VM_CPU_CYCLE];
+
+	return mptr;
+}
+
+int VirtualMemory::IsMyPage(MemPage *mptr) {
+	return (mptr->ClassPtr == this);
+}
+
+VirtualMemory::MemPage *VirtualMemory::NewPage(unsigned long round, int size) {
+    MemPage *mptr = new MemPage;
+
     std::memset(mptr, 0, sizeof(MemPage));
 
-    // push old back..
-    mptr->next = (MemPage *)Memory_Pages;
-    // insert in the beginning
-    Memory_Pages = mptr;
+   // push old back..
+   mptr->next = (MemPage *)Memory_Pages;
+   // insert in the beginning
+   Memory_Pages = mptr;
 
-    // what page range is this for
-    mptr->round = round;
-    // size of this page
-    mptr->size = PAGE_SIZE;
-    // lets allocate the data
-    mptr->data = new unsigned char[PAGE_SIZE+16];
-    std::memset(mptr->data, 0x00, PAGE_SIZE);
+   // what page range is this for
+   mptr->round = round;
+   // size of this page
+   mptr->size = Settings[SETTINGS_PAGE_SIZE];
+   // lets allocate the data
+   mptr->data = new unsigned char[Settings[SETTINGS_PAGE_SIZE]+16];
+   std::memset(mptr->data, 0x00, Settings[SETTINGS_PAGE_SIZE]);
+
+   mptr->ClassPtr = this;
+
+   return mptr;
+
+}
+
+// find the specific page
+VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
+    MemPage *mptr = MemPagePtrIfExists(addr);
+
+    // lets see if we have a parent.. and if it has this data.. if so we borrow the page
+    if (VMParent != NULL)
+    	mptr = VMParent->MemPagePtrIfExists(addr);
+
+    if (mptr != NULL) return mptr;
+
+    unsigned long round = roundupto(addr, Settings[SETTINGS_PAGE_SIZE]); // round up to 64k pages
+
+    // couldnt find so allocate..
+    mptr = NewPage(round, Settings[SETTINGS_PAGE_SIZE]);
     
     return mptr;
 }
 
+
+VirtualMemory::ChangeLog *VirtualMemory::ChangeLog_Add(int type, CodeAddr Addr, unsigned char *data, int len) {
+	if (type == VMEM_READ && !Settings[SettingType::SETTINGS_CHANGELOG_READS]) return NULL;
+	if (type == VMEM_WRITE && !Settings[SettingType::SETTINGS_CHANGELOG_WRITES]) return NULL;
+
+	ChangeLog *logptr = new ChangeLog;
+	std::memset(logptr, 0, sizeof(ChangeLog));
+
+	logptr->Address = Addr;
+	logptr->Data = new unsigned char[len];
+	std::memcpy(logptr->Data, data, len);
+
+	if (LogLast != NULL) {
+		logptr->Order = LogLast->Order + 1;
+		LogLast->next = logptr;
+	} else {
+		LogList = LogLast = logptr;
+		logptr->Order = 1;
+	}
+
+	return logptr;
+}
+
+
+// maybe add support for cloning at a lower PAGE_SIZE....
 int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *data, int len) {
-    MemPage *mptr = NULL;
+    MemPage *mptr = NULL, *mptr_current = NULL;
+    unsigned long current_pageaddr_start = 0;
+    unsigned long current_vaddr_start = 0;
+    unsigned long current_count = 0;
     int i = 0;
     unsigned long pageaddr = 0;
     int count=0;
     
     for (i = 0; i < len; i++) {
         if ((mptr = MemPagePtr(addr+i)) == 0) return 0;
+
         // determine location on page
-        pageaddr = (addr+i) - (mptr->round - PAGE_SIZE);
+        pageaddr = (addr+i) - (mptr->round - Settings[SETTINGS_PAGE_SIZE]);
         // read byte
 		switch (operation) {
 		  case VMEM_READ:
 			data[i] = mptr->data[pageaddr];
 			break;
 		  case VMEM_WRITE:
+			// clone on write.... from parent
+			if (!IsMyPage(mptr)) {
+				mptr = ClonePage(mptr);
+				if (mptr == NULL) throw;
+			}
 			mptr->data[pageaddr] = data[i];
 			break;
 		  default:
+			  throw;
 			break;
 		}
+
+		// current is so we only do a changelog at the end, or when a page changes.. so we dont have
+		// change logs for single bytes... or if its the last byte...
+		if (Settings[SettingType::SETTINGS_CHANGELOG]) {
+			if (mptr_current != mptr || ((i + 1) == len)) {
+				// log current now...
+				current_count++;
+
+				// log the changes...
+				ChangeLog *logptr = ChangeLog_Add(operation, current_vaddr_start, (unsigned char *)(&mptr_current->data + pageaddr), current_count);
+				if (logptr != NULL) {
+					logptr->VM_CPU_Cycle = Settings[SettingType::SETTINGS_VM_CPU_CYCLE];
+					logptr->VM_ID = Settings[SettingType::SETTINGS_VM_ID];
+					logptr->VM_LogID = Settings[SettingType::SETTINGS_VM_LOGID];
+				}
+
+
+				// restart for the next page...
+				mptr_current = mptr;
+				current_count = 1; // we just got our first byte from a new page...
+				current_pageaddr_start = pageaddr;
+				current_vaddr_start = addr + i;
+			} else
+				current_count++;
+		}
+
 		count++;
     }
+
     return count;
 }
 
@@ -106,12 +242,18 @@ int VirtualMemory::MemDataRead(unsigned long addr, unsigned char *result, int le
 
 // writes data into the virtual memory
 int VirtualMemory::MemDataWrite(unsigned long addr, unsigned char *data, int len) {
-  return MemDataIO(VMEM_WRITE, addr, data, len);
+	return MemDataIO(VMEM_WRITE, addr, data, len);
 }
 
 VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint32_t Size,uint32_t VirtualSize, SectionType Type, uint32_t Characteristics, uint32_t RVA, char *Name, unsigned char *Data) {
+	/*uint32_t Base_Address = Address;
+	for (Memory_Section *sect = Section_List; sect != NULL; sect = sect->next) {
+		if ((Address >= (sect->Address-(1024*64)) && (Address < (sect->VirtualSize+(1024*64))))) {
+			//if its within 64kb of this other section.. it has to be changed...
+			Base_Address = sect + sect->VirtualSize + (1024*64);
+		}
+	}*/
 	Memory_Section *sptr = new Memory_Section;
-
 	std::memset(sptr, 0, sizeof(Memory_Section));
 
 	sptr->Address = Address;
@@ -218,3 +360,77 @@ int VirtualMemory::Cache_Load(const char *filename) {
 		printf("Loaded %d from file\n", count);
 }
 
+
+int VirtualMemory::Configure(SettingType type, int Setting) {
+	int Old_Setting = Settings[type];
+
+	// cannot change page size after there is already data
+	if (type == SettingType::SETTINGS_PAGE_SIZE && Memory_Pages != NULL && Memory_Pages->Original_Parent != this)
+		return Old_Setting;
+
+	Settings[type] = Setting;
+
+	return Old_Setting;
+}
+
+int VirtualMemory::Configure(SettingType type, unsigned long Setting) {
+	int Old_Setting = Settings[type];
+
+	// cannot change page size after there is already data
+	if (type == SettingType::SETTINGS_PAGE_SIZE && Memory_Pages != NULL && Memory_Pages->Original_Parent != this)
+		return Old_Setting;
+
+	Settings[type] = Setting;
+
+	return Old_Setting;
+}
+
+// count all change logs.. either total or by a specific log id...
+int VirtualMemory::ChangeLog_Count(unsigned long LogID) {
+	int Count = 0;
+	for (ChangeLog *cptr = LogList; cptr != NULL; cptr = cptr->next) {
+		if (LogID && cptr->VM_LogID != LogID) continue;
+	}
+	return Count;
+}
+
+
+// sort changelog by the order...
+int ordersort(const void *log1_ptr, const void *log2_ptr) {
+	VirtualMemory::ChangeLog *Log1 = (VirtualMemory::ChangeLog *)log1_ptr;
+	VirtualMemory::ChangeLog *Log2 = (VirtualMemory::ChangeLog *)log2_ptr;
+
+	return (Log1->Order > Log2->Order) ? 1 : -1;
+}
+
+VirtualMemory::ChangeLog **VirtualMemory::ChangeLog_Retrieve(unsigned long LogID, int *count) {
+	int Count = ChangeLog_Count(LogID);
+	*count = Count;
+	if (!Count) return NULL;
+	ChangeLog **ret = new ChangeLog *[Count];
+	int i = 0;
+	for (ChangeLog *cptr = LogList; cptr != NULL; cptr = cptr->next) {
+		if (i >= Count) throw;
+		ret[i] = cptr;
+	}
+
+	// lets put in order..
+	qsort(ret, Count, sizeof(ChangeLog *), ordersort);
+
+	return ret;
+}
+
+void VirtualMemory::Section_SetFilename(Memory_Section *sptr, char *filename) {
+	if (!sptr) throw;
+	int len = strlen(filename);
+	sptr->Filename = new char [len+2];
+	std::strcpy(sptr->Filename, filename);
+	sptr->Filename[len] = 0;
+}
+
+VirtualMemory::Memory_Section *VirtualMemory::Section_EnumByFilename(char *filename, Memory_Section *last) {
+	for (Memory_Section *sptr = (last ? last->next : Section_List); sptr != NULL; sptr = sptr->next) {
+		if (sptr->Filename && strstr(sptr->Filename, filename)) return sptr;
+	}
+	return NULL;
+}
