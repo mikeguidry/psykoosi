@@ -345,6 +345,8 @@ int VirtualMemory::Cache_Load(char *filename) {
 
 		qptr->next = 0; qptr->prev = 0;
 
+		if (!qptr->RawSize) throw;
+
 		qptr->RawData = new unsigned char[qptr->RawSize];
 		qptr->Name = new char[name_size];
 

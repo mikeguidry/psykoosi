@@ -179,11 +179,13 @@ namespace psykoosi {
 	  void SetRegister(EmulationThread *, int Monitor, uint32_t Value);
 	  void CopyRegistersToShadow(EmulationThread *);
 
-	  EmulationLog *StepInstruction(EmulationThread *, Emulation::CodeAddr Address, int Max_Size);
+	  EmulationLog *StepInstruction(EmulationThread *, Emulation::CodeAddr Address);
+	  Emulation::EmulationThread *ExecuteLoop(VirtualMemory *vmem, Emulation::CodeAddr StartAddr, Emulation::CodeAddr EndAddr, struct cpu_user_regs *registers, int new_thread);
 	  EmulationLog *CreateLog(EmulationThread *);
 	  Emulation::RegChanges *CreateChangeEntry(Emulation::RegChanges **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
 
-	  EmulationThread *NewVirtualMachine(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
+	  Emulation::EmulationThread *NewVirtualMachine(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
+
 	  void DestroyVirtualMachine(EmulationThread *);
 
 	  EmulationThread Master;

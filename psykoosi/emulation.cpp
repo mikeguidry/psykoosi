@@ -161,7 +161,7 @@ void Emulation::ClearLogs(EmulationThread *thread) {
 	}
 }
 
-Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, CodeAddr Address, int Max_Size) {
+Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, CodeAddr Address) {
 	EmulationLog *ret = NULL;
 
 	SetRegister(thread, REG_EIP, Address);
@@ -192,6 +192,37 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, Cod
 
 	return ret;
 }
+
+
+Emulation::EmulationThread *Emulation::ExecuteLoop(VirtualMemory *vmem, Emulation::CodeAddr StartAddr, Emulation::CodeAddr EndAddr, struct cpu_user_regs *registers, int new_thread) {
+	EmulationLog *logptr = NULL;
+	EmulationThread *thread = NULL;
+	int done = 0, count = 0;
+	CodeAddr EIP = StartAddr;
+
+	if (new_thread) {
+		thread = NewVirtualMachine(vmem, EIP, registers);
+		if (thread == NULL) {
+			return NULL;
+		}
+	} else thread = &Master;
+
+	if (thread == &Master) {
+		std::memcpy((void *)&Master.registers, registers, sizeof(struct cpu_user_regs));
+	}
+
+	while (!done) {
+		logptr = StepInstruction(thread, EIP);
+		if (count++ > 30) break;
+		if (thread->registers.eip >= EndAddr) done=1;
+	}
+
+
+	printf("Executed %d instructions\n");
+
+	return thread;
+}
+
 
 Emulation::EmulationThread *Emulation::NewVirtualMachine(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP,
 		struct cpu_user_regs *registers) {

@@ -101,7 +101,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 		 if (sptr->RawSize == 0) continue;
 		 if (!_VM->Section_IsExecutable(sptr, NULL)) continue;
 
-		 /*
+
 		 DisassembleTask::InstructionInformation *In = _DT->Instructions[DisassembleTask::LIST_TYPE_NEXT];
 		 while (In) {
 			 if (!(count++ % 5)) {
@@ -118,7 +118,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 			 }
 			 In = In->Lists[DisassembleTask::LIST_TYPE_NEXT];
 
-		 }*/
+		 }
 
 	 }
 
@@ -499,7 +499,7 @@ int Rebuilder::RealignInstructions() {
 						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
 
 						 // now verify it worked!
-						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr, 13);
+						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr);
 						 printf("Emu Log %p\n", emu_log);
 						 if (emu_log == NULL) {
 							 printf("ERROR Was unable to analyze instruction at address %p", NewIns->Address);

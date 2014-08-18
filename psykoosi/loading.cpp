@@ -27,6 +27,8 @@ BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, Virtual
 	_VM = VM;
 	code_section = 0;
 	Images_List = NULL;
+	Symbols_List = NULL;
+	Emulation_List = Emulation_Last = NULL;
 
 	memset(system_dll_dir, 0, 1024);
 }
@@ -132,7 +134,11 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 			 }
 
 		}
-		//LoadImports(image, _VM);
+		LoadImports(image, _VM, image->get_image_base_32());
+
+		if (main_image) {
+			EmulationQueue *qptr = EmulationQueueAdd(main_image, qptr->Image->ImageBase + main_image->PEimage->get_ep(), 0);
+		}
 	} catch(const pe_exception& e) {
 		std::cout << "Error: " << e.what() << std::endl;
 		delete image;
@@ -144,6 +150,29 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 	_IA->SetPEHandle(image);
 	return image;
 }
+
+
+
+
+BinaryLoader::EmulationQueue *BinaryLoader::EmulationQueueAdd(LoadedImages *iptr, CodeAddr CodeEntry, int IsDLL) {
+	EmulationQueue *qptr = new EmulationQueue;
+
+	std::memset(qptr, 0, sizeof(EmulationQueue));
+	qptr->Image = iptr;
+	qptr->IsDLL = IsDLL;
+	qptr->Entry = CodeEntry;
+
+	if (Emulation_Last == NULL) {
+		 Emulation_List = Emulation_Last = qptr;
+	} else {
+		 Emulation_Last->next = qptr;
+		 Emulation_Last = qptr;
+	}
+	return qptr;
+}
+
+
+
 
 // find us a good image base for loading DLLs...
 uint32_t BinaryLoader::CheckImageBase(uint32_t Address) {
@@ -187,8 +216,15 @@ BinaryLoader::LoadedImages *BinaryLoader::AddLoadedImage(char *filename, pe_blis
 
 VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze) {
 	VirtualMemory::Memory_Section *ret = NULL;
+	BinaryLoader::LoadedImages *lptr = NULL;
+	CodeAddr Entry=0, ImageBase = 0;
 	char fname[1024];
 
+	for (BinaryLoader::LoadedImages *lptr = Images_List; lptr != NULL; lptr = lptr->next) {
+		if (lptr->filename != NULL && (strcasecmp(filename, lptr->filename)==0)) {
+			return lptr->CodeSection;
+		}
+	}
 	sprintf(fname, "%s/%s", system_dll_dir, filename);
 
 	for (int i = 0; i < strlen(fname); i++) fname[i] = tolower(fname[i]);
@@ -205,10 +241,11 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	 }
 
 
-	 uint32_t ImageBase = CheckImageBase(dll_image->get_image_base_32());
+	 ImageBase = CheckImageBase(dll_image->get_image_base_32());
 	 if (strstr(fname, "kernel32")) ImageBase = 0x7B810000;
 
 	 dll_image->set_image_base(ImageBase);
+	 Entry = ImageBase + dll_image->get_ep();
 	 printf("Loading DLL %s @ PE ImageBase %p has exports %d %d\n", filename, ImageBase, dll_image->has_exports(), dll_image->has_imports());
 	 const section_list sections(dll_image->get_image_sections());
 	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
@@ -235,20 +272,27 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 				 // queue for analysis after...
 				 //int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo) {
 
-				 BinaryLoader::LoadedImages *lptr = AddLoadedImage(filename, dll_image, ImageBase, NULL);
+				 lptr = AddLoadedImage(filename, dll_image, ImageBase, NULL);
 				 lptr->CodeSection = mptr;
 				 if (analyze)
 					 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
 				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
 			 }
 	 }
+
+	 if (lptr != NULL) {
+		 LoadImports(dll_image, VMem, ImageBase);
+
+		 // put in queue for emulation since each DLL will have to be executed before we can run the
+		 // PEs code itself since we are loading them..
+		 EmulationQueue *qptr = EmulationQueueAdd(lptr, Entry, 1);
+	 }
 	 return ret;
 }
 
 BinaryLoader::LoadedImages *BinaryLoader::FindLoadedByName(char *filename) {
 	for (LoadedImages *lptr = Images_List; lptr != NULL; lptr = lptr->next) {
-		if (
-				(filename && lptr->filename && (strcasecmp(filename, lptr->filename)==0)) ||
+		if ((filename && lptr->filename && (strcasecmp(filename, lptr->filename)==0)) ||
 				(!filename && !lptr->filename))
 			return lptr;
 	}
@@ -258,17 +302,20 @@ BinaryLoader::LoadedImages *BinaryLoader::FindLoadedByName(char *filename) {
 
 BinaryLoader::CodeAddr BinaryLoader::GetProcAddress(char *filename, char *function_name) {
 	CodeAddr FunctionAddr = NULL;
-
-
 	LoadedImages *lptr = FindLoadedByName(filename);
+
 	if (lptr == NULL) {
 		return NULL;
 	}
 
+	for (Symbols *sptr = Symbols_List; sptr != NULL; sptr = sptr->next) {
+		if ((strcasecmp(filename, sptr->filename)==0) && strcasecmp(function_name, sptr->function_name)==0) {
+			return sptr->FunctionPtr;
+		}
+	}
 
 	// make sure it has exports before we start enumerating..
 	if (!lptr->PEimage->has_exports()) {
-
 		return NULL;
 	}
 
@@ -286,11 +333,30 @@ BinaryLoader::CodeAddr BinaryLoader::GetProcAddress(char *filename, char *functi
 
 	}
 
+	if (FunctionAddr != NULL) {
+		Symbols *sptr = new Symbols;
+		sptr->FunctionPtr = FunctionAddr;
+
+		int len = strlen(filename);
+
+		sptr->filename = new char [len+2];
+		std::memcpy(sptr->filename, filename, len);
+		sptr->filename[len] = 0;
+
+		len = strlen(function_name);
+		sptr->function_name = new char[len+2];
+		std::memcpy(sptr->function_name, function_name, len);
+		sptr->function_name[len] = 0;
+
+		sptr->next = Symbols_List;
+		Symbols_List = sptr;
+	}
+
 	return FunctionAddr;
 }
 
 // will try to locate and load all dependencies for a binary into virtual memory
-int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem) {
+int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem, CodeAddr ImageBase) {
 
 	if (imp_image == NULL || !imp_image->has_imports()) {
 		printf("cannot load imports %p %d\n", imp_image, imp_image->has_imports());
@@ -315,7 +381,7 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem)
 
 		//printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
 
-		uint32_t IAT_Addr = (uint32_t)(imp_image->get_image_base_32() + iat_rva);
+		uint32_t IAT_Addr = (uint32_t)(ImageBase + iat_rva);
 
 		const import_library::imported_list& functions = lib.get_imported_functions();
 		for(import_library::imported_list::const_iterator func_it = functions.begin(); func_it != functions.end(); ++func_it)

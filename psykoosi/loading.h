@@ -41,7 +41,24 @@ namespace psykoosi {
 
 	  } LoadedImages;
 
-	  BinaryLoader(DisassembleTask *, InstructionAnalysis *, VirtualMemory *);
+	  // emulation queue for loading DLLs, etc and then we can run the PE's entry point...
+	  typedef struct _emulation_queue {
+		  struct _emulation_queue *next;
+		  LoadedImages *Image;
+		  CodeAddr Entry;
+		  int IsDLL; // dll or main entry?
+		  int completed;
+	  } EmulationQueue;
+
+	  typedef struct _loaded_symbols {
+		  struct _loaded_symbols *next;
+		  char *filename;
+		  char *function_name;
+		  CodeAddr FunctionPtr;
+	  } Symbols;
+
+
+  	  BinaryLoader(DisassembleTask *, InstructionAnalysis *, VirtualMemory *);
 
 	  char *GetInputRaw(int *Size);
 	  pe_bliss::pe_base *LoadFile(int Arch, int FileFormat, char *FileName);
@@ -49,13 +66,14 @@ namespace psykoosi {
 
 	  uint32_t HighestAddress(int raw);
 
-	  int LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem);
+	  int LoadImports(pe_bliss::pe_base *imp_image,  VirtualMemory *VMem, CodeAddr ImageBase);
 	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze);
 
 	  BinaryLoader::LoadedImages *AddLoadedImage(char  *filename, pe_bliss::pe_base *PEimage, CodeAddr ImageBase, char *Reference);
 	  BinaryLoader::LoadedImages *FindLoadedByName(char *filename);
 	  BinaryLoader::CodeAddr GetProcAddress(char *filename, char *function_name);
 
+	  EmulationQueue *EmulationQueueAdd(LoadedImages *iptr, CodeAddr CodeEntry, int IsDLL);
 	  DisassembleTask *_DT;
 	  InstructionAnalysis *_IA;
 	  VirtualMemory *_VM;
@@ -68,6 +86,10 @@ namespace psykoosi {
 	  char system_dll_dir[1024];
 
 	  LoadedImages *Images_List;
+	  // this one needs last so its in order!
+	  EmulationQueue *Emulation_List, *Emulation_Last;
+
+	  Symbols *Symbols_List;
 
   	  private:
 	  std::string InputData;
