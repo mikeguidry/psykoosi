@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
 	// we'll create a system for loading configuration details from a file shortly that can be used
 	// to configure every class also from LUA/scripting
 	// set the DLL where we will load imports/dll dependencies
-	op.loader->SetDLLDirectory("/home/mike/.wine/drive_c/windows/system32");
+	op.loader->SetDLLDirectory("/home/mike/dlls");
 
 
   	op.pe_image = op.loader->LoadFile(0,0,(char *)argv[1]);

@@ -11,6 +11,8 @@ namespace psykoosi {
 
   class BinaryLoader {
   	  public:
+	  typedef uint32_t CodeAddr;
+
 	  enum {
 		  // architectures
 		  INPUT_ARCH_X86,
@@ -24,6 +26,21 @@ namespace psykoosi {
 		  INPUT_TYPE_MACHO
 	  };
 
+	  typedef struct _loaded_images {
+		  struct _loaded_images *next;
+
+		  pe_bliss::pe_base *PEimage;
+
+		  CodeAddr ImageBase;
+
+		  char *filename;
+
+		  VirtualMemory::Memory_Section *CodeSection;
+		  // which image was the reason this was loaded..
+		  char *LoadedBecause;
+
+	  } LoadedImages;
+
 	  BinaryLoader(DisassembleTask *, InstructionAnalysis *, VirtualMemory *);
 
 	  char *GetInputRaw(int *Size);
@@ -35,6 +52,9 @@ namespace psykoosi {
 	  int LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem);
 	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze);
 
+	  BinaryLoader::LoadedImages *AddLoadedImage(char  *filename, pe_bliss::pe_base *PEimage, CodeAddr ImageBase, char *Reference);
+	  BinaryLoader::LoadedImages *FindLoadedByName(char *filename);
+	  BinaryLoader::CodeAddr GetProcAddress(char *filename, char *function_name);
 
 	  DisassembleTask *_DT;
 	  InstructionAnalysis *_IA;
@@ -46,6 +66,8 @@ namespace psykoosi {
 	  void SetDLLDirectory(char *dir);
 
 	  char system_dll_dir[1024];
+
+	  LoadedImages *Images_List;
 
   	  private:
 	  std::string InputData;

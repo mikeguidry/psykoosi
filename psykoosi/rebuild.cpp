@@ -54,6 +54,7 @@ Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory
 
 	std::strcpy(this->FileName, FileName);
 	vmem = new VirtualMemory;
+	vmem->SetParent(_VM);
 }
 
 Rebuilder::~Rebuilder() {
@@ -361,6 +362,7 @@ int Rebuilder::RealignInstructions() {
 	}
 
 	Emulation emulator(vmem);
+
 	emulator.Master.EmuVMEM.SetParent(vmem);
 
 	raw_final.clear();

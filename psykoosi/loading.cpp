@@ -26,6 +26,7 @@ BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, Virtual
 	_IA = IA;
 	_VM = VM;
 	code_section = 0;
+	Images_List = NULL;
 
 	memset(system_dll_dir, 0, 1024);
 }
@@ -56,6 +57,7 @@ uint32_t BinaryLoader::HighestAddress(int raw) {
 pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 	std::ifstream pe_file(FileName, std::ios::in | std::ios::binary);
 	DisassembleTask::CodeAddr Last_Section_Addr = 0;
+	LoadedImages *main_image = NULL;
 
 	if (!pe_file) {
 		std::cout << "Cannot open " << FileName << std::endl;
@@ -101,6 +103,8 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 
 			 VirtualMemory::Memory_Section *mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
 			 mptr->ImageBase = image->get_image_base_32();
+			 // insert into images loaded list... (used later for getprocaddress, etc maybe hooking of win32 api)
+
 
 			 // rather than setting the filename.. we'll keep it NULL for easily enumerating the main file's sections
 			 //_VM->Section_SetFilename(mptr, FileName);
@@ -117,6 +121,11 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 				 uint32_t SectionAddress = image->get_image_base_32() + s.get_virtual_address();
 				 // queue for analysis after...
 				 //int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo) {
+
+				 main_image = AddLoadedImage(NULL, image, (CodeAddr)mptr->ImageBase, NULL);
+				 if (main_image) {
+					 main_image->CodeSection = mptr;
+				 }
 
 				 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
 				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
@@ -151,6 +160,31 @@ void BinaryLoader::SetDLLDirectory(char *dir) {
 	strncpy(system_dll_dir, dir, 1024);
 }
 
+BinaryLoader::LoadedImages *BinaryLoader::AddLoadedImage(char *filename, pe_bliss::pe_base *PEimage, CodeAddr ImageBase, char *Reference) {
+	LoadedImages *lptr = new LoadedImages;
+	std::memset(lptr, 0, sizeof(LoadedImages));
+
+	if (filename != NULL) {
+		int flen = strlen(filename);
+		lptr->filename = new char [flen+2];
+		std::memcpy(lptr->filename, filename, flen);
+		lptr->filename[flen] = 0;
+	}
+	lptr->PEimage = PEimage;
+	lptr->ImageBase = ImageBase;
+	if (Reference) {
+		int rlen = strlen(Reference);
+		lptr->LoadedBecause = new char[rlen+2];
+		std::memcpy(lptr->LoadedBecause, filename, rlen);
+		lptr->LoadedBecause[rlen] = 0;
+	}
+
+	lptr->next = Images_List;
+	Images_List = lptr;
+
+	return lptr;
+}
+
 VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze) {
 	VirtualMemory::Memory_Section *ret = NULL;
 	char fname[1024];
@@ -175,7 +209,7 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	 if (strstr(fname, "kernel32")) ImageBase = 0x7B810000;
 
 	 dll_image->set_image_base(ImageBase);
-	 printf("Loading DLL %s @ PE ImageBase %p\n", filename, ImageBase);
+	 printf("Loading DLL %s @ PE ImageBase %p has exports %d %d\n", filename, ImageBase, dll_image->has_exports(), dll_image->has_imports());
 	 const section_list sections(dll_image->get_image_sections());
 	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
 			 const section &s = *it;
@@ -201,12 +235,59 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 				 // queue for analysis after...
 				 //int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo) {
 
+				 BinaryLoader::LoadedImages *lptr = AddLoadedImage(filename, dll_image, ImageBase, NULL);
+				 lptr->CodeSection = mptr;
 				 if (analyze)
 					 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
 				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
 			 }
 	 }
 	 return ret;
+}
+
+BinaryLoader::LoadedImages *BinaryLoader::FindLoadedByName(char *filename) {
+	for (LoadedImages *lptr = Images_List; lptr != NULL; lptr = lptr->next) {
+		if (
+				(filename && lptr->filename && (strcasecmp(filename, lptr->filename)==0)) ||
+				(!filename && !lptr->filename))
+			return lptr;
+	}
+
+	return NULL;
+}
+
+BinaryLoader::CodeAddr BinaryLoader::GetProcAddress(char *filename, char *function_name) {
+	CodeAddr FunctionAddr = NULL;
+
+	printf("GetProcAddress(\"%s\", \"%s\"\n", filename, function_name);
+
+	LoadedImages *lptr = FindLoadedByName(filename);
+	if (lptr == NULL) {
+		return NULL;
+	}
+
+
+	// make sure it has exports before we start enumerating..
+	if (!lptr->PEimage->has_exports()) {
+
+		return NULL;
+	}
+
+
+	export_info info;
+	exported_functions_list exports = get_exported_functions(*lptr->PEimage, info);
+	for(exported_functions_list::const_iterator it = exports.begin(); it != exports.end(); ++it) {
+		const exported_function& func = *it;
+		const std::string name = func.get_name();
+
+		if (strcasecmp((char *)name.c_str(), function_name)==0) {
+			FunctionAddr = lptr->ImageBase + func.get_rva();
+			break;
+		}
+
+	}
+
+	return FunctionAddr;
 }
 
 // will try to locate and load all dependencies for a binary into virtual memory
@@ -219,51 +300,56 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem)
 
     const imported_functions_list imports = get_imported_functions(*imp_image);
 
-    for(imported_functions_list::const_iterator it = imports.begin(); it != imports.end(); ++it)
-                {
-                        const import_library& lib = *it; //Импортируемая библиотека
-                        VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0);
-                        if (DLL_code_sect) {
-                        	printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
-                        } else {
-                        	printf("Couldn't load DLL %s\n", (char *)lib.get_name().c_str());
-                        }
-                        uint32_t iat_rva = (*it).get_rva_to_iat();
-                        section iat_section = imp_image->section_from_rva(iat_rva);
-                        if (iat_section.empty()) {
-                        	printf("Couldnt find IAT section address!\n");
-                        	return -1;
-                        }
+    for(imported_functions_list::const_iterator it = imports.begin(); it != imports.end(); ++it) {
+		const import_library& lib = *it;
+		VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0);
+		if (DLL_code_sect) {
+			printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
+		} else {
+			printf("Couldn't load DLL %s\n", (char *)lib.get_name().c_str());
+		}
+		uint32_t iat_rva = (*it).get_rva_to_iat();
+		section iat_section = imp_image->section_from_rva(iat_rva);
+		if (iat_section.empty()) {
+			printf("Couldnt find IAT section address!\n");
+			return -1;
+		}
 
-                        printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
-
+		printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
 
 
-                        uint32_t IAT_Addr = (uint32_t)(imp_image->get_image_base_32() + iat_rva);
-                        printf("Iat Addr %p\n", IAT_Addr);
 
-                        std::cout << "Original Info - Library [" << lib.get_name() << "]" << std::endl //Имя
-                                << "Timestamp: " << lib.get_timestamp() << std::endl //Временная метка
-                                << "RVA to IAT: " << lib.get_rva_to_iat() << std::endl //Относительный адрес к import address table
-                                << "========" << std::endl;
+		uint32_t IAT_Addr = (uint32_t)(imp_image->get_image_base_32() + iat_rva);
+		printf("Iat Addr %p\n", IAT_Addr);
 
-                        //Перечисляем импортированные функции для библиотеки
-                        const import_library::imported_list& functions = lib.get_imported_functions();
-                        for(import_library::imported_list::const_iterator func_it = functions.begin(); func_it != functions.end(); ++func_it)
-                        {
-                                const imported_function& func = *func_it; //Импортированная функция
-                                std::cout << "[+] ";
-                                if(func.has_name()) //Если функция имеет имя - выведем его
-                                        std::cout << func.get_name();
-                                else
-                                        std::cout << "#" << func.get_ordinal(); //Иначе она импортирована по ординалу
+		std::cout << "Original Info - Library [" << lib.get_name() << "]" << std::endl //Имя
+				<< "Timestamp: " << lib.get_timestamp() << std::endl //Временная метка
+				<< "RVA to IAT: " << lib.get_rva_to_iat() << std::endl //Относительный адрес к import address table
+				<< "========" << std::endl;
 
-                                //Хинт
-                                std::cout << " hint: " << func.get_hint() << std::endl;
-                        }
+		//Перечисляем импортированные функции для библиотеки
+		const import_library::imported_list& functions = lib.get_imported_functions();
+		for(import_library::imported_list::const_iterator func_it = functions.begin(); func_it != functions.end(); ++func_it)
+		{
+				const imported_function& func = *func_it; //Импортированная функция
+				CodeAddr ProcAddr = GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
+				// write IAT
+				VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
+				std::cout << "Proc Addr " << ProcAddr << std::endl;
 
-                        std::cout << std::endl;
-                }
+				std::cout << "[+] ";
+				if(func.has_name()) //Если функция имеет имя - выведем его
+						std::cout << func.get_name();
+				else
+						std::cout << "#" << func.get_ordinal(); //Иначе она импортирована по ординалу
+
+				//Хинт
+				std::cout << " hint: " << func.get_hint() << std::endl;
+				IAT_Addr += sizeof(uint32_t);
+		}
+
+		std::cout << std::endl;
+	}
 }
 
 
