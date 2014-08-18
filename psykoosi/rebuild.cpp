@@ -98,7 +98,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
 		 if (sptr->RawSize == 0) continue;
-		 if (!(sptr->Characteristics == 0x60000020)) continue;
+		 if (!_VM->Section_IsExecutable(sptr, NULL)) continue;
 
 		 /*
 		 DisassembleTask::InstructionInformation *In = _DT->Instructions[DisassembleTask::LIST_TYPE_NEXT];
@@ -126,7 +126,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
 		 if (sptr->RawSize == 0) continue;
-		 if (!(sptr->Characteristics == 0x60000020)) continue;
+		 if (!_VM->Section_IsExecutable(sptr, NULL)) continue;
 		 printf("building sets %s\n", sptr->Name);
 		 DisassembleTask::InstructionInformation *InsInfo = 0;
 /*
@@ -313,7 +313,7 @@ int Rebuilder::RebaseCodeSection() {
 	// loop and modify all addresses to relate to the new base
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
-		 if (sptr->Characteristics == 0x60000020) {
+		 if (_VM->Section_IsExecutable(sptr, NULL)) {
 					 DisassembleTask::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
 					 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->RawSize + sptr->Address + warp;
 					 DisassembleTask::CodeAddr CurAddr = StartAddr;
@@ -369,7 +369,7 @@ int Rebuilder::RealignInstructions() {
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
 
-		 if (sptr->Characteristics == 0x60000020) {
+		 if (_VM->Section_IsExecutable(sptr, NULL)) {
 			 DisassembleTask::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
 			 DisassembleTask::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->Address + sptr->RawSize + warp;
 			 DisassembleTask::CodeAddr CurAddr = StartAddr;
@@ -432,8 +432,8 @@ int Rebuilder::RealignInstructions() {
 
 				 if (1==1 && NewIns->Requires_Realignment && NewIns->OpDstAddress){// && !NewIns->IsPointer) {
 					 sprintf(testit, "%p", NewIns->OpDstAddress);
-					 signed char dist8 = 0;
-					 int32_t dist32 = 0;
+					 signed char dist8 = 0, dist8_old = 0;
+					 int32_t dist32 = 0, dist32_old = 0;
 					//DisassembleTask::CodeAddr ToAddr = 0;
 
 
@@ -443,7 +443,7 @@ int Rebuilder::RealignInstructions() {
 				 	if (!InsInfo->IsImmediate) {
 				 		distance = _IA->AddressDistance(InsInfo->Address, InsInfo->Size, InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED);
 				 	} else {
-				 		DisassembleTask::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED, 0, NULL);
+				 		DisassembleTask::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, DisassembleTask::LIST_TYPE_INJECTED, 1, NULL);
 				 		if (InsDstInfo) {
 				 			printf("ERROR Have an immediate (%p) found new %p\n", InsDstInfo->Address);
 				 			distance = InsDstInfo->Address;
@@ -469,18 +469,30 @@ int Rebuilder::RealignInstructions() {
 				 			if ((dist8 > 128) || (dist8 < -128)) {
 				 				printf("FUCK distance %d\n", dist8);
 				 			}
+				 			std::memcpy(&dist8_old, NewIns->RawData+NewIns->Size-1, 1);
 				 			std::memcpy(NewIns->RawData+NewIns->Size-1, (void *)&dist8, 1);
+				 			if (dist8 != dist8_old) {
+				 				printf("ERROR changed from %p to %p [%p]\n", dist8_old, dist8, NewIns->Address);
+
+				 			}
 				 			break;
 
 				 		case 4:
 				 			dist32 = (long)(distance&0xffffffff);
 				 			if ((dist8 > 1024) || (dist8 < -1024)) {
 				 				printf("FUCK %d\n", distance);
+
 				 			}
+				 			std::memcpy(&dist32_old, NewIns->RawData+NewIns->Size-4, 4);
 							std::memcpy(NewIns->RawData+NewIns->Size-4, (void *)&dist32, 4);
+							std::string verify = _DT->disasm_str(NewIns->Address, ( char *)NewIns->RawData, NewIns->Size);
+							if (dist32 != dist32_old) {
+								printf("ERROR changed from %p to %p [%p] %s\n", dist32_old, dist32, NewIns->Address, verify.c_str());
+							}
 							break;
 
 				 		}
+
 
 						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
 
@@ -755,7 +767,7 @@ int Rebuilder::WriteBinaryPE2() {
 		if (sptr->Characteristics == 0) {
 			printf("ERROR something corrupted in section 1!\n");
 			continue;
-		} else if (sptr->Characteristics== 0x60000020) {
+		} else if (_VM->Section_IsExecutable(sptr, NULL)) {
 			code_section = sptr;
 			printf("doing exe %s\n", sptr->Name);
 
@@ -925,7 +937,7 @@ int Rebuilder::WriteBinaryPE2() {
 
 	                new_image->set_section_virtual_size(added_section, sptr->VirtualSize);
 
-					if (sptr->Characteristics == 0x60000020) {
+	                if (_VM->Section_IsExecutable(sptr, NULL)) {
 				        // fix up entry point
 				        uint32_t Entry = image.get_ep() + image.get_image_base_32();
 				        DisassembleTask::InstructionInformation *InsInfo = _DT->GetInstructionInformationByAddress(Entry, DisassembleTask::LIST_TYPE_INJECTED, 1, NULL);

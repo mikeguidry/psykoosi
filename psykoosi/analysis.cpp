@@ -64,7 +64,7 @@ long InstructionAnalysis::AddressDistance(DisassembleTask::CodeAddr first, int S
 	SecondPtrInj = Disassembler_Handle->GetInstructionInformationByAddress((DisassembleTask::CodeAddr)second, DisassembleTask::LIST_TYPE_REBASED, 1, NULL);
 
 	//std::cout << "FirstPtr: " << static_cast<void *>(FirstPtr) << " " << first << " SecondPtr: " << static_cast<void *>(SecondPtr) << " " << second << std::endl;
-	//printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
+	printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
 	if (!SecondPtr) {
 		//printf("FirstPtr fail 1 %p:%d %p %p\n", first, Size, FirstPtr, SecondPtr);
 		return 0;
@@ -452,7 +452,7 @@ int InstructionAnalysis::QueueCache_Save(char *filename) {
 
 // loops through queue till it completes...
 int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
-	int Max_Address_Not_Found = 500;
+	int Max_Address_Not_Found = 50;
 	int TotalAnalyzedCount = 0;
 	int AnalyzedCount = 0;
 	do {
@@ -474,9 +474,10 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 				CodeAddr AnalyzeAddr = qptr->Address;
 				while (CountToAnalyze--) {
 					// so obtain a pointer to the instruction information
+					printf("AnalyzeAddr %p\n", AnalyzeAddr);
 					DisassembleTask::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
 					if (!InsInfo) {
-						//std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
+						std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
 						if (!Max_Address_Not_Found--) {
 							std::cout << "We hit the limit of 100 on this queue.. moving on" << std::endl;
 							break;

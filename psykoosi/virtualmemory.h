@@ -156,7 +156,11 @@ namespace psykoosi {
 
       Memory_Section *Add_Section(CodeAddr Address, uint32_t Size, uint32_t VSize,SectionType Type, uint32_t Characteristics, uint32_t RVA, char *name, unsigned char *Data);
       void Section_SetFilename(Memory_Section *, char *filename);
-      VirtualMemory::Memory_Section *Section_EnumByFilename(char *filename, Memory_Section *last);
+      Memory_Section *Section_EnumByFilename(char *filename, Memory_Section *last);
+      int Section_IsExecutable(Memory_Section *sptr, CodeAddr Addr);
+      Memory_Section *Section_FindByAddrandFile(char *filename, CodeAddr Addr);
+
+
       Memory_Section *Section_List;
       Memory_Section *Section_Last;
 

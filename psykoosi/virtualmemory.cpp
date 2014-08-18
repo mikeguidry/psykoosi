@@ -6,10 +6,11 @@
 #include <stdio.h>
 #include <fstream>
 #include <pe_lib/pe_bliss.h>
-
 #include "virtualmemory.h"
 
 using namespace psykoosi;
+using namespace pe_bliss;
+using namespace pe_win;
 
 
 VirtualMemory::VirtualMemory()
@@ -428,9 +429,44 @@ void VirtualMemory::Section_SetFilename(Memory_Section *sptr, char *filename) {
 	sptr->Filename[len] = 0;
 }
 
-VirtualMemory::Memory_Section *VirtualMemory::Section_EnumByFilename(char *filename, Memory_Section *last) {
-	for (Memory_Section *sptr = (last ? last->next : Section_List); sptr != NULL; sptr = sptr->next) {
-		if (sptr->Filename && strstr(sptr->Filename, filename)) return sptr;
-	}
+// is this section executable?
+int VirtualMemory::Section_IsExecutable(Memory_Section *sptr, CodeAddr Addr) {
+
+	if (!sptr)
+		sptr = Section_FindByAddrandFile(NULL, Addr);
+
+	if (sptr == NULL)
+		return 0;
+
+	return (sptr->Characteristics & image_scn_mem_execute);
+}
+
+// find a section by it's address & filename...
+VirtualMemory::Memory_Section *VirtualMemory::Section_FindByAddrandFile(char *filename, CodeAddr Addr) {
+	Memory_Section *sptr = NULL;
+
+	// loop through sections finding this address....
+	do {
+		sptr = Section_EnumByFilename(filename, sptr);
+		if (sptr) {
+			if ((Addr >= (sptr->Address+sptr->ImageBase)) && (Addr < ((sptr->Address+sptr->ImageBase)+ (sptr->VirtualSize))))
+				return sptr;
+		}
+	} while (sptr);
+
 	return NULL;
+}
+
+// loop through sections by its filename.. use NULL for the main PE
+VirtualMemory::Memory_Section *VirtualMemory::Section_EnumByFilename(char *filename, Memory_Section *last) {
+
+	for (Memory_Section *sptr = (last ? last->next : Section_List); sptr != NULL; sptr = sptr->next) {
+
+		if ((sptr->Filename && strstr(sptr->Filename, filename)) || (sptr->Filename==NULL && filename==NULL)) {
+			return sptr;
+		}
+	}
+
+	return NULL;
+
 }

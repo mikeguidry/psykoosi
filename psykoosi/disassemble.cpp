@@ -18,7 +18,7 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 // 64k pages...
-#define PAGE_SIZE 4096*2*2*2*2
+#define PAGE_SIZE 4096*2*2*2*2td:
 
 
 DisassembleTask::DisassembleTask(VirtualMemory *_VM)
@@ -266,8 +266,8 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 		if (pInfo->Displacement_Offset == 255)
 			pInfo->Displacement_Offset = pInfo->InsDetail->x86.imm_offset;
 
-		/*
- printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
+
+			printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
 				 pInfo->InsDetail->x86.disp,
 				 (uint8_t)pInfo->InsDetail->x86.imm_offset, dtype);
 			for (int i = 0; i < pInfo->InsDetail->x86.op_count;i++) {
@@ -275,11 +275,12 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 				uint32_t disp2 = pInfo->InsDetail->x86.operands[i].imm;
 				printf("Op %d disp %X disp2 \n", i, disp, disp2);
 			}
+			std::string verify = disasm_str(pInfo->Address, (char *)pInfo->RawData, pInfo->Size);
+			printf("ASM: %s\n", verify.c_str());
 			printf("hex:");for (int a =0; a < len; a++) { printf("%02X", (unsigned char)Data[a]); }printf("\n");
-
 			disasm_str(Address, (char *)Data, len);
 		for (int a = 0; a < pInfo->Size; a++) printf("%02X", (unsigned char)pInfo->RawData[a]);printf("\n");
-*/
+
 
 		cs_free(DisFrameworkIns, 1);
 		DCount++;
@@ -307,7 +308,7 @@ std::string DisassembleTask::disasm_str(CodeAddr Address, char *data, int len) {
 	    if ((len = ud_disassemble(&ud_obj)) > 0) {
 	        int size = ud_insn_len(&ud_obj);
 
-	        std::cout << "[" << Address << ":" << size << "] " << ud_insn_asm(&ud_obj) << std::endl;
+	        //std::cout << "[" << Address << ":" << size << "] " << ud_insn_asm(&ud_obj) << std::endl;
 
 	        if (std::strcmp(ud_insn_asm(&ud_obj), "invalid")==0)
 	        	return std::string("");
@@ -316,7 +317,7 @@ std::string DisassembleTask::disasm_str(CodeAddr Address, char *data, int len) {
 	    }
 
 	    return std::string("");
-	}
+}
 
 int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int MaxRawSize, int MaxInstructions)
 {
@@ -329,7 +330,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 
 
 
-	std::cout << "Disasm Task: " << StartAddress << "Priority: " << static_cast<int>(priority) << "max raw: " << MaxRawSize << " Max Instructions: " << MaxInstructions << std::endl;
+	//std::cout << "Disasm Task: " << StartAddress << "Priority: " << static_cast<int>(priority) << "max raw: " << MaxRawSize << " Max Instructions: " << MaxInstructions << std::endl;
 	// loop and disassemble a section of instructions (example: code section)
 	do {
 		InsInfo = 0;
@@ -337,31 +338,17 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 		//printf("Disasm ret %d CurAddr %p priority %d InsInfo %p\n", DisassembleRet, CurAddr, priority, InsInfo);
 
 //		if (!(CurAddr % 100))
-			std::cout << "\r" << CurAddr;
+			//std::cout << "\r" << CurAddr;
 
 		if (HighestCode > 0 && (CurAddr&0xffffffff) >= (HighestCode&0xffffffff)) {
 			std::cout << "\rhigh break: " << CurAddr << " highest " << HighestCode << std::endl;
 			break;
 		}
 
-		int is_executable = 0;
-		 const section_list sections(PE_Handle->get_image_sections());
-		 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
-			 const section &s = *it;
-
-			 if (
-
-					 ((uint32_t)CurAddr >= (uint32_t)((PE_Handle->get_image_base_32() + s.get_virtual_address()) &&
-					 ((uint32_t)CurAddr < (uint32_t)((PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_virtual_size())))))) {
-
-				 if (s.executable())
-					 is_executable = 1;
-
-				 break;
-			 }
-		 }
-
-		 if (!is_executable) break;
+		if (!vmem->Section_IsExecutable(NULL, CurAddr)) {
+			printf("Cur addr not in code section %p\n", CurAddr);
+			break;
+		}
 
 
 		/*
