@@ -763,7 +763,9 @@ int Rebuilder::WriteBinaryPE2() {
 	final_size = final_i;
 	VirtualMemory::Memory_Section *code_section = NULL, *last_section_ptr = NULL;
 
-	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+	VirtualMemory::Memory_Section *sptr = NULL;
+
+	for (sptr = _VM->Section_EnumByFilename(NULL, sptr); sptr != NULL; sptr = vmem->Section_EnumByFilename(NULL, sptr)) {
 		if (sptr->IsDLL) continue;
 		printf("Section Base: %p\n", sptr->ImageBase);
 		if (sptr->Characteristics == 0) {
@@ -816,9 +818,7 @@ int Rebuilder::WriteBinaryPE2() {
 			last_section_ptr = sptr;
 		}
 
-						printf("name %s chr %x vaddr %p vsize %d ptr %d size %d\n", sptr->Name, sptr->Characteristics,
-								sptr->Address,
-								sptr->VirtualSize, sptr->RVA, sptr->RawSize);
+
 	}
 	int to_increase = 0;
 	// load the input file again.. (maybe we should keep it in memory from BinaryLoader)
@@ -892,7 +892,9 @@ int Rebuilder::WriteBinaryPE2() {
 
 			// add sections from our list..
 			{
-				for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+				VirtualMemory::Memory_Section *sptr = NULL;
+				for (sptr = _VM->Section_EnumByFilename(NULL, sptr); sptr != NULL; sptr = vmem->Section_EnumByFilename(NULL, sptr)) {
+				//for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 					if (sptr->IsDLL) continue;
 					if (sptr->Characteristics == 0) {
 						printf("ERROR something corrupted in section 2!\n");
@@ -964,7 +966,7 @@ int Rebuilder::WriteBinaryPE2() {
 			}
 		}
 
-		printf("rebuild\n");
+		printf("rebuilt!\n");
 
 		std::stringstream temp_pe(std::ios::out | std::ios::in | std::ios::binary);
 		rebuild_pe(*new_image, temp_pe, false, false, false);

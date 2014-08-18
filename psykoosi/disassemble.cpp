@@ -19,7 +19,7 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 // 64k pages...
-#define PAGE_SIZE 4096*2*2*2*2td:
+#define PAGE_SIZE 4096*2*2*2*2:
 
 
 DisassembleTask::DisassembleTask(VirtualMemory *_VM)
@@ -267,7 +267,7 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 		if (pInfo->Displacement_Offset == 255)
 			pInfo->Displacement_Offset = pInfo->InsDetail->x86.imm_offset;
 
-/*
+		/*
 			printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
 				 pInfo->InsDetail->x86.disp,
 				 (uint8_t)pInfo->InsDetail->x86.imm_offset, dtype);
@@ -281,8 +281,8 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 			printf("hex:");for (int a =0; a < len; a++) { printf("%02X", (unsigned char)Data[a]); }printf("\n");
 			disasm_str(Address, (char *)Data, len);
 		for (int a = 0; a < pInfo->Size; a++) printf("%02X", (unsigned char)pInfo->RawData[a]);printf("\n");
-
 */
+
 		cs_free(DisFrameworkIns, 1);
 		DCount++;
 		*InsInfo = pInfo;
@@ -382,10 +382,11 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 				//Instructions[LIST_TYPE_NEXT]->Lists[LIST_TYPE_PREV] = InsInfo;
 				Instructions[LIST_TYPE_NEXT] = InsInfo;
 
+				InsInfo->PrevLists[LIST_TYPE_JUMP] = Instructions_Jump[InsInfo->Address % JUMP_SIZE];
 				// jump table to speed up finding it
 				InsInfo->Lists[LIST_TYPE_JUMP] = Instructions_Jump[InsInfo->Address % JUMP_SIZE];
 				Instructions_Jump[InsInfo->Address % JUMP_SIZE] = InsInfo;
-				//printf("Adding %p [old = %p] ins %p\n", InsInfo, InsInfo->Lists[LIST_TYPE_NEXT], Instructions[LIST_TYPE_NEXT]);
+				//printf("Adding %p [old = %p] ins %p %p\n", InsInfo, InsInfo->Lists[LIST_TYPE_NEXT], Instructions[LIST_TYPE_NEXT], InsInfo->Address);
 			}
 		}
 
@@ -408,12 +409,13 @@ DisassembleTask::InstructionInformation *DisassembleTask::GetInstructionInformat
 	if (LastPtr && Loaded_from_Cache && LastPtr->Lists[type] != NULL && LastPtr->Lists[type]->Address==Address) return LastPtr->Lists[type];
 
 	if (type == LIST_TYPE_JUMP) {
+		InstructionInformation *Last = NULL;
 		for (InstructionInformation *InsInfoPtr = Instructions_Jump[Address % JUMP_SIZE]; InsInfoPtr != NULL; InsInfoPtr = InsInfoPtr->Lists[LIST_TYPE_JUMP]) {
-			if (InsInfoPtr->Address == Address ||
-				(!strict && ((Address >= InsInfoPtr->Address)
-						&& (Address < InsInfoPtr->Address + InsInfoPtr->Size)))) {
+			if (LastPtr != NULL) {
+				printf("Last %p %p [need %p %d %p] Prev of last %p last next %p\n", LastPtr, LastPtr->Address, Address,strict, LastPtr, LastPtr->PrevLists[LIST_TYPE_JUMP]->Address, LastPtr->Lists[LIST_TYPE_JUMP]);
 				return InsInfoPtr;
 			}
+			Last = InsInfoPtr;
 		}
 		return NULL;
 	}
@@ -532,7 +534,7 @@ int DisassembleTask::Cache_Save(char *filename) {
 	for (VirtualMemory::Memory_Section *sptr = vmem->Section_List; sptr != NULL; sptr = sptr->next) {
 		if (vmem->Section_IsExecutable(sptr, 0)) {
 			 DisassembleTask::CodeAddr StartAddr = sptr->Address + PE_Handle->get_image_base_32();
-			 DisassembleTask::CodeAddr EndAddr = PE_Handle->get_image_base_32() + sptr->Address + sptr->VirtualSize;
+			 DisassembleTask::CodeAddr EndAddr = PE_Handle->get_image_base_32() + sptr->Address + sptr->RawSize;
 			 DisassembleTask::CodeAddr CurAddr = StartAddr;
 
 			 DisassembleTask::InstructionInformation *InsInfo = 0;
@@ -554,8 +556,12 @@ int DisassembleTask::Cache_Save(char *filename) {
 
 				gzwrite(outfs, (void *)qptr, sizeof(InstructionInformation));
 
-				if ( qptr->InstructionMnemonicString->size() > 32) throw;
-				std::memcpy((void *)&mnemonic, qptr->InstructionMnemonicString->data(), qptr->InstructionMnemonicString->size() > 32 ? 32 : qptr->InstructionMnemonicString->size());
+				if (qptr->InstructionMnemonicString != NULL) {
+					if ( qptr->InstructionMnemonicString->size() > 32) throw;
+					std::memcpy((void *)&mnemonic, qptr->InstructionMnemonicString->data(), qptr->InstructionMnemonicString->size() > 32 ? 32 : qptr->InstructionMnemonicString->size());
+				} else {
+					std::memset((void *)&mnemonic, 0, 32);
+				}
 
 				gzwrite(outfs, (void *)&mnemonic, 32);
 				if (qptr->Size > 13) throw;

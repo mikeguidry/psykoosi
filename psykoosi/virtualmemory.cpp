@@ -26,7 +26,7 @@ VirtualMemory::VirtualMemory()
   }
 
   // lower kb since we'll start cloning, etc...bigger the number = more clones
-  Settings[SETTINGS_PAGE_SIZE] = 1024*8;
+  Settings[SETTINGS_PAGE_SIZE] = 1024*16;
 
 }
 

@@ -336,12 +336,11 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 
 	if (thread->registers.eip != thread->registers_shadow.eip) {
 		Monitor |= REG_EIP;
-		printf("changed eip %d %p -> %p\n", Monitor & REG_EIP, thread->registers_shadow.eip, thread->registers.eip);
+		printf("changed EIP %d %p -> %p\n", Monitor & REG_EIP, thread->registers_shadow.eip, thread->registers.eip);
 		CreateChangeEntry(&logptr->Changes, REG_EIP, (unsigned char *)&thread->registers_shadow.eip,  (unsigned char *)&thread->registers.eip, sizeof(uint32_t));
 	}
 	if (thread->registers.eax != thread->registers_shadow.eax) {
 		Monitor |= REG_EAX;
-		printf("changed eax %X %X %d\n", thread->registers_shadow.eax, thread->registers.eax, Monitor & REG_EAX);
 		CreateChangeEntry(&logptr->Changes, REG_EAX,  (unsigned char *)&thread->registers_shadow.eax, (unsigned char *) &thread->registers.eax, sizeof(uint32_t));
 	}
 	if (thread->registers.ebx != thread->registers_shadow.ebx) {

@@ -460,7 +460,7 @@ int InstructionAnalysis::QueueCache_Save(char *filename) {
 
 // loops through queue till it completes...
 int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
-	int Max_Address_Not_Found = 50;
+	int Max_Address_Not_Found = 400;
 	int TotalAnalyzedCount = 0;
 	int AnalyzedCount = 0;
 	do {

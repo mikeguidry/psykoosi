@@ -132,7 +132,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 			 }
 
 		}
-		LoadImports(image, _VM);
+		//LoadImports(image, _VM);
 	} catch(const pe_exception& e) {
 		std::cout << "Error: " << e.what() << std::endl;
 		delete image;
@@ -259,7 +259,6 @@ BinaryLoader::LoadedImages *BinaryLoader::FindLoadedByName(char *filename) {
 BinaryLoader::CodeAddr BinaryLoader::GetProcAddress(char *filename, char *function_name) {
 	CodeAddr FunctionAddr = NULL;
 
-	printf("GetProcAddress(\"%s\", \"%s\"\n", filename, function_name);
 
 	LoadedImages *lptr = FindLoadedByName(filename);
 	if (lptr == NULL) {
@@ -304,47 +303,29 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem)
 		const import_library& lib = *it;
 		VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0);
 		if (DLL_code_sect) {
-			printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
+			//printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
 		} else {
 			printf("Couldn't load DLL %s\n", (char *)lib.get_name().c_str());
 		}
 		uint32_t iat_rva = (*it).get_rva_to_iat();
 		section iat_section = imp_image->section_from_rva(iat_rva);
 		if (iat_section.empty()) {
-			printf("Couldnt find IAT section address!\n");
 			return -1;
 		}
 
-		printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
-
-
+		//printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
 
 		uint32_t IAT_Addr = (uint32_t)(imp_image->get_image_base_32() + iat_rva);
-		printf("Iat Addr %p\n", IAT_Addr);
 
-		std::cout << "Original Info - Library [" << lib.get_name() << "]" << std::endl //Имя
-				<< "Timestamp: " << lib.get_timestamp() << std::endl //Временная метка
-				<< "RVA to IAT: " << lib.get_rva_to_iat() << std::endl //Относительный адрес к import address table
-				<< "========" << std::endl;
-
-		//Перечисляем импортированные функции для библиотеки
 		const import_library::imported_list& functions = lib.get_imported_functions();
 		for(import_library::imported_list::const_iterator func_it = functions.begin(); func_it != functions.end(); ++func_it)
 		{
-				const imported_function& func = *func_it; //Импортированная функция
+				const imported_function& func = *func_it;
 				CodeAddr ProcAddr = GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
 				// write IAT
 				VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
-				std::cout << "Proc Addr " << ProcAddr << std::endl;
+				printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ]\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr);
 
-				std::cout << "[+] ";
-				if(func.has_name()) //Если функция имеет имя - выведем его
-						std::cout << func.get_name();
-				else
-						std::cout << "#" << func.get_ordinal(); //Иначе она импортирована по ординалу
-
-				//Хинт
-				std::cout << " hint: " << func.get_hint() << std::endl;
 				IAT_Addr += sizeof(uint32_t);
 		}
 
