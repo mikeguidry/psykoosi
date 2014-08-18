@@ -26,6 +26,8 @@ BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, Virtual
 	_IA = IA;
 	_VM = VM;
 	code_section = 0;
+
+	memset(system_dll_dir, 0, 1024);
 }
 
 char *BinaryLoader::GetInputRaw(int *Size) {
@@ -99,6 +101,10 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 
 			 VirtualMemory::Memory_Section *mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
 			 mptr->ImageBase = image->get_image_base_32();
+
+			 // rather than setting the filename.. we'll keep it NULL for easily enumerating the main file's sections
+			 //_VM->Section_SetFilename(mptr, FileName);
+
 			//mptr->Section_Type = s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE;
 
 			 // write section into virtual memory...
@@ -117,7 +123,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 			 }
 
 		}
-		 //LoadImports(image, _VM);
+		LoadImports(image, _VM);
 	} catch(const pe_exception& e) {
 		std::cout << "Error: " << e.what() << std::endl;
 		delete image;
@@ -130,6 +136,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 	return image;
 }
 
+// find us a good image base for loading DLLs...
 uint32_t BinaryLoader::CheckImageBase(uint32_t Address) {
 	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		if ((Address >= (sptr->ImageBase) && (Address < (sptr->ImageBase + sptr->VirtualSize+(1024*1024))))) {
@@ -140,10 +147,16 @@ uint32_t BinaryLoader::CheckImageBase(uint32_t Address) {
 	return Address;
 }
 
+void BinaryLoader::SetDLLDirectory(char *dir) {
+	strncpy(system_dll_dir, dir, 1024);
+}
+
 VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze) {
 	VirtualMemory::Memory_Section *ret = NULL;
 	char fname[1024];
-	sprintf(fname, "/home/mike/.wine/drive_c/windows/system32/%s", filename);
+
+	sprintf(fname, "%s/%s", system_dll_dir, filename);
+
 	for (int i = 0; i < strlen(fname); i++) fname[i] = tolower(fname[i]);
 	std::ifstream pe_file(fname, std::ios::in | std::ios::binary);
 	if (!pe_file) {

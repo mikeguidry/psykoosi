@@ -134,7 +134,15 @@ int main(int argc, char *argv[]) {
 	op.disasm = new DisassembleTask(&op.vmem);
 	op.analysis = new InstructionAnalysis(op.disasm);
   	op.loader = new BinaryLoader(op.disasm, op.analysis, &op.vmem);
-	op.pe_image = op.loader->LoadFile(0,0,(char *)argv[1]);
+
+	// we'll create a system for loading configuration details from a file shortly that can be used
+	// to configure every class also from LUA/scripting
+	// set the DLL where we will load imports/dll dependencies
+	op.loader->SetDLLDirectory("/home/mike/.wine/drive_c/windows/system32");
+
+
+  	op.pe_image = op.loader->LoadFile(0,0,(char *)argv[1]);
+
 
 	if (!op.pe_image) {
 		printf("Cannot open file: %s\n", argv[1]);

@@ -6,6 +6,7 @@
 #include <string>
 #include <inttypes.h>
 #include <udis86.h>
+#include <zlib.h>
 #include <pe_lib/pe_bliss.h>
 #include "virtualmemory.h"
 extern "C" {
@@ -266,7 +267,7 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 		if (pInfo->Displacement_Offset == 255)
 			pInfo->Displacement_Offset = pInfo->InsDetail->x86.imm_offset;
 
-
+/*
 			printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
 				 pInfo->InsDetail->x86.disp,
 				 (uint8_t)pInfo->InsDetail->x86.imm_offset, dtype);
@@ -281,7 +282,7 @@ int DisassembleTask::DisassembleSingleInstruction(CodeAddr Address, InstructionI
 			disasm_str(Address, (char *)Data, len);
 		for (int a = 0; a < pInfo->Size; a++) printf("%02X", (unsigned char)pInfo->RawData[a]);printf("\n");
 
-
+*/
 		cs_free(DisFrameworkIns, 1);
 		DCount++;
 		*InsInfo = pInfo;
@@ -346,7 +347,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 		}
 
 		if (!vmem->Section_IsExecutable(NULL, CurAddr)) {
-			printf("Cur addr not in code section %p\n", CurAddr);
+			//printf("Cur addr not in code section %p\n", CurAddr);
 			break;
 		}
 
@@ -517,23 +518,21 @@ void DisassembleTask::Clear_Instructions() {
 int DisassembleTask::Cache_Save(char *filename) {
 	if (Instructions[LIST_TYPE_NEXT] == NULL) return 0;
 
-	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
-	if (!qcout) return 0;
+	gzFile outfs;
 
+	if ((outfs = gzopen(filename, "wb9")) == NULL) {
+		return 0;
+	}
 
 	uint32_t header = 0xD15A55;
-	qcout.write((char *)&header, sizeof(uint32_t));
+	gzwrite(outfs, (void *)&header, sizeof(uint32_t));
 
-	// loop and create a new instruction set with modifications and new addresses...
-	 const section_list sections(PE_Handle->get_image_sections());
-	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
-		 const section &s = *it;
 
-		 // should also modify other areas later.. if we end up moving around data etc
-		 if (s.executable()) {
 
-			 DisassembleTask::CodeAddr StartAddr = s.get_virtual_address() + PE_Handle->get_image_base_32();
-			 DisassembleTask::CodeAddr EndAddr = PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data();
+	for (VirtualMemory::Memory_Section *sptr = vmem->Section_List; sptr != NULL; sptr = sptr->next) {
+		if (vmem->Section_IsExecutable(sptr, 0)) {
+			 DisassembleTask::CodeAddr StartAddr = sptr->Address + PE_Handle->get_image_base_32();
+			 DisassembleTask::CodeAddr EndAddr = PE_Handle->get_image_base_32() + sptr->Address + sptr->VirtualSize;
 			 DisassembleTask::CodeAddr CurAddr = StartAddr;
 
 			 DisassembleTask::InstructionInformation *InsInfo = 0;
@@ -553,24 +552,22 @@ int DisassembleTask::Cache_Save(char *filename) {
 
 				if (!qptr->Size) throw;
 
-				qcout.write((char *)qptr, sizeof(InstructionInformation));
+				gzwrite(outfs, (void *)qptr, sizeof(InstructionInformation));
 
 				if ( qptr->InstructionMnemonicString->size() > 32) throw;
-
 				std::memcpy((void *)&mnemonic, qptr->InstructionMnemonicString->data(), qptr->InstructionMnemonicString->size() > 32 ? 32 : qptr->InstructionMnemonicString->size());
 
-
-				qcout.write((char *)&mnemonic, 32);
+				gzwrite(outfs, (void *)&mnemonic, 32);
 				if (qptr->Size > 13) throw;
 
-				qcout.write((char *)qptr->RawData, qptr->Size);
+				gzwrite(outfs, (void *)qptr->RawData, qptr->Size);
 
 				CurAddr += qptr->Size;
 			 }
 		}
 	 }
 
-	qcout.close();
+	gzclose(outfs);
 
 
 	return 1;
@@ -579,49 +576,51 @@ int DisassembleTask::Cache_Save(char *filename) {
 
 int DisassembleTask::Cache_Load(char *filename) {
 	int count = 0;
-		InstructionInformation *qptr, *last = NULL;
+	InstructionInformation *qptr, *last = NULL;
+	gzFile infs;
 
-		std::ifstream qcin(filename, std::ios::in | std::ios::binary);
-		if (!qcin) return 0;
+	if ((infs = gzopen(filename, "rb9")) == NULL) {
+		return 0;
+	}
 
-		uint32_t header = 0xD15A55;
-		uint32_t verify = 0;
-		qcin.read((char *)&verify, sizeof(uint32_t));
-		if (header != verify) {
-			//printf("Cache header fail!\n");
-			throw;
-			return 0;
+	uint32_t header = 0xD15A55;
+	uint32_t verify = 0;
+	gzread(infs, (void *)&verify, sizeof(uint32_t));
+	if (header != verify) {
+		//printf("Cache header fail!\n");
+		throw;
+		return 0;
+	}
+
+	Clear_Instructions();
+
+	while (!gzeof(infs)) {
+		char mnemonic[32];
+
+		qptr = new InstructionInformation;
+		gzread(infs, (void *)qptr, sizeof(InstructionInformation));
+		for (int i = 0; i < LIST_TYPE_MAX; i++) qptr->Lists[i] = NULL;
+
+		gzread(infs, (void *)&mnemonic, 32);
+		qptr->InstructionMnemonicString = new std::string(mnemonic);
+
+		qptr->RawData = new unsigned char[qptr->Size];
+		gzread(infs, (void *)qptr->RawData, qptr->Size);
+		//std::memcpy((void *)qptr->RawData, ins_raw, qptr->Size);
+
+		if (last == NULL) {
+
+			//qptr->Lists[LIST_TYPE_NEXT] = Instructions[LIST_TYPE_NEXT];
+
+			Instructions[LIST_TYPE_NEXT] = last = qptr;
+		} else {
+			last->Lists[LIST_TYPE_NEXT] = qptr;
+			last = qptr;
 		}
+		count++;
+	}
 
-		Clear_Instructions();
-
-		while (!qcin.eof()) {
-			char mnemonic[32];
-
-			qptr = new InstructionInformation;
-			qcin.read((char *)qptr, sizeof(InstructionInformation));
-			for (int i = 0; i < LIST_TYPE_MAX; i++) qptr->Lists[i] = NULL;
-
-			qcin.read((char *)&mnemonic, 32);
-			qptr->InstructionMnemonicString = new std::string(mnemonic);
-
-			qptr->RawData = new unsigned char[qptr->Size];
-			qcin.read((char *)qptr->RawData, qptr->Size);
-			//std::memcpy((void *)qptr->RawData, ins_raw, qptr->Size);
-
-			if (last == NULL) {
-
-				//qptr->Lists[LIST_TYPE_NEXT] = Instructions[LIST_TYPE_NEXT];
-
-				Instructions[LIST_TYPE_NEXT] = last = qptr;
-			} else {
-				last->Lists[LIST_TYPE_NEXT] = qptr;
-				last = qptr;
-			}
-			count++;
-		}
-
-		if (count) Loaded_from_Cache = 1;
-		qcin.close();
-		printf("Loaded %d from file\n", count);
+	if (count) Loaded_from_Cache = 1;
+	gzclose(infs);
+	printf("Loaded %d from file\n", count);
 }

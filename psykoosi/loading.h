@@ -43,6 +43,10 @@ namespace psykoosi {
 
 	  uint32_t CheckImageBase(uint32_t Address);
 
+	  void SetDLLDirectory(char *dir);
+
+	  char system_dll_dir[1024];
+
   	  private:
 	  std::string InputData;
 	  int InputSize;

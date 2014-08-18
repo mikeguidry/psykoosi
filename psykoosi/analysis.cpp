@@ -5,6 +5,7 @@
 #include <string>
 #include <stdio.h>
 #include <inttypes.h>
+#include <zlib.h>
 #include <pe_lib/pe_bliss.h>
 extern "C" {
 #include <capstone/capstone.h>
@@ -401,26 +402,30 @@ int InstructionAnalysis::QueueCache_Load(char *filename) {
 
 	Queue_Clear();
 
-	std::ifstream qcin(filename, std::ios::in | std::ios::binary);
-	if (!qcin) return 0;
+	gzFile infs;
 
-	qcin.read((char *)&n, sizeof(int));
+	if ((infs = gzopen(filename, "rb9")) == NULL) {
+		return 0;
+	}
+
+
+	gzread(infs, (void *)&n, sizeof(int));
 	CallCount = n;
-	qcin.read((char *)&n, sizeof(int));
+	gzread(infs, (void *)&n, sizeof(int));
 	PushCount = n;
-	qcin.read((char *)&n, sizeof(int));
+	gzread(infs, (void *)&n, sizeof(int));
 	RealignCount = n;
 
-	while (!qcin.eof()) {
+	while (!gzeof(infs)) {
 		qptr = new AnalysisQueue;
-		qcin.read((char *)qptr, sizeof(AnalysisQueue));
+		gzread(infs, (void *)qptr, sizeof(AnalysisQueue));
 
 		qptr->next = Analysis_Queue_List;
 
 		Analysis_Queue_List = qptr;
 	}
 
-	qcin.close();
+	gzclose(infs);
 
 	return 1;
 }
@@ -430,20 +435,23 @@ int InstructionAnalysis::QueueCache_Save(char *filename) {
 
 	if (qptr == NULL) return 0;
 
-	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
-	if (!qcout) return 0;
+	gzFile outfs;
 
-	qcout.write((char *)&CallCount, sizeof(int));
-	qcout.write((char *)&PushCount, sizeof(int));
-	qcout.write((char *)&RealignCount, sizeof(int));
+	if ((outfs = gzopen(filename, "wb9")) == NULL) {
+		return 0;
+	}
+
+	gzwrite(outfs, (void *)&CallCount, sizeof(int));
+	gzwrite(outfs, (void *)&PushCount, sizeof(int));
+	gzwrite(outfs, (void *)&RealignCount, sizeof(int));
 
 	while (qptr != NULL) {
-		qcout.write((char *)qptr,sizeof(Analysis_Queue_List));
+		gzwrite(outfs, (void *)qptr, sizeof(Analysis_Queue_List));
 
 		qptr = qptr->next;
 	}
 
-	qcout.close();
+	gzclose(outfs);
 
 	return 1;
 }
@@ -474,7 +482,7 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 				CodeAddr AnalyzeAddr = qptr->Address;
 				while (CountToAnalyze--) {
 					// so obtain a pointer to the instruction information
-					printf("AnalyzeAddr %p\n", AnalyzeAddr);
+					//printf("AnalyzeAddr %p\n", AnalyzeAddr);
 					DisassembleTask::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
 					if (!InsInfo) {
 						std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;

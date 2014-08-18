@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <fstream>
 #include <pe_lib/pe_bliss.h>
+#include <zlib.h>
 #include "virtualmemory.h"
 
 using namespace psykoosi;
@@ -25,7 +26,7 @@ VirtualMemory::VirtualMemory()
   }
 
   // lower kb since we'll start cloning, etc...bigger the number = more clones
-  Settings[SETTINGS_PAGE_SIZE] = 1024*4;
+  Settings[SETTINGS_PAGE_SIZE] = 1024*8;
 
 }
 
@@ -172,7 +173,6 @@ VirtualMemory::ChangeLog *VirtualMemory::ChangeLog_Add(int type, CodeAddr Addr, 
 }
 
 
-// maybe add support for cloning at a lower PAGE_SIZE....
 int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *data, int len) {
     MemPage *mptr = NULL, *mptr_current = NULL;
     unsigned long current_pageaddr_start = 0;
@@ -209,7 +209,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 		// change logs for single bytes... or if its the last byte...
 		if (Settings[SettingType::SETTINGS_CHANGELOG]) {
 			if (mptr_current != mptr || ((i + 1) == len)) {
-				// log current now...
+				// Logs if our internal page changes...
 				current_count++;
 
 				// log the changes...
@@ -227,6 +227,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 				current_pageaddr_start = pageaddr;
 				current_vaddr_start = addr + i;
 			} else
+				// otherwise increases the count.. so we can log later (when completed... or changes)
 				current_count++;
 		}
 
@@ -274,7 +275,7 @@ VirtualMemory::Memory_Section *VirtualMemory::Add_Section(CodeAddr Address, uint
 		Section_Last->next = sptr;
 
 		Section_Last = sptr;
-		printf("ERROR Setting next to %p for %s [%p]\n", sptr->next, sptr->Name, &sptr->next);
+		//printf("ERROR Setting next to %p for %s [%p]\n", sptr->next, sptr->Name, &sptr->next);
 		//if (strstr(sptr->Name, ".data")) __asm("int3");
 	}
 
@@ -287,26 +288,26 @@ int VirtualMemory::Cache_Save(char *filename) {
 	if (Section_List == NULL) return 0;
 	Memory_Section *sptr = Section_List;
 
-	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
-	if (!qcout) return 0;
+	gzFile outfs;
 
+	if ((outfs = gzopen(filename, "wb9")) == NULL) {
+		return 0;
+	}
 
 	uint32_t header = 0x3E3021;
-	qcout.write((char *)&header, sizeof(uint32_t));
+	gzwrite(outfs, (void *)&header, sizeof(uint32_t));
 
 	for (; sptr != NULL; sptr = sptr->next) {
 		// write size first and maybe pull my putint() function from other project... :) to stop duplicate code
 		int w_size = (int)strlen(sptr->Name);
-		qcout.write((char *)&w_size, sizeof(int));
-
-		qcout.write((char *)sptr, sizeof(Memory_Section));
-
-		qcout.write(sptr->Name, strlen(sptr->Name));
-		qcout.write((const char *)sptr->RawData, sptr->RawSize);
+		gzwrite(outfs, (void *)&w_size, sizeof(int));
+		gzwrite(outfs, (void *)&sptr, sizeof(Memory_Section));
+		gzwrite(outfs, (void *)sptr->Name, strlen(sptr->Name));
+		gzwrite(outfs, (void *)sptr->RawData, sptr->RawSize);
 
 	}
 
-	qcout.close();
+	gzclose(outfs);
 
 
 	return 1;
@@ -315,50 +316,55 @@ int VirtualMemory::Cache_Save(char *filename) {
 
 int VirtualMemory::Cache_Load(char *filename) {
 	int count = 0;
-		Memory_Section *qptr, *last = NULL;
+	Memory_Section *qptr, *last = NULL;
+	gzFile infs;
 
-		std::ifstream qcin(filename, std::ios::in | std::ios::binary);
-		if (!qcin) return 0;
+	if ((infs = gzopen(filename, "rb9")) == NULL) {
+		return 0;
+	}
 
-		uint32_t header = 0x3E3021;
-		uint32_t verify = 0;
-		qcin.read((char *)&verify, sizeof(uint32_t));
-		if (header != verify) {
-			printf("Cache header fail!\n");
-			throw;
-			return 0;
+	uint32_t header = 0x3E3021;
+	uint32_t verify = 0;
+	gzread(infs, (void *)&verify, sizeof(uint32_t));
+
+	if (header != verify) {
+		printf("Cache header fail!\n");
+		throw;
+		return 0;
+	}
+
+	Section_List = Section_Last = NULL;
+
+	while (!gzeof(infs)) {
+		int name_size = 0, raw_size = 0;
+		gzread(infs, (void *)&name_size, sizeof(int));
+
+		qptr = new Memory_Section;
+
+		gzread(infs, (void *)qptr, sizeof(Memory_Section));
+
+		qptr->next = 0; qptr->prev = 0;
+
+		qptr->RawData = new unsigned char[qptr->RawSize];
+		qptr->Name = new char[name_size];
+
+		gzread(infs, (void *)qptr->Name, name_size);
+		gzread(infs, (void *)qptr->RawData, qptr->RawSize);
+
+		if (Section_Last == NULL) {
+
+			Section_List = Section_Last = qptr;
+		} else {
+			Section_Last->next  = qptr;
+			Section_Last = qptr;
 		}
 
-		Section_List = Section_Last = NULL;
+		count++;
+	}
 
-		while (!qcin.eof()) {
-			int name_size = 0, raw_size = 0;
-			qcin.read((char *)&name_size, sizeof(int));
-
-			qptr = new Memory_Section;
-			qcin.read((char *)qptr, sizeof(Memory_Section));
-			qptr->next = 0; qptr->prev = 0;
-
-			qptr->RawData = new unsigned char[qptr->RawSize];
-			qptr->Name = new char[name_size];
-
-			qcin.read((char *)qptr->Name, name_size);
-			qcin.read((char *)qptr->RawData, qptr->RawSize);
-
-			if (Section_Last == NULL) {
-
-				Section_List = Section_Last = qptr;
-			} else {
-				Section_Last->next  = qptr;
-				Section_Last = qptr;
-			}
-
-			count++;
-		}
-
-		//if (count) Loaded_from_Cache = 1;
-		qcin.close();
-		printf("Loaded %d from file\n", count);
+	//if (count) Loaded_from_Cache = 1;
+	gzclose(infs);
+	printf("Loaded %d from file\n", count);
 }
 
 
@@ -462,7 +468,7 @@ VirtualMemory::Memory_Section *VirtualMemory::Section_EnumByFilename(char *filen
 
 	for (Memory_Section *sptr = (last ? last->next : Section_List); sptr != NULL; sptr = sptr->next) {
 
-		if ((sptr->Filename && strstr(sptr->Filename, filename)) || (sptr->Filename==NULL && filename==NULL)) {
+		if ((sptr->Filename != NULL && filename != NULL && strstr(sptr->Filename, filename)) || (sptr->Filename==NULL && filename==NULL)) {
 			return sptr;
 		}
 	}
