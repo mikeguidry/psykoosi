@@ -91,6 +91,8 @@ namespace psykoosi {
 
 	  Symbols *Symbols_List;
 
+	  int load_for_emulation;
+
   	  private:
 	  std::string InputData;
 	  int InputSize;

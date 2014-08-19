@@ -30,6 +30,8 @@ BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, Virtual
 	Symbols_List = NULL;
 	Emulation_List = Emulation_Last = NULL;
 
+	load_for_emulation = 0;
+
 	memset(system_dll_dir, 0, 1024);
 }
 
@@ -60,6 +62,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 	std::ifstream pe_file(FileName, std::ios::in | std::ios::binary);
 	DisassembleTask::CodeAddr Last_Section_Addr = 0;
 	LoadedImages *main_image = NULL;
+	VirtualMemory::Memory_Section *mptr = NULL;
 
 	if (!pe_file) {
 		std::cout << "Cannot open " << FileName << std::endl;
@@ -103,7 +106,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 					 << "addr: " << (image->get_image_base_32() + s.get_virtual_address()) << std::endl
 					 << std::endl;
 
-			 VirtualMemory::Memory_Section *mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
+			 mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
 			 mptr->ImageBase = image->get_image_base_32();
 			 // insert into images loaded list... (used later for getprocaddress, etc maybe hooking of win32 api)
 
@@ -134,10 +137,14 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 			 }
 
 		}
-		LoadImports(image, _VM, image->get_image_base_32());
 
-		if (main_image) {
-			EmulationQueue *qptr = EmulationQueueAdd(main_image, qptr->Image->ImageBase + main_image->PEimage->get_ep(), 0);
+		 if (load_for_emulation) {
+			 if (image->has_imports())
+				LoadImports(image, _VM, image->get_image_base_32());
+
+			if (main_image) {
+				EmulationQueue *qptr = EmulationQueueAdd(main_image, mptr->ImageBase + main_image->PEimage->get_ep(), 0);
+			}
 		}
 	} catch(const pe_exception& e) {
 		std::cout << "Error: " << e.what() << std::endl;
@@ -281,7 +288,8 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	 }
 
 	 if (lptr != NULL) {
-		 LoadImports(dll_image, VMem, ImageBase);
+		 if (dll_image->has_imports())
+			 LoadImports(dll_image, VMem, ImageBase);
 
 		 // put in queue for emulation since each DLL will have to be executed before we can run the
 		 // PEs code itself since we are loading them..
@@ -390,12 +398,12 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 				CodeAddr ProcAddr = GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
 				// write IAT
 				VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
-				printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ]\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr);
+				//printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ]\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr);
 
 				IAT_Addr += sizeof(uint32_t);
 		}
 
-		std::cout << std::endl;
+		//std::cout << std::endl;
 	}
 }
 

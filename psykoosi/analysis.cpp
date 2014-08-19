@@ -460,7 +460,7 @@ int InstructionAnalysis::QueueCache_Save(char *filename) {
 
 // loops through queue till it completes...
 int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
-	int Max_Address_Not_Found = 400;
+	int Max_Address_Not_Found = 500;
 	int TotalAnalyzedCount = 0;
 	int AnalyzedCount = 0;
 	do {
@@ -473,7 +473,7 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 			std::cout << "Analysis on: " << static_cast<uint32_t>(qptr->Address) << " Max Bytes: " << qptr->Max_Bytes << " " << std::endl;
 			if (redo || !qptr->Already_Analyzed) {
 				if (qptr->Count++ > 5) break;
-				//std::cout << "Analyse first time";
+				std::cout << "Analyse first time: " << qptr->Address << " Priority " << qptr->Priority << std::endl;
 
 				// run a disassembler task on this address with a max of 20 instructions...
 				int CountToAnalyze = Disassembler_Handle->RunDisassembleTask(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);

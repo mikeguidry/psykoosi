@@ -95,6 +95,8 @@ VirtualMemory::MemPage *VirtualMemory::ClonePage(MemPage *ParentOriginal) {
 		throw;
 		return NULL;
 	}
+
+	mptr->data = new unsigned char[mptr->size+16];
 	std::memcpy(mptr->data, ParentOriginal->data, mptr->size);
 
 	mptr->Original_Parent = ParentOriginal->ClassPtr;

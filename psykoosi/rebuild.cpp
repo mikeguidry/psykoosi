@@ -54,7 +54,9 @@ Rebuilder::Rebuilder(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory
 
 	std::strcpy(this->FileName, FileName);
 	vmem = new VirtualMemory;
-	vmem->SetParent(_VM);
+
+	// this causes x86_emulate() to crash.. i think i have to add in segmeZ
+	//vmem->SetParent(_VM);
 }
 
 Rebuilder::~Rebuilder() {
@@ -119,6 +121,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 			 In = In->Lists[DisassembleTask::LIST_TYPE_NEXT];
 
 		 }
+
 
 	 }
 
@@ -497,7 +500,8 @@ int Rebuilder::RealignInstructions() {
 
 
 						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
-
+						 std::string verify = _DT->disasm_str(NewIns->Address, ( char *)NewIns->RawData, NewIns->Size);
+						 printf("to emulate: %s\n", verify.c_str());
 						 // now verify it worked!
 						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr);
 						 printf("Emu Log %p\n", emu_log);
