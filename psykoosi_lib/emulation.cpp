@@ -36,6 +36,102 @@ using namespace pe_win;
 
 VirtualMemory *_VM2[MAX_VMS];
 Emulation *EmuPtr[MAX_VMS];
+Emulation::EmulationThread *EmuThread[MAX_VMS];
+
+
+static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
+	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
+	Emulation *VirtPtr = EmuPtr[thread->ID];
+	VirtualMemory *pVM = _VM2[thread->ID];
+	Emulation::EmulationThread *emuthread = EmuThread[thread->ID];
+
+	unsigned long _seg = 0;
+	uint32_t result = 0;
+/*
+ * x86_seg_cs,
+    x86_seg_ss,
+    x86_seg_ds,
+    x86_seg_es,
+    x86_seg_fs,
+    x86_seg_gs,
+
+ */
+	switch (seg) {
+		case x86_seg_cs:
+			_seg = emuthread->registers.cs;
+			break;
+		case x86_seg_ss:
+			_seg = emuthread->registers.ss;
+			break;
+		case x86_seg_ds:
+			_seg = emuthread->registers.ds;
+			break;
+		case x86_seg_es:
+			_seg = emuthread->registers.es;
+			break;
+		case x86_seg_fs:
+			_seg = emuthread->registers.fs;
+			break;
+		case x86_seg_gs:
+			_seg = emuthread->registers.gs;
+			break;
+		default:
+			break;
+	}
+	result = _seg + offset;
+
+	return result;
+}
+
+
+static int emulated_rep_movs(enum x86_segment src_seg,unsigned long src_offset,enum x86_segment dst_seg, unsigned long dst_offset,unsigned int bytes_per_rep,unsigned long *reps,struct _x86_emulate_ctxt *ctxt) {
+	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
+	Emulation *VirtPtr = EmuPtr[thread->ID];
+	VirtualMemory *pVM = _VM2[thread->ID];
+	unsigned long bytes_to_copy = *reps * bytes_per_rep;
+
+    printf("vm %p rep movs src seg %d offset %x dst seg %d offset %d bytes per %d reps %d id %d ctxt %p\n", _VM2[0],
+    		src_seg, src_offset, dst_seg, dst_offset, bytes_per_rep, *reps,  ctxt);
+
+    unsigned char *data = new unsigned char [bytes_to_copy];
+
+	pVM->MemDataRead(address_from_seg_offset(src_seg,src_offset,ctxt), (unsigned char *) data, bytes_to_copy);
+	pVM->MemDataWrite(address_from_seg_offset(dst_seg, dst_offset,ctxt), (unsigned char *)data, bytes_to_copy);
+
+	delete data;
+
+	return X86EMUL_OKAY;
+}
+
+
+
+static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
+	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
+	Emulation *VirtPtr = EmuPtr[thread->ID];
+	VirtualMemory *pVM = _VM2[thread->ID];
+
+	printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
+
+	pVM->MemDataWrite(address_from_seg_offset(seg,offset,ctxt),(unsigned char *) p_data, bytes);
+
+    return X86EMUL_OKAY;
+}
+
+
+
+static int emulated_cmpxchg(enum x86_segment seg,unsigned long offset,void *p_old,void *p_new,unsigned int bytes,
+    struct _x86_emulate_ctxt *ctxt) {
+	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
+	Emulation *VirtPtr = EmuPtr[thread->ID];
+	VirtualMemory *pVM = _VM2[thread->ID];
+
+	printf("vm %p cmpxchg seg %d offset %x old %p new %p bytes %d ctxt %p\n", seg, offset, p_old, p_new, bytes, ctxt);
+
+	pVM->MemDataWrite(address_from_seg_offset(seg,offset,ctxt),(unsigned char *) p_new, bytes);
+
+	return X86EMUL_OKAY;
+}
+
 
 
 static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
@@ -45,30 +141,22 @@ static int emulated_read(enum x86_segment seg, unsigned long offset, void *p_dat
 
     printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,
 	    		thread->ID, ctxt);
-	pVM->MemDataRead(offset,(unsigned char *) p_data, bytes);
+	pVM->MemDataRead(address_from_seg_offset(seg,offset,ctxt),(unsigned char *) p_data, bytes);
 
 	return X86EMUL_OKAY;
 }
 
-static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
-	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	Emulation *VirtPtr = EmuPtr[thread->ID];
-	VirtualMemory *pVM = _VM2[thread->ID];
-
-	printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
-
-	pVM->MemDataWrite(offset,(unsigned char *) p_data, bytes);
-
-    return X86EMUL_OKAY;
-}
-
 
 Emulation::Emulation(VirtualMemory *_VM) {
-	for (int i = 0; i < MAX_VMS; i++) _VM2[i] = NULL;
-	for (int i = 0; i < MAX_VMS; i++) EmuPtr[i] = NULL;
+	for (int i = 0; i < MAX_VMS; i++) {
+		_VM2[i] = NULL;
+		EmuPtr[i] = NULL;
+		EmuThread[i] = NULL;
+	}
 
 	VM = _VM2[0] = _VM;
 	EmuPtr[0] = this;
+	EmuThread[0] = &Master;
 	Master.LogList = NULL;
 	// count of virtual machines and incremental ID
 	Current_VM_ID = 0;
@@ -77,7 +165,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 
 	// default settings for virtual memory logging
 	Global_ChangeLog_Read = 0;
-	Global_ChangeLog_Write = 1;
+	Global_ChangeLog_Write = 0;
 	Global_ChangeLog_Verify = 0;
 
 	std::memset((void *)&Master.emulate_ops, 0, sizeof(struct hack_x86_emulate_ops));
@@ -86,6 +174,8 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	Master.emulate_ops.read = (void *)&emulated_read;
 	Master.emulate_ops.insn_fetch = (void *)&emulated_read;
 	Master.emulate_ops.write = (void *)&emulated_write;
+	Master.emulate_ops.rep_movs = (void *)&emulated_rep_movs;
+	Master.emulate_ops.cmpxchg = (void *)&emulated_cmpxchg;
 
 	Master.thread_ctx.ID = 0;
 	Master.thread_ctx.emulation_ctx.addr_size = 32;
@@ -161,7 +251,7 @@ void Emulation::ClearLogs(EmulationThread *thread) {
 	}
 }
 
-Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, CodeAddr Address, int Max_Size) {
+Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, CodeAddr Address) {
 	EmulationLog *ret = NULL;
 
 	SetRegister(thread, REG_EIP, Address);
@@ -183,6 +273,7 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, Cod
 	if (!ret) throw;
 	// retrieve Virtual Memory changes from the VM subsystem...
 	ret->VMChangeLog = thread->EmuVMEM.ChangeLog_Retrieve(thread->LogID, &ret->VMChangeLog_Count);
+	printf("Change log addr %p\n", ret->VMChangeLog);
 	// save registers for this specific execution as well for this exact cpu cycle
 	std::memcpy(&ret->registers_shadow, &ret->registers_shadow, sizeof(cpu_user_regs_t));
 	std::memcpy(&ret->registers, &ret->registers, sizeof(cpu_user_regs_t));
@@ -192,6 +283,43 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *thread, Cod
 
 	return ret;
 }
+
+
+Emulation::EmulationThread *Emulation::ExecuteLoop(VirtualMemory *vmem, Emulation::CodeAddr StartAddr, Emulation::CodeAddr EndAddr, struct cpu_user_regs *registers, int new_thread) {
+	EmulationLog *logptr = NULL;
+	EmulationThread *thread = NULL;
+	int done = 0, count = 0;
+	CodeAddr EIP = StartAddr;
+
+	if (new_thread) {
+		thread = NewVirtualMachine(vmem, EIP, registers);
+		if (thread == NULL) {
+			return NULL;
+		}
+	} else thread = &Master;
+
+	if (thread == &Master) {
+		std::memcpy((void *)&Master.registers, registers, sizeof(struct cpu_user_regs));
+	}
+
+	while (!done) {
+		logptr = StepInstruction(thread, EIP);
+
+		if (count++ > 30) break;
+
+		if (thread->registers.eip >= EndAddr)
+			done = 1;
+	}
+
+
+	printf("Executed %d instructions\n");
+
+	return thread;
+}
+
+
+
+
 
 Emulation::EmulationThread *Emulation::NewVirtualMachine(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP,
 		struct cpu_user_regs *registers) {
@@ -215,6 +343,7 @@ void Emulation::DestroyVirtualMachine(Emulation::EmulationThread *Thread) {
 
 	Thread->EmuVMEM.ReleaseParent();
 	_VM2[Thread->ID] = NULL;
+	EmuThread[Thread->ID] = NULL;
 
 	delete Thread;
 }
@@ -336,12 +465,11 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 
 	if (thread->registers.eip != thread->registers_shadow.eip) {
 		Monitor |= REG_EIP;
-		printf("changed eip %d %p -> %p\n", Monitor & REG_EIP, thread->registers_shadow.eip, thread->registers.eip);
+		printf("changed EIP %d %p -> %p\n", Monitor & REG_EIP, thread->registers_shadow.eip, thread->registers.eip);
 		CreateChangeEntry(&logptr->Changes, REG_EIP, (unsigned char *)&thread->registers_shadow.eip,  (unsigned char *)&thread->registers.eip, sizeof(uint32_t));
 	}
 	if (thread->registers.eax != thread->registers_shadow.eax) {
 		Monitor |= REG_EAX;
-		printf("changed eax %X %X %d\n", thread->registers_shadow.eax, thread->registers.eax, Monitor & REG_EAX);
 		CreateChangeEntry(&logptr->Changes, REG_EAX,  (unsigned char *)&thread->registers_shadow.eax, (unsigned char *) &thread->registers.eax, sizeof(uint32_t));
 	}
 	if (thread->registers.ebx != thread->registers_shadow.ebx) {

@@ -28,6 +28,8 @@ namespace psykoosi {
 	  typedef struct _instruction_information {
 		  struct _instruction_information *Lists[LIST_TYPE_MAX];
 
+		  struct _instruction_information *PrevLists[LIST_TYPE_MAX];
+
 		  unsigned char *RawData;
 		  unsigned short Size;
 		  int RawOffset;

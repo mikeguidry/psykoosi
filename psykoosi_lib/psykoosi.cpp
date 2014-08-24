@@ -8,6 +8,7 @@ namespace psykoosi {
 #define dprintf(fmt, ...) if (Debug) { printf(fmt, ##__VA_ARGS__); }
 
 Psykoosi::Psykoosi(const std::string &fileName,
+                   const std::string &dllDir,
                    const std::string &cacheDir,
                    bool debug)
     : CacheDir(cacheDir)
@@ -16,7 +17,7 @@ Psykoosi::Psykoosi(const std::string &fileName,
     op.disasm = new Disasm(&op.vmem);
     op.analysis = new InstructionAnalysis(op.disasm);
     op.loader = new BinaryLoader(op.disasm, op.analysis, &op.vmem);
-    Load(fileName);
+    Load(fileName, dllDir);
 }
 
 Psykoosi::~Psykoosi() {
@@ -61,8 +62,9 @@ void Psykoosi::Save(const std::string &fileName) {
     master.WriteBinaryPE2();
 }
 
-void Psykoosi::Load(const std::string &fileName) {
+void Psykoosi::Load(const std::string &fileName, const std::string& dllDir) {
     op.pe_image = op.loader->LoadFile(0,0,fileName.c_str());
+    op.loader->SetDLLDirectory(dllDir.c_str());
     if (!op.pe_image) {
         throw std::string("Can not open file ") + fileName;
     }

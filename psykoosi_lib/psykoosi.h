@@ -13,7 +13,7 @@ namespace psykoosi {
 // High-level api for psykoosi
 class Psykoosi {
 public:
-    Psykoosi(const std::string &fileName,
+    Psykoosi(const std::string &fileName, const std::string &dllDir,
              const std::string &cacheDir = std::string(),
              bool debug = false);
     ~Psykoosi();
@@ -24,7 +24,7 @@ public:
     void Commit(); // rebuild in-memory image with injected / removed instructions
     void Save(const std::string &fileName);
 private:
-    void Load(const std::string &fileName);
+    void Load(const std::string &fileName, const std::string &dllDir);
     std::string CacheFileName(const std::string& fileName, const std::string& type);
 private:
     std::string CacheDir;

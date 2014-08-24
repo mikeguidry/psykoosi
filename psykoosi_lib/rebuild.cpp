@@ -56,6 +56,9 @@ Rebuilder::Rebuilder(Disasm *DT, InstructionAnalysis *IA, VirtualMemory *VM, pe_
         std::strcpy(this->FileName, FileName);
     }
 	vmem = new VirtualMemory;
+
+	// this causes x86_emulate() to crash.. i think i have to add in segmeZ
+	//vmem->SetParent(_VM);
 }
 
 Rebuilder::~Rebuilder() {
@@ -88,8 +91,19 @@ Disasm::CodeAddr Rebuilder::CheckForModifiedAddress(Disasm::CodeAddr Lookup) {
 }
 
 
-Disasm::InstructionInformation *Inj_Stream(unsigned char *buffer, int size);
+Disasm::InstructionInformation *Inj_Stream(unsigned char *buffer, int size) {
+    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
+    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
 
+    ah->RawData = new unsigned char [size];
+    std::memcpy((char *)ah->RawData, buffer, size);
+
+    ah->Size = size;
+    ah->FromInjection = 1;
+    ah->CatchOriginalRelativeDestinations = 0;
+
+    return ah;
+}
 
 
 int Rebuilder::RebuildInstructionsSetsModifications() {
@@ -100,14 +114,14 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
 		 if (sptr->RawSize == 0) continue;
-		 if (!(sptr->Characteristics == 0x60000020)) continue;
+		 if (!_VM->Section_IsExecutable(sptr, NULL)) continue;
 
-		 /*
-		 DisassembleTask::InstructionInformation *In = _DT->Instructions[DisassembleTask::LIST_TYPE_NEXT];
+
+         Disasm::InstructionInformation *In = _DT->Instructions[Disasm::LIST_TYPE_NEXT];
 		 while (In) {
 			 if (!(count++ % 5)) {
 				 int size = 3+(rand()%2);
-				 DisassembleTask::InstructionInformation *InjIt = Inj_Stream((unsigned char *)"\x90\x90\x90", size);
+                 Disasm::InstructionInformation *InjIt = Inj_Stream((unsigned char *)"\x90\x90\x90", size);
 				 std::memset((void *)InjIt->RawData, 0x90, size);
 				 In->InjectedInstructions = InjIt;
 				 warp += InjIt->Size;
@@ -117,9 +131,10 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 				 printf("breaking %p %d [high %p]\n", In->Address, warp, sptr->VirtualSize + sptr->Address + _PE->get_image_base_32());
 				 break;
 			 }
-			 In = In->Lists[DisassembleTask::LIST_TYPE_NEXT];
+             In = In->Lists[Disasm::LIST_TYPE_NEXT];
 
-		 }*/
+		 }
+
 
 	 }
 
@@ -128,7 +143,7 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
 		 if (sptr->RawSize == 0) continue;
-		 if (!(sptr->Characteristics == 0x60000020)) continue;
+		 if (!_VM->Section_IsExecutable(sptr, NULL)) continue;
 		 printf("building sets %s\n", sptr->Name);
          Disasm::InstructionInformation *InsInfo = 0;
 
@@ -313,7 +328,7 @@ int Rebuilder::RebaseCodeSection() {
 	// loop and modify all addresses to relate to the new base
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 		 if (sptr->IsDLL) continue;
-		 if (sptr->Characteristics == 0x60000020) {
+		 if (_VM->Section_IsExecutable(sptr, NULL)) {
                      Disasm::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
                      Disasm::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->RawSize + sptr->Address + warp;
                      Disasm::CodeAddr CurAddr = StartAddr;
@@ -361,13 +376,16 @@ int Rebuilder::RealignInstructions() {
 	}
 
 	Emulation emulator(vmem);
+
 	emulator.Master.EmuVMEM.SetParent(vmem);
 
 	raw_final.clear();
 	final_chr = new unsigned char[final_size + 16];
 
 	 for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
-		 if (sptr->Characteristics == 0x60000020) {
+		 if (sptr->IsDLL) continue;
+
+		 if (_VM->Section_IsExecutable(sptr, NULL)) {
              Disasm::CodeAddr StartAddr = sptr->Address + _PE->get_image_base_32();
              Disasm::CodeAddr EndAddr = _PE->get_image_base_32() + sptr->Address + sptr->RawSize + warp;
              Disasm::CodeAddr CurAddr = StartAddr;
@@ -430,10 +448,9 @@ int Rebuilder::RealignInstructions() {
 
 				 if (1==1 && NewIns->Requires_Realignment && NewIns->OpDstAddress){// && !NewIns->IsPointer) {
 					 sprintf(testit, "%p", NewIns->OpDstAddress);
-					 signed char dist8 = 0;
-					 int32_t dist32 = 0;
+					 signed char dist8 = 0, dist8_old = 0;
+					 int32_t dist32 = 0, dist32_old = 0;
                     //Disasm::CodeAddr ToAddr = 0;
-
 
 
 					//ud_operand_t *udop = (ud_operand_t *)ud_insn_opr(&InsInfo->ud_obj, 0);
@@ -441,7 +458,7 @@ int Rebuilder::RealignInstructions() {
 				 	if (!InsInfo->IsImmediate) {
                         distance = _IA->AddressDistance(InsInfo->Address, InsInfo->Size, InsInfo->OpDstAddress, Disasm::LIST_TYPE_INJECTED);
 				 	} else {
-                        Disasm::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, Disasm::LIST_TYPE_INJECTED, 0, NULL);
+                        Disasm::InstructionInformation *InsDstInfo = _DT->GetInstructionInformationByAddressOriginal(InsInfo->OpDstAddress, Disasm::LIST_TYPE_INJECTED, 1, NULL);
 				 		if (InsDstInfo) {
 				 			printf("ERROR Have an immediate (%p) found new %p\n", InsDstInfo->Address);
 				 			distance = InsDstInfo->Address;
@@ -467,23 +484,36 @@ int Rebuilder::RealignInstructions() {
 				 			if ((dist8 > 128) || (dist8 < -128)) {
 				 				printf("FUCK distance %d\n", dist8);
 				 			}
+				 			std::memcpy(&dist8_old, NewIns->RawData+NewIns->Size-1, 1);
 				 			std::memcpy(NewIns->RawData+NewIns->Size-1, (void *)&dist8, 1);
+				 			if (dist8 != dist8_old) {
+				 				printf("ERROR changed from %p to %p [%p]\n", dist8_old, dist8, NewIns->Address);
+
+				 			}
 				 			break;
 
 				 		case 4:
 				 			dist32 = (long)(distance&0xffffffff);
 				 			if ((dist8 > 1024) || (dist8 < -1024)) {
 				 				printf("FUCK %d\n", distance);
+
 				 			}
+				 			std::memcpy(&dist32_old, NewIns->RawData+NewIns->Size-4, 4);
 							std::memcpy(NewIns->RawData+NewIns->Size-4, (void *)&dist32, 4);
+							std::string verify = _DT->disasm_str(NewIns->Address, ( char *)NewIns->RawData, NewIns->Size);
+							if (dist32 != dist32_old) {
+								printf("ERROR changed from %p to %p [%p] %s\n", dist32_old, dist32, NewIns->Address, verify.c_str());
+							}
 							break;
 
 				 		}
 
-						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
 
+						 vmem->MemDataWrite(CurAddr, (unsigned char *)NewIns->RawData, NewIns->Size);
+						 std::string verify = _DT->disasm_str(NewIns->Address, ( char *)NewIns->RawData, NewIns->Size);
+						 printf("to emulate: %s\n", verify.c_str());
 						 // now verify it worked!
-						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr, 13);
+						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr);
 						 printf("Emu Log %p\n", emu_log);
 						 if (emu_log == NULL) {
 							 printf("ERROR Was unable to analyze instruction at address %p", NewIns->Address);
@@ -742,13 +772,15 @@ int Rebuilder::WriteBinaryPE2() {
 	final_size = final_i;
 	VirtualMemory::Memory_Section *code_section = NULL, *last_section_ptr = NULL;
 
-	for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+	VirtualMemory::Memory_Section *sptr = NULL;
+
+	for (sptr = _VM->Section_EnumByFilename(NULL, sptr); sptr != NULL; sptr = vmem->Section_EnumByFilename(NULL, sptr)) {
 		if (sptr->IsDLL) continue;
 		printf("Section Base: %p\n", sptr->ImageBase);
 		if (sptr->Characteristics == 0) {
 			printf("ERROR something corrupted in section 1!\n");
 			continue;
-		} else if (sptr->Characteristics== 0x60000020) {
+		} else if (_VM->Section_IsExecutable(sptr, NULL)) {
 			code_section = sptr;
 			printf("doing exe %s\n", sptr->Name);
 
@@ -795,9 +827,7 @@ int Rebuilder::WriteBinaryPE2() {
 			last_section_ptr = sptr;
 		}
 
-						printf("name %s chr %x vaddr %p vsize %d ptr %d size %d\n", sptr->Name, sptr->Characteristics,
-								sptr->Address,
-								sptr->VirtualSize, sptr->RVA, sptr->RawSize);
+
 	}
 	int to_increase = 0;
 	// load the input file again.. (maybe we should keep it in memory from BinaryLoader)
@@ -871,7 +901,9 @@ int Rebuilder::WriteBinaryPE2() {
 
 			// add sections from our list..
 			{
-				for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
+				VirtualMemory::Memory_Section *sptr = NULL;
+				for (sptr = _VM->Section_EnumByFilename(NULL, sptr); sptr != NULL; sptr = vmem->Section_EnumByFilename(NULL, sptr)) {
+				//for (VirtualMemory::Memory_Section *sptr = _VM->Section_List; sptr != NULL; sptr = sptr->next) {
 					if (sptr->IsDLL) continue;
 					if (sptr->Characteristics == 0) {
 						printf("ERROR something corrupted in section 2!\n");
@@ -918,7 +950,7 @@ int Rebuilder::WriteBinaryPE2() {
 
 	                new_image->set_section_virtual_size(added_section, sptr->VirtualSize);
 
-					if (sptr->Characteristics == 0x60000020) {
+	                if (_VM->Section_IsExecutable(sptr, NULL)) {
 				        // fix up entry point
 				        uint32_t Entry = image.get_ep() + image.get_image_base_32();
                         Disasm::InstructionInformation *InsInfo = _DT->GetInstructionInformationByAddress(Entry, Disasm::LIST_TYPE_INJECTED, 1, NULL);
@@ -943,7 +975,7 @@ int Rebuilder::WriteBinaryPE2() {
 			}
 		}
 
-		printf("rebuild\n");
+		printf("rebuilt!\n");
 
 		std::stringstream temp_pe(std::ios::out | std::ios::in | std::ios::binary);
 		rebuild_pe(*new_image, temp_pe, false, false, false);

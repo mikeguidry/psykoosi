@@ -14,4 +14,4 @@ add_library (psykoosi_lib
                         xen/x86_emulate.c
                         )
 
-target_link_libraries(psykoosi_lib pe_bliss capstone-static udis86)
+target_link_libraries(psykoosi_lib pe_bliss capstone-static udis86 z)

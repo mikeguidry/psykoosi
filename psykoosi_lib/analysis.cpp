@@ -5,6 +5,7 @@
 #include <string>
 #include <stdio.h>
 #include <inttypes.h>
+#include <zlib.h>
 #include <pe_lib/pe_bliss.h>
 extern "C" {
 #include <capstone/capstone.h>
@@ -64,7 +65,7 @@ long InstructionAnalysis::AddressDistance(Disasm::CodeAddr first, int Size, Disa
     SecondPtrInj = Disassembler_Handle->GetInstructionInformationByAddress((Disasm::CodeAddr)second, Disasm::LIST_TYPE_REBASED, 1, NULL);
 
 	//std::cout << "FirstPtr: " << static_cast<void *>(FirstPtr) << " " << first << " SecondPtr: " << static_cast<void *>(SecondPtr) << " " << second << std::endl;
-	//printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
+	printf("FirstPtr Addr %p Addr2 %p - %p %p cannot find it!\n", first, second, FirstPtr, SecondPtr);
 	if (!SecondPtr) {
 		//printf("FirstPtr fail 1 %p:%d %p %p\n", first, Size, FirstPtr, SecondPtr);
 		return 0;
@@ -401,26 +402,30 @@ int InstructionAnalysis::QueueCache_Load(const char *filename) {
 
 	Queue_Clear();
 
-	std::ifstream qcin(filename, std::ios::in | std::ios::binary);
-	if (!qcin) return 0;
+	gzFile infs;
 
-	qcin.read((char *)&n, sizeof(int));
+	if ((infs = gzopen(filename, "rb9")) == NULL) {
+		return 0;
+	}
+
+
+	gzread(infs, (void *)&n, sizeof(int));
 	CallCount = n;
-	qcin.read((char *)&n, sizeof(int));
+	gzread(infs, (void *)&n, sizeof(int));
 	PushCount = n;
-	qcin.read((char *)&n, sizeof(int));
+	gzread(infs, (void *)&n, sizeof(int));
 	RealignCount = n;
 
-	while (!qcin.eof()) {
+	while (!gzeof(infs)) {
 		qptr = new AnalysisQueue;
-		qcin.read((char *)qptr, sizeof(AnalysisQueue));
+		gzread(infs, (void *)qptr, sizeof(AnalysisQueue));
 
 		qptr->next = Analysis_Queue_List;
 
 		Analysis_Queue_List = qptr;
 	}
 
-	qcin.close();
+	gzclose(infs);
 
 	return 1;
 }
@@ -430,20 +435,23 @@ int InstructionAnalysis::QueueCache_Save(const char *filename) {
 
 	if (qptr == NULL) return 0;
 
-	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
-	if (!qcout) return 0;
+	gzFile outfs;
 
-	qcout.write((char *)&CallCount, sizeof(int));
-	qcout.write((char *)&PushCount, sizeof(int));
-	qcout.write((char *)&RealignCount, sizeof(int));
+	if ((outfs = gzopen(filename, "wb9")) == NULL) {
+		return 0;
+	}
+
+	gzwrite(outfs, (void *)&CallCount, sizeof(int));
+	gzwrite(outfs, (void *)&PushCount, sizeof(int));
+	gzwrite(outfs, (void *)&RealignCount, sizeof(int));
 
 	while (qptr != NULL) {
-		qcout.write((char *)qptr,sizeof(Analysis_Queue_List));
+		gzwrite(outfs, (void *)qptr, sizeof(Analysis_Queue_List));
 
 		qptr = qptr->next;
 	}
 
-	qcout.close();
+	gzclose(outfs);
 
 	return 1;
 }
@@ -465,7 +473,7 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 			std::cout << "Analysis on: " << static_cast<uint32_t>(qptr->Address) << " Max Bytes: " << qptr->Max_Bytes << " " << std::endl;
 			if (redo || !qptr->Already_Analyzed) {
 				if (qptr->Count++ > 5) break;
-				//std::cout << "Analyse first time";
+				std::cout << "Analyse first time: " << qptr->Address << " Priority " << qptr->Priority << std::endl;
 
                 // run a disassembler task on this address with a max of 20 instructions...
                 int CountToAnalyze = Disassembler_Handle->RunDisasm(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);
@@ -474,9 +482,10 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 				CodeAddr AnalyzeAddr = qptr->Address;
 				while (CountToAnalyze--) {
 					// so obtain a pointer to the instruction information
+					//printf("AnalyzeAddr %p\n", AnalyzeAddr);
                     Disasm::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, Disasm::LIST_TYPE_NEXT, 1, NULL);
 					if (!InsInfo) {
-						//std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
+						std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
 						if (!Max_Address_Not_Found--) {
 							std::cout << "We hit the limit of 100 on this queue.. moving on" << std::endl;
 							break;

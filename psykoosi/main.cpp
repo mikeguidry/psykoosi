@@ -43,19 +43,7 @@ Disasm::InstructionInformation *Inj_LoadFile(char *filename) {
 	return ah;
 }
 
-Disasm::InstructionInformation *Inj_Stream(unsigned char *buffer, int size) {
-    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
-    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
-
-	ah->RawData = new unsigned char [size];
-	std::memcpy((char *)ah->RawData, buffer, size);
-
-	ah->Size = size;
-	ah->FromInjection = 1;
-	ah->CatchOriginalRelativeDestinations = 0;
-
-	return ah;
-}
+Disasm::InstructionInformation *Inj_Stream(unsigned char *buffer, int size);
 
 Disasm::InstructionInformation *Inj_NOP(int size) {
     Disasm::InstructionInformation *ah = NULL;
@@ -70,8 +58,6 @@ Disasm::InstructionInformation *Inj_NOP(int size) {
 	return ah;
 }
 
-
-
 // our main function... lets try to keep as small as possible (as opposed to how many things were in asmrealign)
 int main(int argc, char *argv[]) {
 	if (argc < 2) {
@@ -80,10 +66,9 @@ int main(int argc, char *argv[]) {
 	}
 
     string fileName = argv[1];
-    Psykoosi psy(fileName, ".", true);
+    string dllDir = ".";
+    Psykoosi psy(fileName, dllDir, ".", true);
 	nice(20);
-
-    // loaded
 
     Disasm::CodeAddr InjAddr = psy.GetEntryPoint();
     Disasm::InstructionInformation *InjEntry = NULL;

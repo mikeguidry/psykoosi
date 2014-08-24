@@ -6,6 +6,7 @@
 #include <string>
 #include <inttypes.h>
 #include <udis86.h>
+#include <zlib.h>
 #include <pe_lib/pe_bliss.h>
 #include "virtualmemory.h"
 extern "C" {
@@ -18,7 +19,7 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 // 64k pages...
-#define PAGE_SIZE 4096*2*2*2*2
+#define PAGE_SIZE 4096*2*2*2*2:
 
 
 Disasm::Disasm(VirtualMemory *_VM)
@@ -267,7 +268,7 @@ int Disasm::DisassembleSingleInstruction(CodeAddr Address, InstructionInformatio
 			pInfo->Displacement_Offset = pInfo->InsDetail->x86.imm_offset;
 
 		/*
- printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
+			printf("Address %X Displacement Offset %d Disp %X Imm Offset %d  disp type %d\n",Address, pInfo->InsDetail->x86.disp_offset,
 				 pInfo->InsDetail->x86.disp,
 				 (uint8_t)pInfo->InsDetail->x86.imm_offset, dtype);
 			for (int i = 0; i < pInfo->InsDetail->x86.op_count;i++) {
@@ -275,8 +276,9 @@ int Disasm::DisassembleSingleInstruction(CodeAddr Address, InstructionInformatio
 				uint32_t disp2 = pInfo->InsDetail->x86.operands[i].imm;
 				printf("Op %d disp %X disp2 \n", i, disp, disp2);
 			}
+			std::string verify = disasm_str(pInfo->Address, (char *)pInfo->RawData, pInfo->Size);
+			printf("ASM: %s\n", verify.c_str());
 			printf("hex:");for (int a =0; a < len; a++) { printf("%02X", (unsigned char)Data[a]); }printf("\n");
-
 			disasm_str(Address, (char *)Data, len);
 		for (int a = 0; a < pInfo->Size; a++) printf("%02X", (unsigned char)pInfo->RawData[a]);printf("\n");
 */
@@ -307,7 +309,7 @@ std::string Disasm::disasm_str(CodeAddr Address, char *data, int len) {
 	    if ((len = ud_disassemble(&ud_obj)) > 0) {
 	        int size = ud_insn_len(&ud_obj);
 
-	        std::cout << "[" << Address << ":" << size << "] " << ud_insn_asm(&ud_obj) << std::endl;
+	        //std::cout << "[" << Address << ":" << size << "] " << ud_insn_asm(&ud_obj) << std::endl;
 
 	        if (std::strcmp(ud_insn_asm(&ud_obj), "invalid")==0)
 	        	return std::string("");
@@ -316,7 +318,7 @@ std::string Disasm::disasm_str(CodeAddr Address, char *data, int len) {
 	    }
 
 	    return std::string("");
-	}
+}
 
 int Disasm::RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int MaxInstructions)
 {
@@ -329,7 +331,7 @@ int Disasm::RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int M
 
 
 
-	std::cout << "Disasm Task: " << StartAddress << "Priority: " << static_cast<int>(priority) << "max raw: " << MaxRawSize << " Max Instructions: " << MaxInstructions << std::endl;
+	//std::cout << "Disasm Task: " << StartAddress << "Priority: " << static_cast<int>(priority) << "max raw: " << MaxRawSize << " Max Instructions: " << MaxInstructions << std::endl;
 	// loop and disassemble a section of instructions (example: code section)
 	do {
 		InsInfo = 0;
@@ -337,31 +339,17 @@ int Disasm::RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int M
 		//printf("Disasm ret %d CurAddr %p priority %d InsInfo %p\n", DisassembleRet, CurAddr, priority, InsInfo);
 
 //		if (!(CurAddr % 100))
-			std::cout << "\r" << CurAddr;
+			//std::cout << "\r" << CurAddr;
 
 		if (HighestCode > 0 && (CurAddr&0xffffffff) >= (HighestCode&0xffffffff)) {
 			std::cout << "\rhigh break: " << CurAddr << " highest " << HighestCode << std::endl;
 			break;
 		}
 
-		int is_executable = 0;
-		 const section_list sections(PE_Handle->get_image_sections());
-		 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
-			 const section &s = *it;
-
-			 if (
-
-					 ((uint32_t)CurAddr >= (uint32_t)((PE_Handle->get_image_base_32() + s.get_virtual_address()) &&
-					 ((uint32_t)CurAddr < (uint32_t)((PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_virtual_size())))))) {
-
-				 if (s.executable())
-					 is_executable = 1;
-
-				 break;
-			 }
-		 }
-
-		 if (!is_executable) break;
+		if (!vmem->Section_IsExecutable(NULL, CurAddr)) {
+			//printf("Cur addr not in code section %p\n", CurAddr);
+			break;
+		}
 
 
 		/*
@@ -394,10 +382,11 @@ int Disasm::RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int M
 				//Instructions[LIST_TYPE_NEXT]->Lists[LIST_TYPE_PREV] = InsInfo;
 				Instructions[LIST_TYPE_NEXT] = InsInfo;
 
+				InsInfo->PrevLists[LIST_TYPE_JUMP] = Instructions_Jump[InsInfo->Address % JUMP_SIZE];
 				// jump table to speed up finding it
 				InsInfo->Lists[LIST_TYPE_JUMP] = Instructions_Jump[InsInfo->Address % JUMP_SIZE];
 				Instructions_Jump[InsInfo->Address % JUMP_SIZE] = InsInfo;
-				//printf("Adding %p [old = %p] ins %p\n", InsInfo, InsInfo->Lists[LIST_TYPE_NEXT], Instructions[LIST_TYPE_NEXT]);
+				//printf("Adding %p [old = %p] ins %p %p\n", InsInfo, InsInfo->Lists[LIST_TYPE_NEXT], Instructions[LIST_TYPE_NEXT], InsInfo->Address);
 			}
 		}
 
@@ -456,12 +445,13 @@ Disasm::InstructionInformation *Disasm::GetInstructionInformationByAddress(CodeA
 	if (LastPtr && Loaded_from_Cache && LastPtr->Lists[type] != NULL && LastPtr->Lists[type]->Address==Address) return LastPtr->Lists[type];
 
 	if (type == LIST_TYPE_JUMP) {
+		InstructionInformation *Last = NULL;
 		for (InstructionInformation *InsInfoPtr = Instructions_Jump[Address % JUMP_SIZE]; InsInfoPtr != NULL; InsInfoPtr = InsInfoPtr->Lists[LIST_TYPE_JUMP]) {
-			if (InsInfoPtr->Address == Address ||
-				(!strict && ((Address >= InsInfoPtr->Address)
-						&& (Address < InsInfoPtr->Address + InsInfoPtr->Size)))) {
+			if (LastPtr != NULL) {
+				printf("Last %p %p [need %p %d %p] Prev of last %p last next %p\n", LastPtr, LastPtr->Address, Address,strict, LastPtr, LastPtr->PrevLists[LIST_TYPE_JUMP]->Address, LastPtr->Lists[LIST_TYPE_JUMP]);
 				return InsInfoPtr;
 			}
+			Last = InsInfoPtr;
 		}
 		return NULL;
 	}
@@ -566,23 +556,21 @@ void Disasm::Clear_Instructions() {
 int Disasm::Cache_Save(const char *filename) {
 	if (Instructions[LIST_TYPE_NEXT] == NULL) return 0;
 
-	std::ofstream qcout(filename, std::ios::out | std::ios::binary | std::ios::trunc);
-	if (!qcout) return 0;
+	gzFile outfs;
 
+	if ((outfs = gzopen(filename, "wb9")) == NULL) {
+		return 0;
+	}
 
 	uint32_t header = 0xD15A55;
-	qcout.write((char *)&header, sizeof(uint32_t));
+	gzwrite(outfs, (void *)&header, sizeof(uint32_t));
 
-	// loop and create a new instruction set with modifications and new addresses...
-	 const section_list sections(PE_Handle->get_image_sections());
-	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
-		 const section &s = *it;
 
-		 // should also modify other areas later.. if we end up moving around data etc
-		 if (s.executable()) {
 
-             Disasm::CodeAddr StartAddr = s.get_virtual_address() + PE_Handle->get_image_base_32();
-             Disasm::CodeAddr EndAddr = PE_Handle->get_image_base_32() + s.get_virtual_address() + s.get_size_of_raw_data();
+	for (VirtualMemory::Memory_Section *sptr = vmem->Section_List; sptr != NULL; sptr = sptr->next) {
+		if (vmem->Section_IsExecutable(sptr, 0)) {
+             Disasm::CodeAddr StartAddr = sptr->Address + PE_Handle->get_image_base_32();
+             Disasm::CodeAddr EndAddr = PE_Handle->get_image_base_32() + sptr->Address + sptr->RawSize;
              Disasm::CodeAddr CurAddr = StartAddr;
 
              Disasm::InstructionInformation *InsInfo = 0;
@@ -602,24 +590,26 @@ int Disasm::Cache_Save(const char *filename) {
 
 				if (!qptr->Size) throw;
 
-				qcout.write((char *)qptr, sizeof(InstructionInformation));
+				gzwrite(outfs, (void *)qptr, sizeof(InstructionInformation));
 
-				if ( qptr->InstructionMnemonicString->size() > 32) throw;
+				if (qptr->InstructionMnemonicString != NULL) {
+					if ( qptr->InstructionMnemonicString->size() > 32) throw;
+					std::memcpy((void *)&mnemonic, qptr->InstructionMnemonicString->data(), qptr->InstructionMnemonicString->size() > 32 ? 32 : qptr->InstructionMnemonicString->size());
+				} else {
+					std::memset((void *)&mnemonic, 0, 32);
+				}
 
-				std::memcpy((void *)&mnemonic, qptr->InstructionMnemonicString->data(), qptr->InstructionMnemonicString->size() > 32 ? 32 : qptr->InstructionMnemonicString->size());
-
-
-				qcout.write((char *)&mnemonic, 32);
+				gzwrite(outfs, (void *)&mnemonic, 32);
 				if (qptr->Size > 13) throw;
 
-				qcout.write((char *)qptr->RawData, qptr->Size);
+				gzwrite(outfs, (void *)qptr->RawData, qptr->Size);
 
 				CurAddr += qptr->Size;
 			 }
 		}
 	 }
 
-	qcout.close();
+	gzclose(outfs);
 
 
 	return 1;
@@ -628,49 +618,51 @@ int Disasm::Cache_Save(const char *filename) {
 
 int Disasm::Cache_Load(const char *filename) {
 	int count = 0;
-		InstructionInformation *qptr, *last = NULL;
+	InstructionInformation *qptr, *last = NULL;
+	gzFile infs;
 
-		std::ifstream qcin(filename, std::ios::in | std::ios::binary);
-		if (!qcin) return 0;
+	if ((infs = gzopen(filename, "rb9")) == NULL) {
+		return 0;
+	}
 
-		uint32_t header = 0xD15A55;
-		uint32_t verify = 0;
-		qcin.read((char *)&verify, sizeof(uint32_t));
-		if (header != verify) {
-			//printf("Cache header fail!\n");
-			throw;
-			return 0;
+	uint32_t header = 0xD15A55;
+	uint32_t verify = 0;
+	gzread(infs, (void *)&verify, sizeof(uint32_t));
+	if (header != verify) {
+		//printf("Cache header fail!\n");
+		throw;
+		return 0;
+	}
+
+	Clear_Instructions();
+
+	while (!gzeof(infs)) {
+		char mnemonic[32];
+
+		qptr = new InstructionInformation;
+		gzread(infs, (void *)qptr, sizeof(InstructionInformation));
+		for (int i = 0; i < LIST_TYPE_MAX; i++) qptr->Lists[i] = NULL;
+
+		gzread(infs, (void *)&mnemonic, 32);
+		qptr->InstructionMnemonicString = new std::string(mnemonic);
+
+		qptr->RawData = new unsigned char[qptr->Size];
+		gzread(infs, (void *)qptr->RawData, qptr->Size);
+		//std::memcpy((void *)qptr->RawData, ins_raw, qptr->Size);
+
+		if (last == NULL) {
+
+			//qptr->Lists[LIST_TYPE_NEXT] = Instructions[LIST_TYPE_NEXT];
+
+			Instructions[LIST_TYPE_NEXT] = last = qptr;
+		} else {
+			last->Lists[LIST_TYPE_NEXT] = qptr;
+			last = qptr;
 		}
+		count++;
+	}
 
-		Clear_Instructions();
-
-		while (!qcin.eof()) {
-			char mnemonic[32];
-
-			qptr = new InstructionInformation;
-			qcin.read((char *)qptr, sizeof(InstructionInformation));
-			for (int i = 0; i < LIST_TYPE_MAX; i++) qptr->Lists[i] = NULL;
-
-			qcin.read((char *)&mnemonic, 32);
-			qptr->InstructionMnemonicString = new std::string(mnemonic);
-
-			qptr->RawData = new unsigned char[qptr->Size];
-			qcin.read((char *)qptr->RawData, qptr->Size);
-			//std::memcpy((void *)qptr->RawData, ins_raw, qptr->Size);
-
-			if (last == NULL) {
-
-				//qptr->Lists[LIST_TYPE_NEXT] = Instructions[LIST_TYPE_NEXT];
-
-				Instructions[LIST_TYPE_NEXT] = last = qptr;
-			} else {
-				last->Lists[LIST_TYPE_NEXT] = qptr;
-				last = qptr;
-			}
-			count++;
-		}
-
-		if (count) Loaded_from_Cache = 1;
-		qcin.close();
-		printf("Loaded %d from file\n", count);
+	if (count) Loaded_from_Cache = 1;
+	gzclose(infs);
+	printf("Loaded %d from file\n", count);
 }
