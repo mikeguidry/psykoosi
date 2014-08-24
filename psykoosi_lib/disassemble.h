@@ -25,10 +25,10 @@ namespace psykoosi {
 	  };
 
 	  typedef uint32_t CodeAddr;
-	  typedef struct _instruction_information {
-		  struct _instruction_information *Lists[LIST_TYPE_MAX];
+      struct InstructionInformation {
+          InstructionInformation *Lists[LIST_TYPE_MAX];
 
-		  struct _instruction_information *PrevLists[LIST_TYPE_MAX];
+          InstructionInformation *PrevLists[LIST_TYPE_MAX];
 
 		  unsigned char *RawData;
 		  unsigned short Size;
@@ -37,7 +37,7 @@ namespace psykoosi {
 
 		  // this is for when we rebuild later... so we can find instructions for things
 		  CodeAddr Original_Address;
-		  struct _instruction_information *OriginalInstructionInformation;
+          InstructionInformation *OriginalInstructionInformation;
 
 		  int AnalysisCount;
 		  int Realigned;
@@ -49,7 +49,7 @@ namespace psykoosi {
 
 
 		  int CatchOriginalRelativeDestinations;
-		  struct _instruction_information *InjectedInstructions;
+          InstructionInformation *InjectedInstructions;
 
 		  // some quick ways to scan over these later.. push/call are important
 		  int IsPush;
@@ -58,14 +58,14 @@ namespace psykoosi {
 		  int IsImmediate;
 
 		  // Operand destination information
-		  struct _instruction_information *OpDstInstructionInformation;
+          InstructionInformation *OpDstInstructionInformation;
 		  CodeAddr OpDstAddress;
-		  struct _instruction_information * OpDstAddress_realigned;
+          InstructionInformation * OpDstAddress_realigned;
 
 		  std::string *InstructionMnemonicString;
 
 		  // now lets keep track of all references to us from other instructions (very good to double check this stuff)
-		  struct _instruction_information *ReferencesBackwards;
+          InstructionInformation *ReferencesBackwards;
 
 		  cs_insn *DisFrameworkIns;
 		  //cs_detail *InsDetail;
@@ -81,22 +81,6 @@ namespace psykoosi {
 
 		  int InRelocationTable;
 		  int RelocationType;
-	  } InstructionInformation;
-  
-      class InstructionIterator {
-      public:
-          InstructionIterator(InstructionInformation* ptr = nullptr);
-          InstructionIterator(const InstructionIterator&) = default;
-          bool operator==(const InstructionIterator& other);
-          bool operator!=(const InstructionIterator& other);
-          InstructionInformation* operator->();
-          void operator++();
-          void operator--();
-          void jump();
-          InstructionInformation* get();
-          // todo: over operations
-      private:
-          InstructionInformation *InstInfoPtr = nullptr;
       };
   
   public:

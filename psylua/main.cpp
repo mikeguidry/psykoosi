@@ -19,7 +19,7 @@
 #include <depends/lua/lauxlib.h>
 
 extern "C" {
-    int luaopen_psy(lua_State* L); // declare the wrapped module
+    int luaopen_psykoosi(lua_State* L); // declare the wrapped module
 }
 #define LUA_EXTRALIBS {"psy",luaopen_building_construction},
 
@@ -35,11 +35,11 @@ int main(int argc, char *argv[]) {
     lua_State *L = luaL_newstate();
     luaopen_base(L);  // load basic libs (eg. print)
     luaL_openlibs(L); // load all the lua libs (gives us math string functions etc.)
-    luaopen_psy(L);   // load the wrapped module
-    if (luaL_loadfile(L,argv[1])==0) // load and run the file
-        lua_pcall(L,0,0,0);
-    else
-        printf("unable to load %s\n",argv[1]);
+    luaopen_psykoosi(L);   // load the wrapped module
+    luaL_loadfile(L,argv[1]);
+    if (lua_pcall(L, 0, 0, 0) != 0)
+        printf("error running script: %s", lua_tostring(L, -1));
+
     lua_close(L);
     return 0;
 }

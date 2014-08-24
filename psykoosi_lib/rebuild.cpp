@@ -18,6 +18,7 @@ extern "C" {
 #include "rebuild.h"
 #include "structures.h"
 #include "emulation.h"
+#include "psykoosi.h"
 
 using namespace psykoosi;
 using namespace pe_bliss;
@@ -91,21 +92,6 @@ Disasm::CodeAddr Rebuilder::CheckForModifiedAddress(Disasm::CodeAddr Lookup) {
 }
 
 
-Disasm::InstructionInformation *Inj_Stream(unsigned char *buffer, int size) {
-    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
-    std::memset(ah, 0, sizeof(Disasm::InstructionInformation));
-
-    ah->RawData = new unsigned char [size];
-    std::memcpy((char *)ah->RawData, buffer, size);
-
-    ah->Size = size;
-    ah->FromInjection = 1;
-    ah->CatchOriginalRelativeDestinations = 0;
-
-    return ah;
-}
-
-
 int Rebuilder::RebuildInstructionsSetsModifications() {
 	int count = 0;
     Disasm::CodeAddr CurNewAddr = 0;
@@ -121,9 +107,9 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 		 while (In) {
 			 if (!(count++ % 5)) {
 				 int size = 3+(rand()%2);
-                 Disasm::InstructionInformation *InjIt = Inj_Stream((unsigned char *)"\x90\x90\x90", size);
+                 InstructionIterator InjIt = Inj_Stream((unsigned char *)"\x90\x90\x90", size);
 				 std::memset((void *)InjIt->RawData, 0x90, size);
-				 In->InjectedInstructions = InjIt;
+                 In->InjectedInstructions = InjIt.get();
 				 warp += InjIt->Size;
 			 }
 

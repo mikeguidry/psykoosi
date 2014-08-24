@@ -404,39 +404,6 @@ int Disasm::RunDisasm(CodeAddr StartAddress, int priority, int MaxRawSize, int M
 
 
 
-Disasm::InstructionIterator::InstructionIterator(Disasm::InstructionInformation *ptr)
-    : InstInfoPtr(ptr)
-{
-}
-
-bool Disasm::InstructionIterator::operator==(const InstructionIterator& other) {
-    return InstInfoPtr == other.InstInfoPtr;
-}
-
-bool Disasm::InstructionIterator::operator!=(const InstructionIterator& other) {
-    return InstInfoPtr != other.InstInfoPtr;
-}
-
-Disasm::InstructionInformation *Disasm::InstructionIterator::operator->() {
-    return InstInfoPtr;
-}
-
-void Disasm::InstructionIterator::operator++() {
-    InstInfoPtr = InstInfoPtr->Lists[LIST_TYPE_NEXT];
-}
-
-void Disasm::InstructionIterator::operator--() {
-    InstInfoPtr = InstInfoPtr->Lists[LIST_TYPE_PREV];
-}
-
-void Disasm::InstructionIterator::jump() {
-    InstInfoPtr = InstInfoPtr->Lists[LIST_TYPE_JUMP];
-}
-
-Disasm::InstructionInformation *Disasm::InstructionIterator::get() {
-    return InstInfoPtr;
-}
-
 
 
 // return the structure relating to a specific address if it exists

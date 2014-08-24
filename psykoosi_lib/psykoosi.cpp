@@ -1,5 +1,7 @@
 #include "psykoosi.h"
 #include "rebuild.h"
+#include "disassemble.h"
+#include <cstring>
 
 #include <iostream>
 
@@ -20,6 +22,12 @@ Psykoosi::Psykoosi(const std::string &fileName,
     Load(fileName, dllDir);
 }
 
+Psykoosi::Psykoosi() {
+    op.disasm = new Disasm(&op.vmem);
+    op.analysis = new InstructionAnalysis(op.disasm);
+    op.loader = new BinaryLoader(op.disasm, op.analysis, &op.vmem);
+}
+
 Psykoosi::~Psykoosi() {
     delete op.loader;
     delete op.analysis;
@@ -30,25 +38,64 @@ Disasm::CodeAddr Psykoosi::GetEntryPoint() {
     return op.pe_image->get_image_base_32() + op.pe_image->get_ep();
 }
 
-Disasm::InstructionIterator Psykoosi::GetInstruction(Disasm::CodeAddr address) {
+
+InstructionIterator::InstructionIterator(Disasm::InstructionInformation *ptr)
+    : InstInfoPtr(ptr)
+{
+}
+
+void InstructionIterator::Inject(InstructionIterator instruction) {
+    InstInfoPtr->InjectedInstructions = instruction.get();
+}
+
+bool InstructionIterator::operator==(const InstructionIterator& other) {
+    return InstInfoPtr == other.InstInfoPtr;
+}
+
+bool InstructionIterator::operator!=(const InstructionIterator& other) {
+    return InstInfoPtr != other.InstInfoPtr;
+}
+
+Disasm::InstructionInformation* InstructionIterator::operator->() {
+    return InstInfoPtr;
+}
+
+void InstructionIterator::operator++() {
+    InstInfoPtr = InstInfoPtr->Lists[Disasm::LIST_TYPE_NEXT];
+}
+
+void InstructionIterator::operator--() {
+    InstInfoPtr = InstInfoPtr->Lists[Disasm::LIST_TYPE_PREV];
+}
+
+void InstructionIterator::jump() {
+    InstInfoPtr = InstInfoPtr->Lists[Disasm::LIST_TYPE_JUMP];
+}
+
+Disasm::InstructionInformation *InstructionIterator::get() {
+    return InstInfoPtr;
+}
+
+
+InstructionIterator Psykoosi::GetInstruction(Disasm::CodeAddr address) {
     Disasm::InstructionInformation* instInfo =
         op.disasm->GetInstructionInformationByAddress(address, Disasm::LIST_TYPE_NEXT, 0, nullptr);
-    return Disasm::InstructionIterator(instInfo);
+    return InstructionIterator(instInfo);
 }
 
-Disasm::InstructionIterator Psykoosi::InstructionsBegin() {
-    return Disasm::InstructionIterator(op.disasm->GetInstructionsData(Disasm::LIST_TYPE_NEXT));
+InstructionIterator Psykoosi::InstructionsBegin() {
+    return InstructionIterator(op.disasm->GetInstructionsData(Disasm::LIST_TYPE_NEXT));
 }
 
-Disasm::InstructionIterator Psykoosi::InstructionsEnd() {
-    return Disasm::InstructionIterator(nullptr);
+InstructionIterator Psykoosi::InstructionsEnd() {
+    return InstructionIterator(nullptr);
 }
 
 void Psykoosi::Commit() {
     throw std::string("unimplemented");
 }
 
-void Psykoosi::Save(const std::string &fileName) {
+void Psykoosi::Save(std::string fileName) {
     // todo: split this stuff into commit and save to be able make several commits before store final binary
     Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, fileName.c_str());
     master.SetBinaryLoader(op.loader);
@@ -62,7 +109,7 @@ void Psykoosi::Save(const std::string &fileName) {
     master.WriteBinaryPE2();
 }
 
-void Psykoosi::Load(const std::string &fileName, const std::string& dllDir) {
+void Psykoosi::Load(std::string fileName, std::string dllDir) {
     op.pe_image = op.loader->LoadFile(0,0,fileName.c_str());
     op.loader->SetDLLDirectory(dllDir.c_str());
     if (!op.pe_image) {
@@ -85,24 +132,8 @@ void Psykoosi::Load(const std::string &fileName, const std::string& dllDir) {
 
 
     int start = time(0);
-/*
-    // this is a little better.. will do it differently later in another function
-    if (!CacheDir.empty() && op.disasm->Cache_Load(CacheFileName(fileName, "disasm").c_str()) &&
-            op.analysis->QueueCache_Load(CacheFileName(fileName, "analysis").c_str()) &&
-            op.vmem.Cache_Load(CacheFileName(fileName, "vmem").c_str()))
-    {
-        from_cache = 1;
-        int now = time(0);
-        dprintf("Loaded cache! [%d seconds]\n", now - start);
-    } else {
-        op.disasm->Clear_Instructions();
-        dprintf("Only loaded instructions.. clearing\n");
-    }
-*/
 
     if (!from_cache) {
-        //op.disasm->Clear_Instructions();
-        //op.analysis->Queue_Clear();
         start = time(0);
         op.analysis->Complete_Analysis_Queue(0);
         int now = time(0);
@@ -128,9 +159,31 @@ void Psykoosi::Load(const std::string &fileName, const std::string& dllDir) {
     dprintf("Realign Count:    %d\n", op.analysis->RealignCount);
 }
 
+void Psykoosi::SetDebug(bool debug) {
+    Debug = debug;
+}
+
 std::string Psykoosi::CacheFileName(const std::string& fileName, const std::string& type) {
     return CacheDir + "/" + fileName + "." + type + ".cache";
 }
 
+InstructionIterator Inj_Stream(const unsigned char *buffer, int size) {
+    Disasm::InstructionInformation *ah = new Disasm::InstructionInformation;
+    memset(ah, 0, sizeof(Disasm::InstructionInformation));
+
+    ah->RawData = new unsigned char [size];
+    memcpy((char *)ah->RawData, buffer, size);
+
+    ah->Size = size;
+    ah->FromInjection = 1;
+    ah->CatchOriginalRelativeDestinations = 0;
+
+    return InstructionIterator(ah);
+}
+
+InstructionIterator Inj_NOP(int size) {
+    std::string buff((size_t)size, (char)0x90);
+    return Inj_Stream((const unsigned char*)buff.data(), buff.size());
+}
 
 }
