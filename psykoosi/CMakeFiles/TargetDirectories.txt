@@ -1,0 +1,2 @@
+/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir
+/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir

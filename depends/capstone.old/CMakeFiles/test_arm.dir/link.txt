@@ -1,0 +1,1 @@
+/usr/bin/cc      CMakeFiles/test_arm.dir/tests/test_arm.c.o  -o test_arm  -L/home/mike/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/psykoosi 

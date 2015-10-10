@@ -1,0 +1,1 @@
+/usr/bin/cc      CMakeFiles/test_skipdata.dir/tests/test_skipdata.c.o  -o test_skipdata  -L/home/mike/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/psykoosi 

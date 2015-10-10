@@ -1,0 +1,1 @@
+/usr/bin/cc      CMakeFiles/test_arm_regression.dir/suite/arm/test_arm_regression.c.o  -o test_arm_regression  -L/home/mike/asm/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/asm/psykoosi 

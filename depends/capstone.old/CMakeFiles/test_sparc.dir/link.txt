@@ -1,0 +1,1 @@
+/usr/bin/cc      CMakeFiles/test_sparc.dir/tests/test_sparc.c.o  -o test_sparc  -L/home/mike/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/psykoosi 
