@@ -5,12 +5,62 @@ psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o
  /Users/mike/psykoosi/psykoosi/xen/x86_emulate.c
  /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
  /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
- /Users/mike/psykoosi/psykoosi/xen/xen-x86_64.h
 psykoosi/CMakeFiles/fuzz.dir/analysis.cpp.o
  /Users/mike/psykoosi/psykoosi/analysis.cpp
  /Users/mike/psykoosi/psykoosi/analysis.h
  /Users/mike/psykoosi/psykoosi/disassemble.h
  /Users/mike/psykoosi/psykoosi/virtualmemory.h
+ include/capstone/arm.h
+ include/capstone/arm64.h
+ include/capstone/capstone.h
+ include/capstone/mips.h
+ include/capstone/platform.h
+ include/capstone/ppc.h
+ include/capstone/sparc.h
+ include/capstone/systemz.h
+ include/capstone/x86.h
+ include/capstone/xcore.h
+ include/libudis86/extern.h
+ include/libudis86/itab.h
+ include/libudis86/types.h
+ include/pe_lib/entropy.h
+ include/pe_lib/pe_base.h
+ include/pe_lib/pe_bliss.h
+ include/pe_lib/pe_bound_import.h
+ include/pe_lib/pe_checksum.h
+ include/pe_lib/pe_debug.h
+ include/pe_lib/pe_directory.h
+ include/pe_lib/pe_dotnet.h
+ include/pe_lib/pe_exception.h
+ include/pe_lib/pe_exception_directory.h
+ include/pe_lib/pe_exports.h
+ include/pe_lib/pe_factory.h
+ include/pe_lib/pe_imports.h
+ include/pe_lib/pe_load_config.h
+ include/pe_lib/pe_properties.h
+ include/pe_lib/pe_properties_generic.h
+ include/pe_lib/pe_rebuilder.h
+ include/pe_lib/pe_relocations.h
+ include/pe_lib/pe_resources.h
+ include/pe_lib/pe_rich_data.h
+ include/pe_lib/pe_section.h
+ include/pe_lib/pe_structures.h
+ include/pe_lib/pe_tls.h
+ include/pe_lib/stdint_defs.h
+ include/pe_lib/utils.h
+ include/udis86.h
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o
+ /Users/mike/psykoosi/psykoosi/analysis.h
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.cpp
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.h
+ /Users/mike/psykoosi/psykoosi/disassemble.h
+ /Users/mike/psykoosi/psykoosi/emu_hooks.h
+ /Users/mike/psykoosi/psykoosi/emulation.h
+ /Users/mike/psykoosi/psykoosi/loading.h
+ /Users/mike/psykoosi/psykoosi/virtualmemory.h
+ /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
+ /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
+ /Users/mike/psykoosi/psykoosi/xen/xen-x86_64.h
  include/capstone/arm.h
  include/capstone/arm64.h
  include/capstone/capstone.h
@@ -93,10 +143,65 @@ psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o
  include/pe_lib/stdint_defs.h
  include/pe_lib/utils.h
  include/udis86.h
-psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o
+ /Users/mike/psykoosi/psykoosi/analysis.h
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.h
  /Users/mike/psykoosi/psykoosi/disassemble.h
+ /Users/mike/psykoosi/psykoosi/emu_hooks.cpp
+ /Users/mike/psykoosi/psykoosi/emu_hooks.h
+ /Users/mike/psykoosi/psykoosi/emulation.h
+ /Users/mike/psykoosi/psykoosi/loading.h
+ /Users/mike/psykoosi/psykoosi/virtualmemory.h
+ /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
+ /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
+ /Users/mike/psykoosi/psykoosi/xen/xen-x86_64.h
+ include/capstone/arm.h
+ include/capstone/arm64.h
+ include/capstone/capstone.h
+ include/capstone/mips.h
+ include/capstone/platform.h
+ include/capstone/ppc.h
+ include/capstone/sparc.h
+ include/capstone/systemz.h
+ include/capstone/x86.h
+ include/capstone/xcore.h
+ include/libudis86/extern.h
+ include/libudis86/itab.h
+ include/libudis86/types.h
+ include/pe_lib/entropy.h
+ include/pe_lib/pe_base.h
+ include/pe_lib/pe_bliss.h
+ include/pe_lib/pe_bound_import.h
+ include/pe_lib/pe_checksum.h
+ include/pe_lib/pe_debug.h
+ include/pe_lib/pe_directory.h
+ include/pe_lib/pe_dotnet.h
+ include/pe_lib/pe_exception.h
+ include/pe_lib/pe_exception_directory.h
+ include/pe_lib/pe_exports.h
+ include/pe_lib/pe_factory.h
+ include/pe_lib/pe_imports.h
+ include/pe_lib/pe_load_config.h
+ include/pe_lib/pe_properties.h
+ include/pe_lib/pe_properties_generic.h
+ include/pe_lib/pe_rebuilder.h
+ include/pe_lib/pe_relocations.h
+ include/pe_lib/pe_resources.h
+ include/pe_lib/pe_rich_data.h
+ include/pe_lib/pe_section.h
+ include/pe_lib/pe_structures.h
+ include/pe_lib/pe_tls.h
+ include/pe_lib/stdint_defs.h
+ include/pe_lib/utils.h
+ include/udis86.h
+psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o
+ /Users/mike/psykoosi/psykoosi/analysis.h
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.h
+ /Users/mike/psykoosi/psykoosi/disassemble.h
+ /Users/mike/psykoosi/psykoosi/emu_hooks.h
  /Users/mike/psykoosi/psykoosi/emulation.cpp
  /Users/mike/psykoosi/psykoosi/emulation.h
+ /Users/mike/psykoosi/psykoosi/loading.h
  /Users/mike/psykoosi/psykoosi/virtualmemory.h
  /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
  /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
@@ -144,12 +249,18 @@ psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o
  /Users/mike/psykoosi/psykoosi/fileformats.cpp
 psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o
  /Users/mike/psykoosi/psykoosi/analysis.h
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.h
  /Users/mike/psykoosi/psykoosi/disassemble.h
+ /Users/mike/psykoosi/psykoosi/emu_hooks.h
+ /Users/mike/psykoosi/psykoosi/emulation.h
  /Users/mike/psykoosi/psykoosi/fuzz.cpp
  /Users/mike/psykoosi/psykoosi/loading.h
  /Users/mike/psykoosi/psykoosi/rebuild.h
  /Users/mike/psykoosi/psykoosi/structures.h
  /Users/mike/psykoosi/psykoosi/virtualmemory.h
+ /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
+ /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
+ /Users/mike/psykoosi/psykoosi/xen/xen-x86_64.h
  include/capstone/arm.h
  include/capstone/arm64.h
  include/capstone/capstone.h
@@ -241,6 +352,7 @@ psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o
  /Users/mike/psykoosi/psykoosi/modules.cpp
 psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.o
  /Users/mike/psykoosi/psykoosi/analysis.h
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.h
  /Users/mike/psykoosi/psykoosi/disassemble.h
  /Users/mike/psykoosi/psykoosi/loading.h
  /Users/mike/psykoosi/psykoosi/polymorph.cpp
@@ -289,7 +401,9 @@ psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.o
  include/udis86.h
 psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o
  /Users/mike/psykoosi/psykoosi/analysis.h
+ /Users/mike/psykoosi/psykoosi/apiproxy_client.h
  /Users/mike/psykoosi/psykoosi/disassemble.h
+ /Users/mike/psykoosi/psykoosi/emu_hooks.h
  /Users/mike/psykoosi/psykoosi/emulation.h
  /Users/mike/psykoosi/psykoosi/loading.h
  /Users/mike/psykoosi/psykoosi/polymorph.h

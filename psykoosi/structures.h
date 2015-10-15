@@ -25,6 +25,8 @@ typedef struct _sculpture_parameters {
 
   // until later versions and completely modular.. lets make this PE specific
   pe_base *pe_image;
+  
+  APIClient *API;
 } Sculpture;
 
 

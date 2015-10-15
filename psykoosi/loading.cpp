@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <fstream>
+#include <sys/time.h>
 #include <pe_lib/pe_bliss.h>
 #include <pe_lib/pe_section.h>
 extern "C" {
@@ -26,11 +27,14 @@ BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, Virtual
 	_IA = IA;
 	_VM = VM;
 	code_section = 0;
+	iat_count = 0;
 	Images_List = NULL;
 	Symbols_List = NULL;
+#ifdef EMU_QUEUE
 	Emulation_List = Emulation_Last = NULL;
+#endif
 
-	load_for_emulation = 0;
+	load_for_emulation = 1;
 
 	memset(system_dll_dir, 0, 1024);
 }
@@ -57,35 +61,79 @@ uint32_t BinaryLoader::HighestAddress(int raw) {
 	 return highestaddr;
 }
 
-
-pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
+pe_base *BinaryLoader::OpenFile(int Arch, int FileFormat, char *FileName, uint32_t *ImageBase,
+uint32_t *ImageSize) {
 	std::ifstream pe_file(FileName, std::ios::in | std::ios::binary);
-	DisassembleTask::CodeAddr Last_Section_Addr = 0;
-	LoadedImages *main_image = NULL;
-	VirtualMemory::Memory_Section *mptr = NULL;
-
+	
+	std::cout << "BinaryLoader::OpenFile: " << FileName << std::endl;
+	
 	if (!pe_file) {
 		std::cout << "Cannot open " << FileName << std::endl;
 		return 0;
 	}
-
+	
 	try {
 		 image = new pe_base(pe_factory::create_pe(pe_file));
 
-		 std::cout << "Reading PE sections..." << std::hex << std::showbase << std::endl << std::endl;
+		 // save our original base in case we need to realign, build reloc fixups, 
+		 // or as a short fix just write our IAT into the original..
+		 // to save some time *** FIX 
+		OriginalImageBase = image->get_image_base_32();
+		
+		 // lets return image base to caller...
+		 if (ImageBase != 0)
+		 	*ImageBase = image->get_image_base_32();
+		 if (ImageSize != NULL)
+		 	*ImageSize = image->get_size_of_image(); 
+			 
+	} catch (const pe_exception& e) {
+		std::cout << "Error: " << e.what() << std::endl;
+		delete image;
+		image = NULL;
+		return 0;
+	}
+	return image;
+}
+
+
+pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase) {
+	DisassembleTask::CodeAddr Last_Section_Addr = 0;
+	LoadedImages *main_image = NULL;
+	VirtualMemory::Memory_Section *mptr = NULL;
+
+	std::cout << "BinaryLoader::ProcessFile: " <<  std::endl;
+	
+	if (!image) {
+		std::cout << "No handle to image" << std::endl;
+		return 0;
+	}
+
+	try {
+		 //image = new pe_base(pe_factory::create_pe(pe_file));
+
+		 if (ImageBase == 0)
+		 	ImageBase = image->get_image_base_32();
+		 else {
+			 if (image->has_reloc()) {
+				 ProcessRelocations(image, _VM, ImageBase);
+			 }
+			image->set_image_base(ImageBase);
+		 }
+			
+		 //std::cout << "Reading PE sections..." << std::hex << std::showbase << std::endl << std::endl;
 		 const section_list sections(image->get_image_sections());
 
 		 // calculate entry points virtual address
-		 uint32_t EntryPoint = image->get_image_base_32() + image->get_ep();
+		 EntryPoint = ImageBase + image->get_ep();
 		 // calculate the highest address of that section
 		 uint32_t HighestAddressInEntrySection = image->section_from_rva(image->get_ep()).get_size_of_raw_data() + image->section_from_rva(image->get_ep()).get_virtual_address();//.get_aligned_virtual_size(image->get_section_alignment());
-		 printf("\nhighest %p Entry %p\n", HighestAddressInEntrySection, EntryPoint);
+		 //printf("\nhighest %p Entry %p\n", HighestAddressInEntrySection, EntryPoint);
 		 _DT->SetBinaryLoaderHA(HighestAddressInEntrySection);
 		 // queue to disassemble from the entry point to the end of the section.. with priority 100 (top)
 		 // this means it should find all code coverage from entry and disassemble correctly.. linear pass later
-		 _IA->QueueAddressForDisassembly(EntryPoint, 10, 0, (image->get_image_base_32() + HighestAddressInEntrySection) - EntryPoint, 0);
+		 _IA->QueueAddressForDisassembly(EntryPoint, 10, 0, (ImageBase + HighestAddressInEntrySection) - EntryPoint, 0);
 
-		 printf("section alignment: %d\n", image->get_section_alignment());
+		 //printf("section alignment: %d\n", image->get_section_alignment());
 		 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
 			 const section &s = *it;
 
@@ -93,9 +141,9 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 				 Last_Section_Addr = s.get_pointer_to_raw_data() + s.get_virtual_address();
 			 } else {
 				 int space = (s.get_virtual_address()) - Last_Section_Addr;
-				 printf("Space in-between section: %d\n", space);
+				 //printf("Space in-between section: %d\n", space);
 			 }
-
+/*
 			 std::cout << "Section [" << s.get_name() << "]" << std::endl
 					 << "RVA " << s.get_pointer_to_raw_data() << std::endl
 					 << "Characteristics: " << s.get_characteristics() << std::endl
@@ -103,11 +151,11 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 					 << "Virtual address: " << s.get_virtual_address() << std::endl
 					 << "Virtual size: " << s.get_virtual_size() << std::endl
 					 << "Raw Data Size: " << s.get_size_of_raw_data() << std::endl
-					 << "addr: " << (image->get_image_base_32() + s.get_virtual_address()) << std::endl
+					 << "addr: " << (ImageBase + s.get_virtual_address()) << std::endl
 					 << std::endl;
-
+*/
 			 mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
-			 mptr->ImageBase = image->get_image_base_32();
+			 mptr->ImageBase = ImageBase;
 			 // insert into images loaded list... (used later for getprocaddress, etc maybe hooking of win32 api)
 
 
@@ -117,13 +165,13 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 			//mptr->Section_Type = s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE;
 
 			 // write section into virtual memory...
-			 _VM->MemDataWrite((image->get_image_base_32() + s.get_virtual_address()),
+			 _VM->MemDataWrite((ImageBase + s.get_virtual_address()),
 					 (unsigned char *) s.raw_data_.data(), s.get_size_of_raw_data());
 
 			 // if this is an executable section..
 			 if (s.executable()) {
 				 // disassemble because this is the code section
-				 uint32_t SectionAddress = image->get_image_base_32() + s.get_virtual_address();
+				 uint32_t SectionAddress = ImageBase + s.get_virtual_address();
 				 // queue for analysis after...
 				 //int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo) {
 
@@ -132,6 +180,7 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 					 main_image->CodeSection = mptr;
 				 }
 
+				printf("Section addr %X\n", SectionAddress);
 				 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
 				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
 			 }
@@ -140,10 +189,18 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 
 		 if (load_for_emulation) {
 			 if (image->has_imports())
-				LoadImports(image, _VM, image->get_image_base_32());
+				LoadImports(image, _VM, ImageBase);
+				
+			if (image->has_exports()) {
+				// FIX *** for fuzzing we wanna cache the exports..
+				// PE bliss = too slow to enumerate every GetProcAddress..
+				// for API proxy its fine for now
+			}
 
 			if (main_image) {
+#ifdef EMU_QUEUE
 				EmulationQueue *qptr = EmulationQueueAdd(main_image, mptr->ImageBase + main_image->PEimage->get_ep(), 0);
+#endif
 			}
 		}
 	} catch(const pe_exception& e) {
@@ -159,13 +216,13 @@ pe_base *BinaryLoader::LoadFile(int Arch, int FileFormat, char *FileName) {
 }
 
 
-
+#ifdef EMU_QUEUE
 // this function adds to a list of queued addresses for execution.. although they still have to be executed properly
 // within the emulation system by CPU cycles
 BinaryLoader::EmulationQueue *BinaryLoader::EmulationQueueAdd(LoadedImages *iptr, CodeAddr CodeEntry, int IsDLL) {
 	EmulationQueue *qptr = new EmulationQueue;
-
 	std::memset(qptr, 0, sizeof(EmulationQueue));
+	
 	qptr->Image = iptr;
 	qptr->IsDLL = IsDLL;
 	qptr->Entry = CodeEntry;
@@ -184,9 +241,14 @@ BinaryLoader::EmulationQueue *BinaryLoader::EmulationQueueAdd(LoadedImages *iptr
 // within the emulator (via CPU cycles, and branches). this is only to initialize DLLs, and then start
 // the entry point of the application
 BinaryLoader::EmulationQueue *BinaryLoader::EmulationRetrieve() {
-
+	for (EmulationQueue *qptr = Emulation_List; qptr != NULL; qptr = qptr->next) {
+		if (qptr->completed) continue;
+		return qptr;
+	}
+	
+	return NULL;
 }
-
+#endif
 
 
 // find us a good image base for loading DLLs...
@@ -261,7 +323,7 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 
 	 dll_image->set_image_base(ImageBase);
 	 Entry = ImageBase + dll_image->get_ep();
-	 printf("Loading DLL %s @ PE ImageBase %p has exports %d %d\n", filename, ImageBase, dll_image->has_exports(), dll_image->has_imports());
+	 printf("Loading DLL %s @ PE ImageBase %p has exports %d %d - Analyze %d\n", filename, ImageBase, dll_image->has_exports(), dll_image->has_imports(), analyze);
 	 const section_list sections(dll_image->get_image_sections());
 	 for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
 			 const section &s = *it;
@@ -289,6 +351,7 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 
 				 lptr = AddLoadedImage(filename, dll_image, ImageBase, NULL);
 				 lptr->CodeSection = mptr;
+				 
 				 if (analyze)
 					 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
 				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
@@ -296,12 +359,16 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	 }
 
 	 if (lptr != NULL) {
+		 // *** FIX build symbol table for export so we increase the speed of GetProcAddress
+		 
 		 if (dll_image->has_imports())
 			 LoadImports(dll_image, VMem, ImageBase);
 
 		 // put in queue for emulation since each DLL will have to be executed before we can run the
 		 // PEs code itself since we are loading them..
+#ifdef EMU_QUEUE
 		 EmulationQueue *qptr = EmulationQueueAdd(lptr, Entry, 1);
+#endif
 	 }
 	 return ret;
 }
@@ -371,9 +438,57 @@ BinaryLoader::CodeAddr BinaryLoader::GetProcAddress(char *filename, char *functi
 	return FunctionAddr;
 }
 
+// handle relocations in image after we load it..
+int BinaryLoader::ProcessRelocations(pe_bliss::pe_base *imp_image, VirtualMemory *VMem, CodeAddr ImageBase) {
+	if (imp_image == NULL || !imp_image->has_reloc()) {
+		printf("cannot find relocations\n");
+		return -1;
+	}
+	
+	// enumerate the relocations fixing as needed
+	const relocation_table_list tables(get_relocations(*imp_image));
+	rebase_image(*imp_image, tables, ImageBase);
+	/*
+	for(relocation_table_list::const_iterator it = tables.begin(); it != tables.end(); ++it) {
+		 relocation_table& table = (relocation_table &)*it;
+
+		// iterate through each section looping for the section that this table belongs to
+		section_list sections(*imp_image->get_image_sections());
+		for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it) {
+			const section &s = *it;
+
+			if ((table.get_rva() >= s.get_virtual_address()) && (table.get_rva() < (s.get_virtual_address() + s.get_virtual_size()))) {
+				// found section of this specific relocation table's RVA
+				const relocation_table::relocation_list& relocs = table.get_relocations();
+				DisassembleTask::InstructionInformation *InsInfo = 0;
+				for(relocation_table::relocation_list::const_iterator reloc_it = relocs.begin(); reloc_it != relocs.end(); ++reloc_it) {
+						relocation_entry &at = (relocation_entry &)(*reloc_it);
+						uint32_t rva = at.get_rva(NewReloc);
+						uint32_t type = (*reloc_it).get_type();
+					
+						InsInfo->InRelocationTable = 1;
+						InsInfo->RelocationType = (*reloc_it).get_type();
+						offset = CodeAddr - InsInfo->Original_Address;
+
+						uint16_t NewReloc = (int16_t)(InsInfo->Address - _PE->get_image_base_32() - table.get_rva() + offset);
+						// make sure we modify in place... not a new copy
+					}
+					//printf("RVA %X Address %p Offset into ins: %d\n", (*reloc_it).get_rva(), InsInfo ? InsInfo->Original_Address : 0, offset);
+
+					//std::cout << "[+] " << (*reloc_it).get_rva() << " type: " << (*reloc_it).get_type() << std::endl << std::endl;
+				}
+			}
+		}
+
+	}	*/
+	return 1;
+}
+
 // will try to locate and load all dependencies for a binary into virtual memory
 int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem, CodeAddr ImageBase) {
 
+	printf("LoadImpports ImageBase %X\n", ImageBase);
+	
 	if (imp_image == NULL || !imp_image->has_imports()) {
 		printf("cannot load imports %p %d\n", imp_image, imp_image->has_imports());
 		return -1;
@@ -395,23 +510,50 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 			return -1;
 		}
 
-		//printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
+		printf("IAT Section %p size %d [%X]\n", iat_section.get_virtual_address() + imp_image->get_image_base_32(), iat_section.get_virtual_size());
 
 		uint32_t IAT_Addr = (uint32_t)(ImageBase + iat_rva);
+		uint32_t Original_IAT_Addr = (uint32_t)(OriginalImageBase + iat_rva);
 
 		const import_library::imported_list& functions = lib.get_imported_functions();
 		for(import_library::imported_list::const_iterator func_it = functions.begin(); func_it != functions.end(); ++func_it)
 		{
+			struct timeval start, end;
+				//gettimeofday(&start, 0);
 				const imported_function& func = *func_it;
-				CodeAddr ProcAddr = GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
+				
+				uint32_t iat_addr = sizeof(uint32_t) * (500 + iat_count);
+				CodeAddr ProcAddr = iat_addr;//GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
 				// write IAT
-				VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
-				//printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ]\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr);
+				//VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
+				//printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ] %d\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr,
+				//iat_addr);
 
+				IAT *iatptr = new IAT;
+				memset((void *)iatptr, 0, sizeof(IAT));
+				iatptr->function = strdup((char *)func.get_name().c_str());
+				iatptr->module = strdup((char *)lib.get_name().c_str());
+				iatptr->Address = IAT_Addr;
+				iatptr->Redirect = ProcAddr;
+				
+				
+				
+				iatptr->Redirect = iat_addr;
+				VMem->MemDataWrite(IAT_Addr, (unsigned char *)&iat_addr, (int)sizeof(uint32_t));
+				VMem->MemDataWrite(Original_IAT_Addr, (unsigned char *)&iat_addr, (int)sizeof(uint32_t));
+				
+				iatptr->next = Imports;
+				Imports = iatptr;
+				
+				iat_count++;
+				
 				IAT_Addr += sizeof(uint32_t);
+				//gettimeofday(&end, 0);
+				//int i = end.tv_usec - start.tv_usec;
+				//printf("took 0.%3d seconds\n", i/100);
 		}
 
-		//std::cout << std::endl;
+		//std::cout << "Finished processing IAT" << std::endl;
 	}
 }
 
@@ -419,4 +561,17 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 int BinaryLoader::WriteFile(int Arch, int FileFormat, char *FileName) {
 
 	return 0;
+}
+
+
+BinaryLoader::IAT *BinaryLoader::FindIAT(uint32_t Address) {
+	BinaryLoader::IAT *iptr = NULL;
+	
+	for (iptr = Imports; iptr != NULL; iptr = iptr->next) {
+		if (iptr->Address == Address || iptr->Redirect == Address) {
+			break;
+		}
+	}
+	
+	return iptr;
 }

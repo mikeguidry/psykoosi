@@ -72,6 +72,18 @@ namespace psykoosi {
 
   	  public:
       
+      typedef struct _stack_allocations {
+        struct _stack_allocations *next;
+        
+        void *thread;
+        
+        CodeAddr Low;
+        CodeAddr High;
+        
+        int Size;
+        
+      } StackRegions;
+      
       // a heap allocation during emulation
       typedef struct _heap_allocations {
         struct _heap_allocations *next;
@@ -89,7 +101,12 @@ namespace psykoosi {
           unsigned long CpuCycle;
           
           // has this memory been freed? (just in case we keep for now.. and optimize later.. maybe Copy on write etc)
-          int freed;
+          int free;
+          
+          // is this related to a proxy region?
+          int proxy;
+          
+          APIClient::AllocatedRegion *region;
       } HeapAllocations;
       
 	  typedef struct _memory_addresses {
@@ -119,7 +136,38 @@ namespace psykoosi {
 		  int Dest_Operand;
 	  } MemAddresses;
 
-	  // this is a structure for logging register changes during an emulated cycle
+
+	  // these are the 'specialty' instructions that we can control if we wish to log the information that
+	  // they read/write/etc
+	  struct hack_x86_emulate_ops
+	  {
+		  void *read;
+		  void *insn_fetch;
+		  void *write;
+		  void *cmpxchg;
+		  void *rep_ins;
+		  void *rep_outs;
+		  void *rep_movs;
+		  void *read_segment;
+		  void *write_segment;
+		  void *read_io;
+		  void *write_io;
+		  void *read_cr;
+		  void *write_cr;
+		  void *read_dr;
+		  void *write_dr;
+		  void *read_msr;
+		  void *write_msr;
+		  void *wbinvd;
+		  void *cpuid;
+		  void *inject_hw_exception;
+		  void *inject_sw_interrupt;
+		  void *get_fpu;
+		  void *put_fpu;
+		  void *invlpg;
+	  };
+
+ // this is a structure for logging register changes during an emulated cycle
 	  typedef struct _reg_changes_simple {
 		  struct _reg_changes_simple *next;
 
@@ -145,11 +193,14 @@ namespace psykoosi {
 		  // is being pushed into the registers)
 		  unsigned char RawResult[8];
 	  } RegChanges;
-
+    
 	  // this is the main structure for our emulation logs
 	  typedef struct _emulation_log {
 		  struct _emulation_log *next;
-
+      
+      // what thread did this log happen on?
+      void *Thread;
+      
 		  // log ID pertains to the particular change log ID for a set of data that has been logged...
 		  // (this could be reading from one location, and writing to another in a specific order..
 		  // although under the same log identifier)
@@ -188,45 +239,17 @@ namespace psykoosi {
 		  // how many differen change logs are in this array above
 		  int VMChangeLog_Count;
 	  } EmulationLog;
-
-
-	  // these are the 'specialty' instructions that we can control if we wish to log the information that
-	  // they read/write/etc
-	  struct hack_x86_emulate_ops
-	  {
-		  void *read;
-		  void *insn_fetch;
-		  void *write;
-		  void *cmpxchg;
-		  void *rep_ins;
-		  void *rep_outs;
-		  void *rep_movs;
-		  void *read_segment;
-		  void *write_segment;
-		  void *read_io;
-		  void *write_io;
-		  void *read_cr;
-		  void *write_cr;
-		  void *read_dr;
-		  void *write_dr;
-		  void *read_msr;
-		  void *write_msr;
-		  void *wbinvd;
-		  void *cpuid;
-		  void *inject_hw_exception;
-		  void *inject_sw_interrupt;
-		  void *get_fpu;
-		  void *put_fpu;
-		  void *invlpg;
-	  };
-
 	  // this is the structure for an emulation 'thread..'
 	  // each thread is theoretically the same as a thread in userland...
 	  // this could also be a DLL's entry point, or the applications main entry point
 	  // or anything from CreateThread() or pthread_create() for Windows, and Linux respectively...
 	  typedef struct _emulation_thread {
 		  struct _emulation_thread *next;
-
+      
+      // pointer to the 'VirtualMachine' structure of this thread
+      // needed for EMU ops.. maybe rewrite later
+      void *VM;
+      
 		  // the identifier for this thread which is used to correlate data within the specialty functions,
 		  // and logging operations
 		  int ID;
@@ -247,13 +270,6 @@ namespace psykoosi {
 		  // VM of the same application being executed
 		  VirtualMemory *EmuVMEM;
       
-      // Heap allocations for this virutal memory
-      HeapAllocations *Heap;
-
-		  // this is the structure that contains the functions (specialty) that we redirect from the XEN emulator
-		  struct hack_x86_emulate_ops emulate_ops;
-
-
 		  // was the last instruction execution sucessful?  this could determine whether a thread
 		  // has crashed, or whether SEH should be considered.. (exception handling)
 		  int last_successful;
@@ -266,26 +282,90 @@ namespace psykoosi {
 		  struct cpu_user_regs registers;
 		  struct cpu_user_regs registers_shadow;
 
-		  // this is the emulation log of this thread.. it should contain all requested logging information for the
+  // this is the emulation log of this thread.. it should contain all requested logging information for the
 		  // lifetime of the thread... maybe later allow to have a maximum limit here.
 		  EmulationLog *LogList;
 
 		  // what was the very last log structure? this is so we can easily append a new one for the linked list
 		  // without enumerating to the end, or putting it first so things are out of order...
 		  EmulationLog *LogLast;
-
+     
+     
 	  } EmulationThread;
+
+	 
+
+
+
 
     // a virtual machine structure (contains all threads, memory, etc)
     typedef struct _virtual_machine {
       struct _virtual_machine *next;
       
+      // parent if this is linked..
+      struct _virtual_machine *parent;
+      
+      // current thread id (just incremental)
+      int thread_id;
+      
+      // each thread inside of this virtual machine..
       EmulationThread *Threads;
       
-      VirtualMemory Memory;
+      // VM Virtual memory.. (each thread needs a pointer to this)
+      // and this can point to a parent as well...
+      VirtualMemory *Memory;
       
+      // Heap allocations for this virutal memory
+      HeapAllocations *HeapList;
+      
+      // stacks for each thread
+      StackRegions *StackList;
+      
+      
+      uint32_t RegionLow, RegionHigh;
+      uint32_t HeapLow, HeapHigh, HeapLast;
+      uint32_t StackLow, StackHigh;
+      uint32_t PEB;
+      
+		  // this is the structure that contains the functions (specialty) that we redirect from the XEN emulator
+		  struct hack_x86_emulate_ops emulate_ops;
     } VirtualMachine;
 
+		/*
+		for APIs hooked... to capture/simulate data..
+		there needs to be a strategy for determining where the reads/writes are coming from and going to
+		these are usually buffers passed using push so we can locate them using ESP + XXX, or
+		deference EPS+XXX then grab an address out of a structure (firefox/moz as example)
+		
+		we also need a way to scan to detect these programmatically…by emulation or plain hash checking before and after the call
+		
+		it’d be nice to have this as a single integer, so all types should be covered…
+		ESP = always call.. so:
+		p = plus, m = minus…
+		*/
+		enum {
+			BUF_ESP_p4,
+			BUF_ESP_p8,
+			BUF_ESP_p12,
+			BUF_ESP_p16,
+			BUF_ESP_p20,
+			BUF_ESP_p24,
+			// EBP is usually locals since the caller’s function began.. so its usually plus.. but we could add some minus in case the buffer is originating easier that far up…
+			BUF_EBP_m4,
+			BUF_EBP_m8,
+			BUF_EBP_m12,
+			BUF_EBP_m16,
+			BUF_EBP_m20,
+			BUF_EBP_p4,
+			BUF_EBP_p8,
+			BUF_EBP_p16,
+			BUF_EBP_p20,
+			BUF_EAX,
+			BUF_EBX,
+			BUF_ECX,
+			BUF_EDX
+		};
+		
   	  public:
 
 	  Emulation(VirtualMemory *_VM);
@@ -306,7 +386,7 @@ namespace psykoosi {
 	  // this will execute a series of instructions.. whether its until a final address, a return, or a new branch...
 	  // this might not work well whenever we are stepping through a series of threads for a single CPU cycle...
 	  // *** maybe rewrite this function
-	  Emulation::EmulationThread *ExecuteLoop(VirtualMemory *vmem, Emulation::CodeAddr StartAddr, Emulation::CodeAddr EndAddr, struct cpu_user_regs *registers, int new_thread);
+	  //Emulation::EmulationThread *ExecuteLoop(VirtualMemory *vmem, Emulation::CodeAddr StartAddr, Emulation::CodeAddr EndAddr, struct cpu_user_regs *registers, int new_thread);
 
 	  // this should be called after an instruction has executed to generate the change log to be inserted
 	  // into the threads loggig history
@@ -314,22 +394,53 @@ namespace psykoosi {
 
 
 	  Emulation::RegChanges *CreateChangeEntry(Emulation::RegChanges **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
+    EmulationThread *ExecuteLoop(
+	   VirtualMemory *vmem, Emulation::CodeAddr StartAddr,
+	   Emulation::CodeAddr EndAddr,struct cpu_user_regs *registers,
+    int new_thread);
 
-	  Emulation::EmulationThread *NewVirtualMachine(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
+	  Emulation::VirtualMachine *NewVirtualMachine(VirtualMachine *);
+	  void DestroyVirtualMachine(VirtualMachine *);
+    
+    uint32_t HeapAlloc(uint32_t ReqAddr, int Size);
+    int HeapFree(uint32_t Address);
+    
+    // incomplete functions
+    EmulationThread *NewThread(VirtualMachine *);
+    void DestroyThread(VirtualMachine *, EmulationThread *);
+    EmulationThread *NewVirtualMachineChild(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
+    void DestroyVirtualMachineChild(Emulation::EmulationThread *Thread);
 
-	  void DestroyVirtualMachine(EmulationThread *);
-
-	  EmulationThread Master;
+    int PreExecute(EmulationThread *thread);
+    int PostExecute(EmulationThread *thread, uint32_t);
+    
+	  EmulationThread *MasterThread;
+    VirtualMachine MasterVM;
 
 	  int Global_ChangeLog_Read;
 	  int Global_ChangeLog_Write;
 	  int Global_ChangeLog_Verify;
-
+    
+    int ConnectToProxy(APIClient *);
+    
+    uint32_t Init(uint32_t);
+    int SetupThreadStack(EmulationThread *tptr);
+    
+    int UsingProxy();  
+    VirtualMemory *VM;
+    BinaryLoader *Loader;
+    
+    char *FindBuffer(EmulationThread *thread, Hooks::APIHook *hptr);
+    
+    int simulation;
+    Hooks APIHooks;
 	  private:
 
-	  VirtualMemory *VM;
 	  int Current_VM_ID;
 	  int VM_Exec_ID;
+    APIClient *Proxy;
+    
+    
 
   };
 

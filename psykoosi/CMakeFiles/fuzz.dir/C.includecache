@@ -13,8 +13,6 @@ stdint.h
 -
 string.h
 -
-xen-x86_64.h
-/Users/mike/psykoosi/psykoosi/xen/xen-x86_64.h
 xen-x86_32.h
 /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
 x86_emulate.h
@@ -23,6 +21,4 @@ x86_emulate.h
 /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
 
 /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
-
-/Users/mike/psykoosi/psykoosi/xen/xen-x86_64.h
 

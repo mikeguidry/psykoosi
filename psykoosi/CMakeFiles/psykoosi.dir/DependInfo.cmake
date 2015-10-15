@@ -16,6 +16,7 @@ set(CMAKE_C_TARGET_INCLUDE_PATH
   )
 set(CMAKE_DEPENDS_CHECK_CXX
   "/Users/mike/psykoosi/psykoosi/analysis.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o"
+  "/Users/mike/psykoosi/psykoosi/apiproxy_client.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o"
   "/Users/mike/psykoosi/psykoosi/disassemble.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o"
   "/Users/mike/psykoosi/psykoosi/emulation.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o"
   "/Users/mike/psykoosi/psykoosi/fileformats.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir/fileformats.cpp.o"

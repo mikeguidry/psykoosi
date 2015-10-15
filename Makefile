@@ -100,17 +100,6 @@ install/fast: preinstall/fast
 	/opt/local/bin/cmake -P cmake_install.cmake
 .PHONY : install/fast
 
-# Special rule for the target install/strip
-install/strip: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
-	/opt/local/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
-.PHONY : install/strip
-
-# Special rule for the target install/strip
-install/strip/fast: install/strip
-
-.PHONY : install/strip/fast
-
 # Special rule for the target install/local
 install/local: preinstall
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
@@ -411,7 +400,6 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... list_install_components"
 	@echo "... install"
-	@echo "... install/strip"
 	@echo "... install/local"
 	@echo "... test_arm_regression"
 	@echo "... test_xcore"
@@ -430,8 +418,8 @@ help:
 	@echo "... capstone-static"
 	@echo "... pe_bliss"
 	@echo "... udis86"
-	@echo "... fuzz"
 	@echo "... psykoosi"
+	@echo "... fuzz"
 .PHONY : help
 
 

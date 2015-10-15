@@ -78,6 +78,16 @@ rebuild_cache/fast: rebuild_cache
 
 .PHONY : rebuild_cache/fast
 
+# Special rule for the target list_install_components
+list_install_components:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"Unspecified\""
+.PHONY : list_install_components
+
+# Special rule for the target list_install_components
+list_install_components/fast: list_install_components
+
+.PHONY : list_install_components/fast
+
 # Special rule for the target install
 install: preinstall
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Install the project..."
@@ -90,17 +100,6 @@ install/fast: preinstall/fast
 	/opt/local/bin/cmake -P cmake_install.cmake
 .PHONY : install/fast
 
-# Special rule for the target install/strip
-install/strip: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing the project stripped..."
-	/opt/local/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
-.PHONY : install/strip
-
-# Special rule for the target install/strip
-install/strip/fast: install/strip
-
-.PHONY : install/strip/fast
-
 # Special rule for the target install/local
 install/local: preinstall
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
@@ -111,16 +110,6 @@ install/local: preinstall
 install/local/fast: install/local
 
 .PHONY : install/local/fast
-
-# Special rule for the target list_install_components
-list_install_components:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"Unspecified\""
-.PHONY : list_install_components
-
-# Special rule for the target list_install_components
-list_install_components/fast: list_install_components
-
-.PHONY : list_install_components/fast
 
 # The main all target
 all: cmake_check_build_system
@@ -214,6 +203,36 @@ analysis.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.s
 .PHONY : analysis.cpp.s
 
+apiproxy_client.o: apiproxy_client.cpp.o
+
+.PHONY : apiproxy_client.o
+
+# target to build an object file
+apiproxy_client.cpp.o:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o
+.PHONY : apiproxy_client.cpp.o
+
+apiproxy_client.i: apiproxy_client.cpp.i
+
+.PHONY : apiproxy_client.i
+
+# target to preprocess a source file
+apiproxy_client.cpp.i:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.i
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.i
+.PHONY : apiproxy_client.cpp.i
+
+apiproxy_client.s: apiproxy_client.cpp.s
+
+.PHONY : apiproxy_client.s
+
+# target to generate assembly for a file
+apiproxy_client.cpp.s:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.s
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.s
+.PHONY : apiproxy_client.cpp.s
+
 disassemble.o: disassemble.cpp.o
 
 .PHONY : disassemble.o
@@ -243,6 +262,33 @@ disassemble.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.s
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.s
 .PHONY : disassemble.cpp.s
+
+emu_hooks.o: emu_hooks.cpp.o
+
+.PHONY : emu_hooks.o
+
+# target to build an object file
+emu_hooks.cpp.o:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o
+.PHONY : emu_hooks.cpp.o
+
+emu_hooks.i: emu_hooks.cpp.i
+
+.PHONY : emu_hooks.i
+
+# target to preprocess a source file
+emu_hooks.cpp.i:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.i
+.PHONY : emu_hooks.cpp.i
+
+emu_hooks.s: emu_hooks.cpp.s
+
+.PHONY : emu_hooks.s
+
+# target to generate assembly for a file
+emu_hooks.cpp.s:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.s
+.PHONY : emu_hooks.cpp.s
 
 emulation.o: emulation.cpp.o
 
@@ -606,18 +652,23 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... psykoosi"
+	@echo "... list_install_components"
 	@echo "... install"
-	@echo "... install/strip"
 	@echo "... install/local"
 	@echo "... fuzz"
-	@echo "... list_install_components"
-	@echo "... psykoosi"
 	@echo "... analysis.o"
 	@echo "... analysis.i"
 	@echo "... analysis.s"
+	@echo "... apiproxy_client.o"
+	@echo "... apiproxy_client.i"
+	@echo "... apiproxy_client.s"
 	@echo "... disassemble.o"
 	@echo "... disassemble.i"
 	@echo "... disassemble.s"
+	@echo "... emu_hooks.o"
+	@echo "... emu_hooks.i"
+	@echo "... emu_hooks.s"
 	@echo "... emulation.o"
 	@echo "... emulation.i"
 	@echo "... emulation.s"

@@ -57,25 +57,38 @@ namespace psykoosi {
 		  CodeAddr FunctionPtr;
 	  } Symbols;
 
+    typedef struct _iat {
+      struct _iat *next;
+      
+      char *module;
+      char *function;
+      
+      CodeAddr Address;
+      CodeAddr Redirect;
+    } IAT;
 
   	  BinaryLoader(DisassembleTask *, InstructionAnalysis *, VirtualMemory *);
 
 	  char *GetInputRaw(int *Size);
-	  pe_bliss::pe_base *LoadFile(int Arch, int FileFormat, char *FileName);
+	  pe_bliss::pe_base *ProcessFile(pe_bliss::pe_base *, uint32_t ImageBase);
+    pe_bliss::pe_base *OpenFile(int Arch, int FileFormat, char *FileName, uint32_t *ImageBase, uint32_t *ImageSize);
 	  int WriteFile(int Arch, int FileFormat, char *FileName);
 
 	  uint32_t HighestAddress(int raw);
 
 	  int LoadImports(pe_bliss::pe_base *imp_image,  VirtualMemory *VMem, CodeAddr ImageBase);
+    int ProcessRelocations(pe_bliss::pe_base *imp_image,  VirtualMemory *VMem, CodeAddr ImageBase);
 	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze);
 
+    BinaryLoader::IAT *FindIAT(uint32_t Address);
 	  BinaryLoader::LoadedImages *AddLoadedImage(char  *filename, pe_bliss::pe_base *PEimage, CodeAddr ImageBase, char *Reference);
 	  BinaryLoader::LoadedImages *FindLoadedByName(char *filename);
 	  BinaryLoader::CodeAddr GetProcAddress(char *filename, char *function_name);
-
+#ifdef EMU_QUEUE
 	  EmulationQueue *EmulationQueueAdd(LoadedImages *iptr, CodeAddr CodeEntry, int IsDLL);
 	  EmulationQueue *EmulationRetrieve();
 	  //EmulationQueue *
+#endif
 
 	  DisassembleTask *_DT;
 	  InstructionAnalysis *_IA;
@@ -90,12 +103,21 @@ namespace psykoosi {
 
 	  LoadedImages *Images_List;
 	  // this one needs last so its in order!
+#ifdef EMU_QUEUE
 	  EmulationQueue *Emulation_List, *Emulation_Last;
+#endif
 
 	  Symbols *Symbols_List;
-
+    
+    IAT *Imports;
+    
+    
+    
+    uint32_t EntryPoint;
 	  int load_for_emulation;
 
+    int iat_count;
+    CodeAddr OriginalImageBase;
   	  private:
 	  std::string InputData;
 	  int InputSize;

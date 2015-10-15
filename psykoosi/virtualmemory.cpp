@@ -21,6 +21,7 @@ VirtualMemory::VirtualMemory()
   LogList = LogLast = NULL;
   VMParent = NULL;
 
+  MemDebug = 0;
   for (int i = 0; i < SettingType::SETTINGS_MAX; i++) {
 	  Settings[i] = 0;
   }
@@ -184,7 +185,11 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
     int i = 0;
     unsigned long pageaddr = 0;
     int count=0;
-    
+
+	// maybe optimize this later so it knows when it crosses a page..
+	// if speed becomes an issue ***
+	// we could calculate how many bytes before the end of the current
+	// page    
     for (i = 0; i < len; i++) {
         if ((mptr = MemPagePtr(addr+i)) == 0) return 0;
 
@@ -194,6 +199,9 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 		switch (operation) {
 		  case VMEM_READ:
 			data[i] = mptr->data[pageaddr];
+			//if ((addr < 0x60000000))
+			if (MemDebug)
+			printf("(r) %X = %02X\n", addr + i, (unsigned char)(data[i]));
 			break;
 		  case VMEM_WRITE:
 			// clone on write.... from parent
@@ -201,6 +209,9 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 				mptr = ClonePage(mptr);
 				if (mptr == NULL) throw;
 			}
+			//if ((addr < 0x60000000))
+			if (MemDebug)
+			printf("(w) %X = %02X\n", addr + i, (unsigned char)(data[i])); 
 			mptr->data[pageaddr] = data[i];
 			break;
 		  default:
@@ -446,8 +457,10 @@ int VirtualMemory::Section_IsExecutable(Memory_Section *sptr, CodeAddr Addr) {
 	if (!sptr)
 		sptr = Section_FindByAddrandFile(NULL, Addr);
 
-	if (sptr == NULL)
+	if (sptr == NULL) {
+		//printf("IsExec: null\n");
 		return 0;
+	}
 
 	return (sptr->Characteristics & image_scn_mem_execute);
 }

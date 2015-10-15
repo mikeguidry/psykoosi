@@ -26,6 +26,7 @@ namespace psykoosi {
 		SECTION_TYPE_IMPORT,
 		SECTION_TYPE_EXPOR,
 		SECTION_TYPE_RESOURCE,
+		SECTION_TYPE_REGION,
 		SECTION_TYPE_MAX
 	} SectionType;
 
@@ -123,6 +124,12 @@ namespace psykoosi {
     	int IsDLL;
 
     	pe_bliss::pe_base *PEImage;
+		
+		int pushed;
+		// TS/counter (cycle) of last push
+		int last_push;
+		// HASH list of the push data.. (in case we want to repush changed data)
+		uint32_t *hash_list;
     } Memory_Section;
 
     public:
@@ -167,6 +174,7 @@ namespace psykoosi {
       Memory_Section *Section_List;
       Memory_Section *Section_Last;
 
+	  int MemDebug;
     private:
       int MemDataIO(int operation, unsigned long addr, unsigned char *result, int len);
       MemPage *Memory_Pages;

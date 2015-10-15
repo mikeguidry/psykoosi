@@ -13,6 +13,7 @@ add_executable (psykoosi
                         virtualmemory.cpp
 			emulation.cpp
 			xen/x86_emulate.c
+			apiproxy_client.cpp
                         )
 target_link_libraries(psykoosi pe_bliss capstone-static udis86)
 
@@ -21,6 +22,7 @@ add_executable (fuzz
                         disassemble.cpp
                         polymorph.cpp
                         fileformats.cpp
+                        emu_hooks.cpp
                         loading.cpp
                         logging.cpp
                         fuzz.cpp
@@ -30,6 +32,7 @@ add_executable (fuzz
                         virtualmemory.cpp
                         emulation.cpp
                         xen/x86_emulate.c
+			apiproxy_client.cpp
                         )
 
-target_link_libraries(psykoosi pe_bliss capstone-static udis86)
+target_link_libraries(fuzz pe_bliss capstone-static udis86)

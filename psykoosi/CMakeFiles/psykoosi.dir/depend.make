@@ -4,7 +4,6 @@
 psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.o: psykoosi/xen/x86_emulate.c
 psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.o: psykoosi/xen/x86_emulate.h
 psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.o: psykoosi/xen/xen-x86_32.h
-psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.o: psykoosi/xen/xen-x86_64.h
 
 psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o: psykoosi/analysis.cpp
 psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o: psykoosi/analysis.h
@@ -50,6 +49,56 @@ psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o: include/pe_lib/stdint_defs.h
 psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o: include/pe_lib/utils.h
 psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o: include/udis86.h
 
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/analysis.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/apiproxy_client.cpp
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/apiproxy_client.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/disassemble.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/emulation.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/loading.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/virtualmemory.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/xen/x86_emulate.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/xen/xen-x86_32.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: psykoosi/xen/xen-x86_64.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/arm.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/arm64.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/capstone.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/mips.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/platform.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/ppc.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/sparc.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/systemz.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/x86.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/capstone/xcore.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/libudis86/extern.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/libudis86/itab.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/libudis86/types.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/entropy.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_base.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_bliss.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_bound_import.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_checksum.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_debug.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_directory.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_dotnet.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_exception.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_exception_directory.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_exports.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_factory.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_imports.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_load_config.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_properties.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_properties_generic.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_rebuilder.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_relocations.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_resources.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_rich_data.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_section.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_structures.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/pe_tls.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/stdint_defs.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/pe_lib/utils.h
+psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o: include/udis86.h
+
 psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o: psykoosi/disassemble.cpp
 psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o: psykoosi/disassemble.h
 psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o: psykoosi/virtualmemory.h
@@ -93,9 +142,12 @@ psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o: include/pe_lib/stdint_defs.h
 psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o: include/pe_lib/utils.h
 psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o: include/udis86.h
 
+psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/analysis.h
+psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/apiproxy_client.h
 psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/disassemble.h
 psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/emulation.cpp
 psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/emulation.h
+psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/loading.h
 psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/virtualmemory.h
 psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/xen/x86_emulate.h
 psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o: psykoosi/xen/xen-x86_32.h
@@ -240,6 +292,7 @@ psykoosi/CMakeFiles/psykoosi.dir/main.cpp.o: include/udis86.h
 psykoosi/CMakeFiles/psykoosi.dir/modules.cpp.o: psykoosi/modules.cpp
 
 psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: psykoosi/analysis.h
+psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: psykoosi/apiproxy_client.h
 psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: psykoosi/disassemble.h
 psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: psykoosi/loading.h
 psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: psykoosi/polymorph.cpp
@@ -288,6 +341,7 @@ psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: include/pe_lib/utils.h
 psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o: include/udis86.h
 
 psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.o: psykoosi/analysis.h
+psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.o: psykoosi/apiproxy_client.h
 psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.o: psykoosi/disassemble.h
 psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.o: psykoosi/emulation.h
 psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.o: psykoosi/loading.h

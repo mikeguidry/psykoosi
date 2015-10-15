@@ -71,6 +71,6 @@ set(CMAKE_DEPEND_INFO_FILES
   "depends/capstone/CMakeFiles/capstone-static.dir/DependInfo.cmake"
   "depends/pe_bliss/CMakeFiles/pe_bliss.dir/DependInfo.cmake"
   "depends/udis86/CMakeFiles/udis86.dir/DependInfo.cmake"
-  "psykoosi/CMakeFiles/fuzz.dir/DependInfo.cmake"
   "psykoosi/CMakeFiles/psykoosi.dir/DependInfo.cmake"
+  "psykoosi/CMakeFiles/fuzz.dir/DependInfo.cmake"
   )

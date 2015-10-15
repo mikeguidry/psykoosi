@@ -3,6 +3,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/fuzz.dir/disassemble.cpp.o"
   "CMakeFiles/fuzz.dir/polymorph.cpp.o"
   "CMakeFiles/fuzz.dir/fileformats.cpp.o"
+  "CMakeFiles/fuzz.dir/emu_hooks.cpp.o"
   "CMakeFiles/fuzz.dir/loading.cpp.o"
   "CMakeFiles/fuzz.dir/logging.cpp.o"
   "CMakeFiles/fuzz.dir/fuzz.cpp.o"
@@ -12,6 +13,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/fuzz.dir/virtualmemory.cpp.o"
   "CMakeFiles/fuzz.dir/emulation.cpp.o"
   "CMakeFiles/fuzz.dir/xen/x86_emulate.c.o"
+  "CMakeFiles/fuzz.dir/apiproxy_client.cpp.o"
   "fuzz.pdb"
   "fuzz"
 )

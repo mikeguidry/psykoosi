@@ -16,7 +16,9 @@ set(CMAKE_C_TARGET_INCLUDE_PATH
   )
 set(CMAKE_DEPENDS_CHECK_CXX
   "/Users/mike/psykoosi/psykoosi/analysis.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/analysis.cpp.o"
+  "/Users/mike/psykoosi/psykoosi/apiproxy_client.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o"
   "/Users/mike/psykoosi/psykoosi/disassemble.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o"
+  "/Users/mike/psykoosi/psykoosi/emu_hooks.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o"
   "/Users/mike/psykoosi/psykoosi/emulation.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o"
   "/Users/mike/psykoosi/psykoosi/fileformats.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o"
   "/Users/mike/psykoosi/psykoosi/fuzz.cpp" "/Users/mike/psykoosi/psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o"
@@ -38,4 +40,7 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
 
 # Targets to which this target links.
 set(CMAKE_TARGET_LINKED_INFO_FILES
+  "/Users/mike/psykoosi/depends/pe_bliss/CMakeFiles/pe_bliss.dir/DependInfo.cmake"
+  "/Users/mike/psykoosi/depends/capstone/CMakeFiles/capstone-static.dir/DependInfo.cmake"
+  "/Users/mike/psykoosi/depends/udis86/CMakeFiles/udis86.dir/DependInfo.cmake"
   )

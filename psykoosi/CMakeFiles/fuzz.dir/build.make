@@ -153,9 +153,33 @@ psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o.provides: psykoosi/CMakeFiles/fuz
 psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o.provides.build: psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o
 
 
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/emu_hooks.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o"
+	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/emu_hooks.cpp.o -c /Users/mike/psykoosi/psykoosi/emu_hooks.cpp
+
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/fuzz.dir/emu_hooks.cpp.i"
+	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /Users/mike/psykoosi/psykoosi/emu_hooks.cpp > CMakeFiles/fuzz.dir/emu_hooks.cpp.i
+
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/fuzz.dir/emu_hooks.cpp.s"
+	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /Users/mike/psykoosi/psykoosi/emu_hooks.cpp -o CMakeFiles/fuzz.dir/emu_hooks.cpp.s
+
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.requires:
+
+.PHONY : psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.requires
+
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.provides: psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.requires
+	$(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.provides.build
+.PHONY : psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.provides
+
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.provides.build: psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o
+
+
 psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o: psykoosi/loading.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/loading.cpp.o -c /Users/mike/psykoosi/psykoosi/loading.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/loading.cpp.i: cmake_force
@@ -179,7 +203,7 @@ psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o.provides.build: psykoosi/CMakeFiles/f
 
 psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o: psykoosi/logging.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/logging.cpp.o -c /Users/mike/psykoosi/psykoosi/logging.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/logging.cpp.i: cmake_force
@@ -203,7 +227,7 @@ psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o.provides.build: psykoosi/CMakeFiles/f
 
 psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o: psykoosi/fuzz.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/fuzz.cpp.o -c /Users/mike/psykoosi/psykoosi/fuzz.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.i: cmake_force
@@ -227,7 +251,7 @@ psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o.provides.build: psykoosi/CMakeFiles/fuzz
 
 psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o: psykoosi/modules.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/modules.cpp.o -c /Users/mike/psykoosi/psykoosi/modules.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/modules.cpp.i: cmake_force
@@ -251,7 +275,7 @@ psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o.provides.build: psykoosi/CMakeFiles/f
 
 psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o: psykoosi/rebuild.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/rebuild.cpp.o -c /Users/mike/psykoosi/psykoosi/rebuild.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.i: cmake_force
@@ -275,7 +299,7 @@ psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o.provides.build: psykoosi/CMakeFiles/f
 
 psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o: psykoosi/utilities.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/utilities.cpp.o -c /Users/mike/psykoosi/psykoosi/utilities.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.i: cmake_force
@@ -299,7 +323,7 @@ psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o.provides.build: psykoosi/CMakeFiles
 
 psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o: psykoosi/virtualmemory.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/virtualmemory.cpp.o -c /Users/mike/psykoosi/psykoosi/virtualmemory.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.i: cmake_force
@@ -323,7 +347,7 @@ psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o.provides.build: psykoosi/CMakeF
 
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/emulation.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/emulation.cpp.o -c /Users/mike/psykoosi/psykoosi/emulation.cpp
 
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.i: cmake_force
@@ -347,7 +371,7 @@ psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o.provides.build: psykoosi/CMakeFiles
 
 psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
 psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o: psykoosi/xen/x86_emulate.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building C object psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building C object psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o"
 	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc  $(C_DEFINES) $(C_FLAGS) -o CMakeFiles/fuzz.dir/xen/x86_emulate.c.o   -c /Users/mike/psykoosi/psykoosi/xen/x86_emulate.c
 
 psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.i: cmake_force
@@ -369,12 +393,37 @@ psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o.provides: psykoosi/CMakeFiles/f
 psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o.provides.build: psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o
 
 
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o: psykoosi/CMakeFiles/fuzz.dir/flags.make
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o: psykoosi/apiproxy_client.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o"
+	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   $(CXX_DEFINES) $(CXX_FLAGS) -o CMakeFiles/fuzz.dir/apiproxy_client.cpp.o -c /Users/mike/psykoosi/psykoosi/apiproxy_client.cpp
+
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/fuzz.dir/apiproxy_client.cpp.i"
+	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -E /Users/mike/psykoosi/psykoosi/apiproxy_client.cpp > CMakeFiles/fuzz.dir/apiproxy_client.cpp.i
+
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/fuzz.dir/apiproxy_client.cpp.s"
+	cd /Users/mike/psykoosi/psykoosi && /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++  $(CXX_DEFINES) $(CXX_FLAGS) -S /Users/mike/psykoosi/psykoosi/apiproxy_client.cpp -o CMakeFiles/fuzz.dir/apiproxy_client.cpp.s
+
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.requires:
+
+.PHONY : psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.requires
+
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.provides: psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.requires
+	$(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.provides.build
+.PHONY : psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.provides
+
+psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.provides.build: psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o
+
+
 # Object files for target fuzz
 fuzz_OBJECTS = \
 "CMakeFiles/fuzz.dir/analysis.cpp.o" \
 "CMakeFiles/fuzz.dir/disassemble.cpp.o" \
 "CMakeFiles/fuzz.dir/polymorph.cpp.o" \
 "CMakeFiles/fuzz.dir/fileformats.cpp.o" \
+"CMakeFiles/fuzz.dir/emu_hooks.cpp.o" \
 "CMakeFiles/fuzz.dir/loading.cpp.o" \
 "CMakeFiles/fuzz.dir/logging.cpp.o" \
 "CMakeFiles/fuzz.dir/fuzz.cpp.o" \
@@ -383,7 +432,8 @@ fuzz_OBJECTS = \
 "CMakeFiles/fuzz.dir/utilities.cpp.o" \
 "CMakeFiles/fuzz.dir/virtualmemory.cpp.o" \
 "CMakeFiles/fuzz.dir/emulation.cpp.o" \
-"CMakeFiles/fuzz.dir/xen/x86_emulate.c.o"
+"CMakeFiles/fuzz.dir/xen/x86_emulate.c.o" \
+"CMakeFiles/fuzz.dir/apiproxy_client.cpp.o"
 
 # External object files for target fuzz
 fuzz_EXTERNAL_OBJECTS =
@@ -392,6 +442,7 @@ psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/analysis.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o
+psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o
@@ -401,9 +452,13 @@ psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o
+psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/build.make
+psykoosi/fuzz: depends/pe_bliss/libpe_bliss.a
+psykoosi/fuzz: depends/capstone/libcapstone.a
+psykoosi/fuzz: depends/udis86/libudis86.a
 psykoosi/fuzz: psykoosi/CMakeFiles/fuzz.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Linking CXX executable fuzz"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/Users/mike/psykoosi/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Linking CXX executable fuzz"
 	cd /Users/mike/psykoosi/psykoosi && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/fuzz.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -415,6 +470,7 @@ psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/analysis.cpp
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o.requires
+psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/fuzz.cpp.o.requires
@@ -424,6 +480,7 @@ psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/utilities.cp
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o.requires
 psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o.requires
+psykoosi/CMakeFiles/fuzz.dir/requires: psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o.requires
 
 .PHONY : psykoosi/CMakeFiles/fuzz.dir/requires
 

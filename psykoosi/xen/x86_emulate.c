@@ -23,9 +23,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-/*#ifdef __x86_64__
-#include "xen-x86_64.h"
-#elif defined(__i386__) */
+//#ifdef __x86_64__
+//#include "xen-x86_64.h"
+//#elif defined(__i386__) 
 #include "xen-x86_32.h"
 //#endif
 #include "x86_emulate.h"

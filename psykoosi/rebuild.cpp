@@ -16,7 +16,9 @@ extern "C" {
 #include "analysis.h"
 #include "loading.h"
 #include "rebuild.h"
+#include "apiproxy_client.h"
 #include "structures.h"
+#include "emu_hooks.h"
 #include "emulation.h"
 #include "polymorph.h"
 
@@ -90,207 +92,6 @@ DisassembleTask::CodeAddr Rebuilder::CheckForModifiedAddress(DisassembleTask::Co
 }
 
 
-DisassembleTask::InstructionInformation *Inj_Stream(unsigned char *buffer, int size);
-
-DisassembleTask::InstructionInformation *Inj_Junk() {
-	char buf[1024];
-	int ii = 0;
-
-	char *buffer = (char *)&buf;
-	int *size = (int *)&ii;
-
-
-	// here are some macros for some asm opcodes
-	#define ASM_PUSHAD 0x60
-	#define ASM_POPAD 0x61
-	#define ASM_MOV_EAX 0xB8
-	#define ASM_MOV_EBX 0xBB
-	#define ASM_MOV_ECX 0xBA
-	#define ASM_MOV_EDX 0xB9
-	#define ASM_PUSH_EAX 0x50
-	#define ASM_POP_EAX 0x58
-	#define ASM_PUSH_EBX 0x53
-	#define ASM_POP_EBX 0x5B
-	#define ASM_HLT 0xF4
-	#define ASM_JGE 0x7D
-	#define ASM_JMP_SHORT 0xEB
-	#define ASM_RET 0xC3
-	#define ASM_JAE_SHORT 0x73
-	#define ASM_MOV 0xC7
-	#define ASM_NOP 0x90
-	#define ASM_ADD 0x83
-
-
-	srand(time(0));
-
-		int i, n;
-		char c;
-		char *dptr = buffer, *_dptr = buffer;
-
-		i = rand() % 14;
-
-		switch (i) {
-			case 0:
-				*dptr++ = ASM_PUSH_EBX;
-				*dptr++ = ASM_PUSH_EAX;
-				for (i = 0; i < (rand()%3); i++) *dptr++ = ASM_NOP;
-
-				for (i = 0; i < (rand()%3); i++) {
-
-					*dptr++ = ASM_MOV_EAX; // mov eax,
-					n =	rand()%65535;      // put a random value in eax :)
-					memcpy(dptr, &n, sizeof(int));
-					dptr += sizeof(int);
-
-					for (i = 0; i < (rand()%3); i++) *dptr++ = ASM_NOP;
-
-					*dptr++ = ASM_MOV_EBX; // mov eax,
-					n = rand()%65535;      // put a random value in eax :)
-					memcpy(dptr, &n, sizeof(int));
-					dptr += sizeof(int);
-
-					for (i = 0; i < (rand()%3); i++) *dptr++ = ASM_NOP;
-				}
-
-				*dptr++ = ASM_POP_EAX;
-				*dptr++ = ASM_POP_EBX;
-
-				*size = (int)(dptr - _dptr); // set the size of this code
-
-				break;
-			case 12:
-				// lea esi,[esi+0]
-				memcpy(buf, "\x8D\x74\x26\x00", 4);
-				*size = 4;
-				break;
-			case 13:
-				// lea esi,[esi+0] (another?)
-				memcpy(buf, "\x8D\xB6\x00\x00\x00\x00", 6);
-				*size = 6;
-				break;
-			case 3:
-				*dptr++ = ASM_PUSHAD; // push all regs to stack so we can restore after we insert junk
-
-				*dptr++ = ASM_MOV_EAX; // mov eax,
-				n = rand()%65535;      // put a random value in eax :)
-				memcpy(dptr, &n, sizeof(int));
-				dptr += sizeof(int);
-
-				*dptr++ = ASM_PUSH_EAX; // push the value we just set in eax
-				*dptr++ = ASM_POP_EBX; // pop it to ebx
-
-				memcpy(dptr, "\x39\xD8", 2); // cmp eax, ebx (comapre them (of course it matches))
-				dptr += 2;
-
-				*dptr++ = ASM_JGE; // if it matches then we wanna jmp
-
-				c = 1 + rand()%3;   // put a few random amount of NOPs that we jmp past
-				n = rand()%8;
-				// tell the jump if greater go to past the amount of NOPs we wanna add by 1 so itll jump
-				// past the HLT that is appended later
-				*dptr++ = c + 1;
-
-				while (c--)
-					*dptr++ = '\x90';
-
-				*dptr++ = ASM_HLT;  // put a halt
-
-				*dptr++ = ASM_POPAD; // this is where we JMP (cuz of the compare)
-
-				*size = (int)(dptr - _dptr); // set the size of this code
-
-				break;
-
-			case 4: // random debugger check
-			/*
-				printf("Putting a debugger into the stub\n");
-				memcpy(dptr, "\x0F\x31\x89\xC1\x0F\x31\x29\xC8", 8); // rdtsc, mov ecx,eax
-				dptr += 8;
-
-				memcpy(dptr, "\x3D\x00\x10\x00\x00", 5);
-				dptr += 5;
-
-				*dptr++ = '\x73';
-				*dptr++ = 2;
-				*dptr++ = ASM_JMP_SHORT;
-				*dptr++ = 1;
-				*dptr++ = ASM_RET;
-
-				*size = 8 + 5 + 2 + 2 + 1;
-				break;
-			*/
-
-			case 5:
-				// mov $which, $which (or another NOP)
-				buf[0] = '\x89';
-				switch (rand()%5) {
-					case 0: c = '\xF6'; break; // esi
-					case 1: c = '\xC0'; break; // eax
-					case 2: c = '\xDB'; break; // ebx
-					case 3: c = '\xC9'; break; // ecx
-					case 4:
-					default:
-					c = '\xD2'; break; // edx
-				}
-				buf[1] = c;
-				*size = 2;
-				break;
-
-			case 6:
-			  // This will exchange registers eax, and ebx twice.. so it's back to normal..
-			  // Just filling in code :)
-			  memcpy(buf, "\x50\x8B\xD8\x5B\x50\x8B\xD8\x5B", 8);
-			  *size = 8;
-			  break;
-			case 7:
-			  // Exchanges ecx/edx
-			  memcpy(buf, "\x51\x8B\xD1\x5A\x51\x8B\xD1\x5A", 8);
-			  *size = 8;
-			  break;
-			case 8:
-			  // push eax, pop eax
-			  memcpy(buf, "\x50\x58", 2);
-			  *size = 2;
-			  break;
-			case 9:
-			  // push ebx, pop ebx
-			  memcpy(buf, "\x53\x5B", 2);
-			  *size = 2;
-			  break;
-			case 10:
-			  // push ecx, pop ecx
-			  memcpy(buf, "\x51\x59", 2);
-			  *size = 2;
-			  break;
-			case 11:
-			  c = rand()%255;
-			  memcpy(buf, "\x83\xC0\x00\x83\xE8\x00", 6);
-			  buf[2] = c;
-			  buf[5] = c;
-			  *size = 6;
-			  break;
-			//case 12:
-
-			default:
-				// insert 1-10 NOPs
-				n = 1 + rand()%7;
-				*size = n;
-				while (n-- >= 0) buf[n] = 0x90;
-				break;
-			}
-
-			// in case our pointer was not updated, let's fix it...
-			if (dptr == buf) dptr += *size;
-
-			// insert rdtsc at random for confusion
-			if ((rand()%3)==0) {
-				*dptr++ = '\x0F';
-				*dptr++ = '\x31';
-				*size += 2;
-			}
-
-	return (*size > 0) ? Inj_Stream((unsigned char *)buf, *size) : NULL;
-}
 
 int Rebuilder::RebuildInstructionsSetsModifications() {
 	int count = 0;
@@ -610,7 +411,7 @@ int Rebuilder::RealignInstructions() {
 
 	Emulation emulator(vmem);
 
-	emulator.Master.EmuVMEM->SetParent(vmem);
+	emulator.MasterVM.Memory->SetParent(vmem);
 
 	raw_final.clear();
 	final_chr = new unsigned char[final_size + 16];
@@ -716,6 +517,8 @@ int Rebuilder::RealignInstructions() {
 				 		case 1:
 				 			dist8 = (signed) (distance & 0xff);
 				 			if ((dist8 > 128) || (dist8 < -128)) {
+								 // we need to change this instruction from
+								 // imm8 to imm16
 				 				printf("FUCK distance %d\n", dist8);
 				 			}
 				 			std::memcpy(&dist8_old, NewIns->RawData+NewIns->Size-1, 1);
@@ -747,7 +550,7 @@ int Rebuilder::RealignInstructions() {
 						 std::string verify = _DT->disasm_str(NewIns->Address, ( char *)NewIns->RawData, NewIns->Size);
 						 printf("to emulate: %s\n", verify.c_str());
 						 // now verify it worked!
-						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(&emulator.Master, CurAddr);
+						 Emulation::EmulationLog *emu_log = emulator.StepInstruction(emulator.MasterThread, CurAddr);
 						 printf("Emu Log %p\n", emu_log);
 						 if (emu_log == NULL) {
 							 printf("ERROR Was unable to analyze instruction at address %p", NewIns->Address);
@@ -809,11 +612,8 @@ int Rebuilder::RealignInstructions() {
 			 unsigned char *data_ptr = (unsigned char *)sptr->RawData;
 			 int data_size = sptr->RawSize;
 			 int Total = data_size;// / sizeof(DisassembleTask::CodeAddr);
-
-
+			 
 			 DisassembleTask::CodeAddr *Last = 0;
-
-
 
 			 DisassembleTask::InstructionInformation *InsInfo = 0;
 			 for (int ModCount = 0; ModCount < Total; ModCount += 1) {
@@ -859,9 +659,9 @@ int Rebuilder::ModifyRelocations() {
 				if ((table.get_rva() >= sptr->Address) && (table.get_rva() < (sptr->Address + sptr->VirtualSize))) {
 					break;
 				}
-			if (sptr != NULL) {
-				table.set_rva(table.get_rva() + (sptr->Address - sptr->Address_before_Rebase));
-			}
+				if (sptr != NULL) {
+					table.set_rva(table.get_rva() + (sptr->Address - sptr->Address_before_Rebase));
+				}
 			}
 		}
 		// iterate through each section looping for the section that this table belongs to

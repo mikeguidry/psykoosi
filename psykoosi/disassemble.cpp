@@ -352,7 +352,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 
 		if (!vmem->Section_IsExecutable(NULL, CurAddr)) {
 			//printf("Cur addr not in code section %p\n", CurAddr);
-			break;
+			//break;
 		}
 
 

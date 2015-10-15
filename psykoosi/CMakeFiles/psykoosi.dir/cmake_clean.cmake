@@ -12,6 +12,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/psykoosi.dir/virtualmemory.cpp.o"
   "CMakeFiles/psykoosi.dir/emulation.cpp.o"
   "CMakeFiles/psykoosi.dir/xen/x86_emulate.c.o"
+  "CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o"
   "psykoosi.pdb"
   "psykoosi"
 )
