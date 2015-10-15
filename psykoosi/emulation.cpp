@@ -525,6 +525,10 @@ void Emulation::ClearLogs(EmulationThread *thread) {
 
 /* pre is for simulation
    post is for logging
+   
+   *** FIX: one problem is we have to load the ret_fix ...
+       maybe move this function inside of PreExecute() instead of 
+	   as another function so we can accomodate all variables
 */
 int Emulation::PostExecute(EmulationThread *thread, uint32_t EIP) {
 	int ret = 0;
@@ -561,7 +565,9 @@ int Emulation::PostExecute(EmulationThread *thread, uint32_t EIP) {
 	 						hptr->module_name, hptr->function_name,hptr->side, 
 	 						buf, buf_size);
 					
-					if (xptr != NULL) ret = 1;
+					if (xptr != NULL)
+						ret = 1;
+					
 					free(buf); 
 				}				 				
 			}
@@ -742,7 +748,6 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 
 	VirtualMachine *_VM = (VirtualMachine *)(thread->VM);
 	
-	//printf("CTXT: %X ops %X\n",(void *)&thread->thread_ctx.emulation_ctx,(void *)&_VM->emulate_ops);
 emu:
 	r = x86_emulate((struct x86_emulate_ctxt *)&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&_VM->emulate_ops) == X86EMUL_OKAY;
 	// set to 0 since we added more if's below.. maybe rewrite using switch()
