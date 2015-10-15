@@ -527,53 +527,89 @@ void Emulation::ClearLogs(EmulationThread *thread) {
    post is for logging
 */
 int Emulation::PostExecute(EmulationThread *thread, uint32_t EIP) {
-	return 0;
+	int ret = 0;
+	// if we are not simulating... we dont care to keep logs of functions because we are filling the data
+	// so postexec is irrelevant
+	if (!simulation) return 0;
+	
 	if (Loader->Imports) {
 		BinaryLoader::IAT *iatptr = Loader->FindIAT(EIP);
+		
 		if (iatptr != NULL) {
 			Hooks::APIHook *hptr = NULL;
 			
-			if (!simulation) {
-				hptr = APIHooks.HookFind(iatptr->module, iatptr->function);
-			}
+			hptr = APIHooks.HookFind(iatptr->module, iatptr->function);
 			
+			// log the data returned to our user appointed buffer
+			// so we can simulate on another execution
 			if (hptr) {
-				char *buffer = FindBuffer(thread, hptr);
-				Hooks::ProtocolExchange *xptr = APIHooks.NextProtocolExchange(hptr->id, hptr->side);
+				uint32_t buf_addr = FindArgument(thread, hptr, hptr->find_buffer);
+				uint32_t buf_size = FindArgument(thread, hptr, hptr->find_size);
+				char *buf = NULL;
 				
+				if (buf_size) {
+					buf = (char *)malloc(buf_size + 1);
+				}
 				
+				if (buf) {
+					// read the buffer into our temporary buffer...
+					thread->EmuVMEM->MemDataRead(buf_addr, (unsigned char *)buf, buf_size);
+				
+					// now log it into our protocol exchange list for simulating on another execution
+					Hooks::ProtocolExchange *xptr =
+ 						APIHooks.AddProtocolExchange(hptr->id,
+	 						hptr->module_name, hptr->function_name,hptr->side, 
+	 						buf, buf_size);
+					
+					if (xptr != NULL) ret = 1;
+					free(buf); 
+				}				 				
 			}
 		}
-	}	
+	}
+	
+	return ret;
 }
 
 
 // this will take a current thread context.. and find the buffer for the function thats hooked
 // *** Finish this.. and try to remove the constants.. maybe programmatically handle this
-char *Emulation::FindBuffer(EmulationThread *thread, Hooks::APIHook *hptr) {
+uint32_t Emulation::FindArgument(EmulationThread *thread, Hooks::APIHook *hptr, int arg_information) {
 	uint32_t ESP = thread->thread_ctx.emulation_ctx.regs->esp;
-	char *ret = NULL;
+	uint32_t ret = 0;
 	
-	switch (hptr->find_buffer) {
+	switch (arg_information) {
 		case BUF_ESP_p4:
-			ret = (char *)(ESP + 4);
+			ret = ESP + 4;
 			break;
 		case BUF_ESP_p8:
-			ret = (char *)(ESP + 8);
+			ret = (ESP + 8);
 			break;
 		case BUF_ESP_p12:
-			ret = (char *)(ESP + 12);
+			ret = (ESP + 12);
 			break;
 		case BUF_ESP_p16:
-			ret = (char *)(ESP + 16);
+			ret = (ESP + 16);
 			break;
 		case BUF_ESP_p20:
-			ret = (char *)(ESP + 20);
+			ret = (ESP + 20);
 			break;
 		case BUF_ESP_p24:
-			ret = (char *)(ESP + 24);
+			ret = (ESP + 24);
 			break;
 	}
+	
+	// do we dereference our pointer (ESP at start) once or twice? if we deref again
+	// it means we had a pointer to a pointer...
+	// !! we always have to deref once because we are pointing to an argument on the stack passed to the function
+	// 1: get addr at ESP location (when a char * is pushed)
+	// 2: using BUF_DEREF means we pushed &buf when buf was char *
+	// which is a pointer to a pointer so it has to be dereferenced..
+	int deref = (arg_information & BUF_DEREF) ? 2 : 1;
+	
+	// read the address at that location for returning to the calling function
+	for (int a = 0; a < deref; a++)
+		thread->EmuVMEM->MemDataRead(ret, (unsigned char *)&ret, sizeof(uint32_t));
 	
 	return ret;
 }
@@ -640,10 +676,11 @@ int Emulation::PreExecute(EmulationThread *thread) {
 				// we need to use a strategy (pretty generic way to tell our hooking functions
 				// that a particular buffer can be found on the stack, or at an address dereferenced
 				// from the stack...
-				char *buffer = FindBuffer(thread, hptr);
+				uint32_t buf_addr = FindArgument(thread, hptr, hptr->find_buffer);
+				//uint32_t buf_size = FindArgument(thread, hptr, hptr->find_size);
 				
 				// copy the data in place..
-				memcpy(buffer, xptr->buf, xptr->size);
+				thread->EmuVMEM->MemDataWrite(buf_addr, (unsigned char *)xptr->buf, xptr->size);
 				
 				// we are done!
 				
@@ -860,7 +897,6 @@ uint32_t Emulation::HeapAlloc(uint32_t ReqAddr, int Size) {
 int Emulation::HeapFree(uint32_t Address) {
 	Emulation::HeapAllocations *hptr = MasterVM.HeapList;
 	while (hptr != NULL) {
-		
 		if (hptr->Address == Address) {
 			break;
 		}
@@ -927,7 +963,7 @@ Emulation::EmulationThread *Emulation::ExecuteLoop(
 // and it will clone on change for any modifications during exec
 Emulation::EmulationThread *Emulation::NewVirtualMachineChild(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP,
 		struct cpu_user_regs *registers) {
-return NULL;
+	return NULL;
 /*
 	EmulationThread *Thread = new EmulationThread;
 	std::memset((void *)Thread, 0, sizeof(EmulationThread));

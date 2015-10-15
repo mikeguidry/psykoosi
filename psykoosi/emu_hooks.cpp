@@ -118,7 +118,7 @@ int Hooks::HookRead(int hook_id, char *dst, int size) {
 		}
 		memcpy(dst, eptr->buf, eptr->size);
 	} else {
-		eptr = AddProtocolExchange(hook_id, 0, NULL, NULL, 0, dst, size);
+		eptr = AddProtocolExchange(hook_id, NULL, NULL, 0, dst, size);
 	}
 	return (eptr != NULL);
 }
@@ -136,7 +136,7 @@ int Hooks::HookWrite(int hook_id, char *src, int size) {
 		memcpy(src, eptr->buf, eptr->size);
 		
 	} else {
-		eptr = AddProtocolExchange(hook_id, 0, NULL, NULL, 1, src, size);
+		eptr = AddProtocolExchange(hook_id, NULL, NULL, 1, src, size);
 	}
 	return (eptr != NULL);
 }
@@ -156,7 +156,7 @@ Hooks::ProtocolExchange *Hooks::NextProtocolExchange(int hook_id, int side) {
 	return eptr;
 }
 
-Hooks::ProtocolExchange *Hooks::AddProtocolExchange(int id, int hook_id, char *module, char *function, int side, char *data, int size) {
+Hooks::ProtocolExchange *Hooks::AddProtocolExchange(int hook_id, char *module, char *function, int side, char *data, int size) {
 	ProtocolExchange *eptr = new ProtocolExchange;
 	if (eptr == NULL) {
 		return NULL;
@@ -248,7 +248,7 @@ int Hooks::Load(char *file) {
 		fread(data, 1, save.size, fd);
 		
 		// create the exchange protocol
-		ProtocolExchange *eptr = AddProtocolExchange(save.id, save.hook_id,NULL, NULL, save.side, NULL, 0);
+		ProtocolExchange *eptr = AddProtocolExchange(save.hook_id,NULL, NULL, save.side, NULL, 0);
 		if (eptr == NULL) {
 			printf("Couldnt add the protocol exchange\n");
 			throw;

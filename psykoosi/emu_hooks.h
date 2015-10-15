@@ -65,6 +65,8 @@ namespace psykoosi {
 		  
 		  // enum of way to find the buffer for this function
 		  int find_buffer;
+		  // now the same information for finding the size..
+		  int find_size;
 		  
 		  // DLL / function hooked
 		  char *function_name;
@@ -104,7 +106,7 @@ namespace psykoosi {
 	  int HookRead(int, char *dst, int size);
 	  int HookWrite(int, char *src, int size);
 	  
-	  ProtocolExchange *AddProtocolExchange(int id, int hook_id, char *module, char *function, int side, char *data, int size);
+	  ProtocolExchange *AddProtocolExchange(int hook_id, char *module, char *function, int side, char *data, int size);
 	  ProtocolExchange *NextProtocolExchange(int hook_id, int side);
 	  int FreeExchange(ProtocolExchange **_eptr, ProtocolExchange *eptr);
 	  

@@ -344,26 +344,28 @@ namespace psykoosi {
 		p = plus, m = minus…
 		*/
 		enum {
-			BUF_ESP_p4,
-			BUF_ESP_p8,
-			BUF_ESP_p12,
-			BUF_ESP_p16,
-			BUF_ESP_p20,
-			BUF_ESP_p24,
+			BUF_ESP_p4=1,
+			BUF_ESP_p8=2,
+			BUF_ESP_p12=4,
+			BUF_ESP_p16=8,
+			BUF_ESP_p20=16,
+			BUF_ESP_p24=32,
 			// EBP is usually locals since the caller’s function began.. so its usually plus.. but we could add some minus in case the buffer is originating easier that far up…
-			BUF_EBP_m4,
-			BUF_EBP_m8,
-			BUF_EBP_m12,
-			BUF_EBP_m16,
-			BUF_EBP_m20,
-			BUF_EBP_p4,
-			BUF_EBP_p8,
-			BUF_EBP_p16,
-			BUF_EBP_p20,
-			BUF_EAX,
-			BUF_EBX,
-			BUF_ECX,
-			BUF_EDX
+			BUF_EBP_m4=64,
+			BUF_EBP_m8=128,
+			BUF_EBP_m12=256,
+			BUF_EBP_m16=512,
+			BUF_EBP_m20=1024,
+			BUF_EBP_p4=2048,
+			BUF_EBP_p8=4096,
+			BUF_EBP_p16=8192,
+			BUF_EBP_p20=16384,
+			BUF_EAX=32768,
+			BUF_EBX=65536,
+			BUF_ECX=131072,
+			BUF_EDX=262144,
+      // do we dereference this location?
+      BUF_DEREF=524288,
 		};
 		
   	  public:
@@ -430,7 +432,7 @@ namespace psykoosi {
     VirtualMemory *VM;
     BinaryLoader *Loader;
     
-    char *FindBuffer(EmulationThread *thread, Hooks::APIHook *hptr);
+    uint32_t FindArgument(EmulationThread *thread, Hooks::APIHook *hptr, int);
     
     int simulation;
     Hooks APIHooks;
