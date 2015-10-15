@@ -143,6 +143,8 @@ psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o: include/pe_lib/stdint_defs.h
 psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o: include/pe_lib/utils.h
 psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o: include/udis86.h
 
+psykoosi/CMakeFiles/fuzz.dir/distribution.cpp.o: psykoosi/distribution.cpp
+
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/analysis.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/apiproxy_client.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/disassemble.h

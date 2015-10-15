@@ -14,6 +14,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/fuzz.dir/emulation.cpp.o"
   "CMakeFiles/fuzz.dir/xen/x86_emulate.c.o"
   "CMakeFiles/fuzz.dir/apiproxy_client.cpp.o"
+  "CMakeFiles/fuzz.dir/distribution.cpp.o"
   "fuzz.pdb"
   "fuzz"
 )

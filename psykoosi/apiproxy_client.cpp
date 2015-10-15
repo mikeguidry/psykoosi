@@ -300,6 +300,7 @@ int APIClient::PushSections() {
 int APIClient::PushData(uint32_t Address, char *Source, int Size) {
 	int ret = 0;
 	printf("pushing data %X %d src %p\n", Address, Size, Source);
+	if (Size < 0) return -1;
 	// if Source == NULL we push from VMEM
 	int pkt_size = sizeof(MemTransfer) + Size;
 	char *ptr = (char *)malloc(pkt_size + 1);
@@ -332,6 +333,7 @@ int APIClient::PushData(uint32_t Address, char *Source, int Size) {
 int APIClient::PeekData(uint32_t Address, char *Destination, int Size) {
 	int ret = 0;
 	printf("pulling data %X %d src %p\n", Address, Size, Destination);
+	if (Size < 0) return -1;
 	// if Source == NULL we push from VMEM
 	int pkt_size = sizeof(MemTransfer) + Size;
 	char *ptr = (char *)malloc(pkt_size + 1);

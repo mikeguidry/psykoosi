@@ -1,0 +1,110 @@
+TODO FOR PSY/MESZEK 10/15/15
+
+
+HIGH PRIORITY:
+* finish PostExecute (ret_fix/ret_eax) for writing the protocol exchange data AddProtocolExchange()
+
+* test on fake vulnerabilities, and some real apps: adobe flash, adobe reader, IE,FF, IE, CHr
+
+* managing distribution: queueing , queue error checking
+
+* creating 'packets' or structures of information that contain all memory/instructions/information that allows
+  a process to take part in distributed fuzzing of application(s) 
+
+* generate a DLL to inject into an app which creates and uploads these packets
+  for fuzzing that app with all memory, instructions, etc required to fuzz that software
+LOWER PRIORITY:
+
+* modify heap allocation to allow us to request specific areas of memory inside of the heap range..
+  first scan and see if we have the range empty (by seeing if its within other heap allocations) and if the range is
+  freed but bigger, then we can spit it up.. if its not taken then we can allocate it and then
+  future allocations should go around it 
+  
+* create linear assembly code for 'native binary fuzzing' similar to the packets of information to distributed fuzz
+  however these are 'binary rewrote' into normal C code that can output executables, asm.js webpages, etc
+
+* integrate unicorn for multiple architecture support
+
+* simultaneously brute force all architectures to find opcodes that can be used to
+  detect the architecture.. and find a way to determine if a machine is
+  win32, bsd, or linux without crashing in any location
+  
+  systematically determine if a crash will kill the process (port listening) or if it
+  threads or safely exits if a crash happens so it prioritizes things that dont hurt the
+  process/thread/system higher than things that do for worm infection
+  
+NEXT PROJECT AFTER THIS (WORM):
+* Automatically generate exploits.. (for another branch to be merged later)
+* Pick targets (targets listening/communicating over local network/internet)
+   a. monitor to find addresses/memory/snapshots/etc after IO calls
+* build <1k shellcode to be used as backdoor, spreading, etc for worm
+* create a pub/privkey infrastructure to authenticate c&c commands
+* create module for adding the infected machine to the global network of
+  fuzzing, and exploit generation
+* libpcap works on windows 10, find a signed version of libnet or alternative
+  to use in the worm..maybe hook/hijack process exporer, and other programs
+  which have drivers to do low level maintainence or analysis for use in the software
+  to pick executables, and code that listen on ports etc
+* launch 
+ --------------
+ NOTES
+ --------------
+ 
+ /* distribution of fuzzing tasks
+
+   this needs to allow direct access to all classes to insert the
+   necessary memory, code, etc and then it needs to be wiped after the tasks
+   are completed...
+   
+   so brute force, bit flip, etc can all be distributed in ranges, and
+   it could be mixed with a variety of software so no single process fuzzes
+   the same software consistently.. this allows it to work against
+   as many programs as the injectable DLL creates information regarding
+   or allows an adware network to upload multiple versions of all apps
+   to fuzz everything users generally users
+   
+   create a server side statistics engine to keep track of all software
+   on each desktop machine and focus on the ones with higher counts
+   focus and emulate the top versions  (highest count) of each
+   application being fuzzed
+    
+
+*/
+ byte map following instructions through emulation after IO/socket and if that instruction writes to another memory region.. follow it like a rover tap to find all instructions/functions that process the data
+
+typedef struct _MEMORY_BASIC_INFORMATION {
+  PVOID  BaseAddress;
+  PVOID  AllocationBase;
+  DWORD  AllocationProtect;
+  SIZE_T RegionSize;
+  DWORD  State;
+  DWORD  Protect;
+  DWORD  Type;
+} MEMORY_BASIC_INFORMATION, *PMEMORY_BASIC_INFORMATION;
+
+VirtualQueryEx
+ for dumping states from processes before/after/during 
+
+state: “address_base.alloc_base.hash.size_ID.dat”
+id = separation between initial states/loading different inputs/URLs/etc
+
+create a binary diff state for all following reads/IO from sockets/files/etc to deep fuzz every state
+
+insert into mysql library so host/server can distribute to PHI farm
+
+create a smaller API Proxy stub.. or use a debugger and pause the process on start, use VirtualAlloc to create a specific area of memory that can be used consistently across executions… or loading the state of a program being debugged inside of it.. along with all threads/registers..similar to crypopid for linux but for windows and then injected a DLL to hook all winsock/IO to generate fuzz packages to queue in the database
+
+
+
+also write linear binary packages for distribution via ASM.JS
+
+ 
+ -----
+ 1. VM - and conversion of ASM binary into the VM
+2. Automated Exploit Dev 
+3. Automated bug finder
+4. communications for all standard protocols
+5. arch detection and support
+6. OS analyse/detection/support for *unix/win
+7. modules / payloads
+8. obfuscation/binary rewriting of itself

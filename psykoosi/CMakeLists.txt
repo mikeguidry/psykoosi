@@ -15,6 +15,7 @@ add_executable (fuzz
                         emulation.cpp
                         xen/x86_emulate.c
 			apiproxy_client.cpp
+			distribution.cpp
                         )
 
 target_link_libraries(fuzz pe_bliss capstone-static udis86 z iconv)

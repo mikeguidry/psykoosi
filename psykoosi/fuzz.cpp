@@ -2,14 +2,8 @@
  * YOU WILL BE PROSECUTED TO THE FULL EXTENT OF THE LAW IF YOU DISTRIBUTE OR DO NOT DELETE IMMEDIATELY,
  * UNLESS GIVEN PRIOR WRITTEN CONSENT BY MICHAEL GUIDRY, OR BOARD OF UNIFIED DEFENSE TECHNOLOGIES.
  *
+ * meszek
  *
- * README CONTAINS INFORMATION
- * WORM subsystem: (to take over the world.. or the internet :))
- * 0. Pick targets (targets listening/communicating over local network/internet)
- *    a. monitor to find addresses/memory/snapshots/etc after IO calls
- * 1. Find bugs via fuzzing..
- *    a. emulate and brute to find EIP/crashes
- * 2. Generate exploits.. (for another branch to be merged later)
  */
 #include <cstddef>
 #include <iostream>

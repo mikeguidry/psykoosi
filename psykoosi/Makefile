@@ -239,6 +239,33 @@ disassemble.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.s
 .PHONY : disassemble.cpp.s
 
+distribution.o: distribution.cpp.o
+
+.PHONY : distribution.o
+
+# target to build an object file
+distribution.cpp.o:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/distribution.cpp.o
+.PHONY : distribution.cpp.o
+
+distribution.i: distribution.cpp.i
+
+.PHONY : distribution.i
+
+# target to preprocess a source file
+distribution.cpp.i:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/distribution.cpp.i
+.PHONY : distribution.cpp.i
+
+distribution.s: distribution.cpp.s
+
+.PHONY : distribution.s
+
+# target to generate assembly for a file
+distribution.cpp.s:
+	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/distribution.cpp.s
+.PHONY : distribution.cpp.s
+
 emu_hooks.o: emu_hooks.cpp.o
 
 .PHONY : emu_hooks.o
@@ -584,6 +611,9 @@ help:
 	@echo "... disassemble.o"
 	@echo "... disassemble.i"
 	@echo "... disassemble.s"
+	@echo "... distribution.o"
+	@echo "... distribution.i"
+	@echo "... distribution.s"
 	@echo "... emu_hooks.o"
 	@echo "... emu_hooks.i"
 	@echo "... emu_hooks.s"
