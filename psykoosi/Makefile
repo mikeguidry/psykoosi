@@ -158,21 +158,6 @@ fuzz/fast:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/build
 .PHONY : fuzz/fast
 
-# Convenience name for target.
-psykoosi/CMakeFiles/psykoosi.dir/rule:
-	cd /Users/mike/psykoosi && $(MAKE) -f CMakeFiles/Makefile2 psykoosi/CMakeFiles/psykoosi.dir/rule
-.PHONY : psykoosi/CMakeFiles/psykoosi.dir/rule
-
-# Convenience name for target.
-psykoosi: psykoosi/CMakeFiles/psykoosi.dir/rule
-
-.PHONY : psykoosi
-
-# fast build rule for target.
-psykoosi/fast:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/build
-.PHONY : psykoosi/fast
-
 analysis.o: analysis.cpp.o
 
 .PHONY : analysis.o
@@ -180,7 +165,6 @@ analysis.o: analysis.cpp.o
 # target to build an object file
 analysis.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/analysis.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.o
 .PHONY : analysis.cpp.o
 
 analysis.i: analysis.cpp.i
@@ -190,7 +174,6 @@ analysis.i: analysis.cpp.i
 # target to preprocess a source file
 analysis.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/analysis.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.i
 .PHONY : analysis.cpp.i
 
 analysis.s: analysis.cpp.s
@@ -200,7 +183,6 @@ analysis.s: analysis.cpp.s
 # target to generate assembly for a file
 analysis.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/analysis.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/analysis.cpp.s
 .PHONY : analysis.cpp.s
 
 apiproxy_client.o: apiproxy_client.cpp.o
@@ -210,7 +192,6 @@ apiproxy_client.o: apiproxy_client.cpp.o
 # target to build an object file
 apiproxy_client.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.o
 .PHONY : apiproxy_client.cpp.o
 
 apiproxy_client.i: apiproxy_client.cpp.i
@@ -220,7 +201,6 @@ apiproxy_client.i: apiproxy_client.cpp.i
 # target to preprocess a source file
 apiproxy_client.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.i
 .PHONY : apiproxy_client.cpp.i
 
 apiproxy_client.s: apiproxy_client.cpp.s
@@ -230,7 +210,6 @@ apiproxy_client.s: apiproxy_client.cpp.s
 # target to generate assembly for a file
 apiproxy_client.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/apiproxy_client.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/apiproxy_client.cpp.s
 .PHONY : apiproxy_client.cpp.s
 
 disassemble.o: disassemble.cpp.o
@@ -240,7 +219,6 @@ disassemble.o: disassemble.cpp.o
 # target to build an object file
 disassemble.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.o
 .PHONY : disassemble.cpp.o
 
 disassemble.i: disassemble.cpp.i
@@ -250,7 +228,6 @@ disassemble.i: disassemble.cpp.i
 # target to preprocess a source file
 disassemble.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.i
 .PHONY : disassemble.cpp.i
 
 disassemble.s: disassemble.cpp.s
@@ -260,7 +237,6 @@ disassemble.s: disassemble.cpp.s
 # target to generate assembly for a file
 disassemble.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/disassemble.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/disassemble.cpp.s
 .PHONY : disassemble.cpp.s
 
 emu_hooks.o: emu_hooks.cpp.o
@@ -297,7 +273,6 @@ emulation.o: emulation.cpp.o
 # target to build an object file
 emulation.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.o
 .PHONY : emulation.cpp.o
 
 emulation.i: emulation.cpp.i
@@ -307,7 +282,6 @@ emulation.i: emulation.cpp.i
 # target to preprocess a source file
 emulation.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.i
 .PHONY : emulation.cpp.i
 
 emulation.s: emulation.cpp.s
@@ -317,7 +291,6 @@ emulation.s: emulation.cpp.s
 # target to generate assembly for a file
 emulation.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/emulation.cpp.s
 .PHONY : emulation.cpp.s
 
 fileformats.o: fileformats.cpp.o
@@ -327,7 +300,6 @@ fileformats.o: fileformats.cpp.o
 # target to build an object file
 fileformats.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/fileformats.cpp.o
 .PHONY : fileformats.cpp.o
 
 fileformats.i: fileformats.cpp.i
@@ -337,7 +309,6 @@ fileformats.i: fileformats.cpp.i
 # target to preprocess a source file
 fileformats.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/fileformats.cpp.i
 .PHONY : fileformats.cpp.i
 
 fileformats.s: fileformats.cpp.s
@@ -347,7 +318,6 @@ fileformats.s: fileformats.cpp.s
 # target to generate assembly for a file
 fileformats.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/fileformats.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/fileformats.cpp.s
 .PHONY : fileformats.cpp.s
 
 fuzz.o: fuzz.cpp.o
@@ -384,7 +354,6 @@ loading.o: loading.cpp.o
 # target to build an object file
 loading.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/loading.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/loading.cpp.o
 .PHONY : loading.cpp.o
 
 loading.i: loading.cpp.i
@@ -394,7 +363,6 @@ loading.i: loading.cpp.i
 # target to preprocess a source file
 loading.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/loading.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/loading.cpp.i
 .PHONY : loading.cpp.i
 
 loading.s: loading.cpp.s
@@ -404,7 +372,6 @@ loading.s: loading.cpp.s
 # target to generate assembly for a file
 loading.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/loading.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/loading.cpp.s
 .PHONY : loading.cpp.s
 
 logging.o: logging.cpp.o
@@ -414,7 +381,6 @@ logging.o: logging.cpp.o
 # target to build an object file
 logging.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/logging.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/logging.cpp.o
 .PHONY : logging.cpp.o
 
 logging.i: logging.cpp.i
@@ -424,7 +390,6 @@ logging.i: logging.cpp.i
 # target to preprocess a source file
 logging.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/logging.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/logging.cpp.i
 .PHONY : logging.cpp.i
 
 logging.s: logging.cpp.s
@@ -434,35 +399,7 @@ logging.s: logging.cpp.s
 # target to generate assembly for a file
 logging.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/logging.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/logging.cpp.s
 .PHONY : logging.cpp.s
-
-main.o: main.cpp.o
-
-.PHONY : main.o
-
-# target to build an object file
-main.cpp.o:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/main.cpp.o
-.PHONY : main.cpp.o
-
-main.i: main.cpp.i
-
-.PHONY : main.i
-
-# target to preprocess a source file
-main.cpp.i:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/main.cpp.i
-.PHONY : main.cpp.i
-
-main.s: main.cpp.s
-
-.PHONY : main.s
-
-# target to generate assembly for a file
-main.cpp.s:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/main.cpp.s
-.PHONY : main.cpp.s
 
 modules.o: modules.cpp.o
 
@@ -471,7 +408,6 @@ modules.o: modules.cpp.o
 # target to build an object file
 modules.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/modules.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/modules.cpp.o
 .PHONY : modules.cpp.o
 
 modules.i: modules.cpp.i
@@ -481,7 +417,6 @@ modules.i: modules.cpp.i
 # target to preprocess a source file
 modules.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/modules.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/modules.cpp.i
 .PHONY : modules.cpp.i
 
 modules.s: modules.cpp.s
@@ -491,7 +426,6 @@ modules.s: modules.cpp.s
 # target to generate assembly for a file
 modules.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/modules.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/modules.cpp.s
 .PHONY : modules.cpp.s
 
 polymorph.o: polymorph.cpp.o
@@ -501,7 +435,6 @@ polymorph.o: polymorph.cpp.o
 # target to build an object file
 polymorph.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.o
 .PHONY : polymorph.cpp.o
 
 polymorph.i: polymorph.cpp.i
@@ -511,7 +444,6 @@ polymorph.i: polymorph.cpp.i
 # target to preprocess a source file
 polymorph.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.i
 .PHONY : polymorph.cpp.i
 
 polymorph.s: polymorph.cpp.s
@@ -521,7 +453,6 @@ polymorph.s: polymorph.cpp.s
 # target to generate assembly for a file
 polymorph.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/polymorph.cpp.s
 .PHONY : polymorph.cpp.s
 
 rebuild.o: rebuild.cpp.o
@@ -531,7 +462,6 @@ rebuild.o: rebuild.cpp.o
 # target to build an object file
 rebuild.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.o
 .PHONY : rebuild.cpp.o
 
 rebuild.i: rebuild.cpp.i
@@ -541,7 +471,6 @@ rebuild.i: rebuild.cpp.i
 # target to preprocess a source file
 rebuild.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.i
 .PHONY : rebuild.cpp.i
 
 rebuild.s: rebuild.cpp.s
@@ -551,7 +480,6 @@ rebuild.s: rebuild.cpp.s
 # target to generate assembly for a file
 rebuild.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/rebuild.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/rebuild.cpp.s
 .PHONY : rebuild.cpp.s
 
 utilities.o: utilities.cpp.o
@@ -561,7 +489,6 @@ utilities.o: utilities.cpp.o
 # target to build an object file
 utilities.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/utilities.cpp.o
 .PHONY : utilities.cpp.o
 
 utilities.i: utilities.cpp.i
@@ -571,7 +498,6 @@ utilities.i: utilities.cpp.i
 # target to preprocess a source file
 utilities.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/utilities.cpp.i
 .PHONY : utilities.cpp.i
 
 utilities.s: utilities.cpp.s
@@ -581,7 +507,6 @@ utilities.s: utilities.cpp.s
 # target to generate assembly for a file
 utilities.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/utilities.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/utilities.cpp.s
 .PHONY : utilities.cpp.s
 
 virtualmemory.o: virtualmemory.cpp.o
@@ -591,7 +516,6 @@ virtualmemory.o: virtualmemory.cpp.o
 # target to build an object file
 virtualmemory.cpp.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/virtualmemory.cpp.o
 .PHONY : virtualmemory.cpp.o
 
 virtualmemory.i: virtualmemory.cpp.i
@@ -601,7 +525,6 @@ virtualmemory.i: virtualmemory.cpp.i
 # target to preprocess a source file
 virtualmemory.cpp.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/virtualmemory.cpp.i
 .PHONY : virtualmemory.cpp.i
 
 virtualmemory.s: virtualmemory.cpp.s
@@ -611,7 +534,6 @@ virtualmemory.s: virtualmemory.cpp.s
 # target to generate assembly for a file
 virtualmemory.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/virtualmemory.cpp.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/virtualmemory.cpp.s
 .PHONY : virtualmemory.cpp.s
 
 xen/x86_emulate.o: xen/x86_emulate.c.o
@@ -621,7 +543,6 @@ xen/x86_emulate.o: xen/x86_emulate.c.o
 # target to build an object file
 xen/x86_emulate.c.o:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.o
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.o
 .PHONY : xen/x86_emulate.c.o
 
 xen/x86_emulate.i: xen/x86_emulate.c.i
@@ -631,7 +552,6 @@ xen/x86_emulate.i: xen/x86_emulate.c.i
 # target to preprocess a source file
 xen/x86_emulate.c.i:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.i
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.i
 .PHONY : xen/x86_emulate.c.i
 
 xen/x86_emulate.s: xen/x86_emulate.c.s
@@ -641,7 +561,6 @@ xen/x86_emulate.s: xen/x86_emulate.c.s
 # target to generate assembly for a file
 xen/x86_emulate.c.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/xen/x86_emulate.c.s
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/xen/x86_emulate.c.s
 .PHONY : xen/x86_emulate.c.s
 
 # Help Target
@@ -652,7 +571,6 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... psykoosi"
 	@echo "... list_install_components"
 	@echo "... install"
 	@echo "... install/local"
@@ -684,9 +602,6 @@ help:
 	@echo "... logging.o"
 	@echo "... logging.i"
 	@echo "... logging.s"
-	@echo "... main.o"
-	@echo "... main.i"
-	@echo "... main.s"
 	@echo "... modules.o"
 	@echo "... modules.i"
 	@echo "... modules.s"

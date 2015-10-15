@@ -377,19 +377,6 @@ fuzz/fast:
 	$(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/build
 .PHONY : fuzz/fast
 
-#=============================================================================
-# Target rules for targets named psykoosi
-
-# Build rule for target.
-psykoosi: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 psykoosi
-.PHONY : psykoosi
-
-# fast build rule for target.
-psykoosi/fast:
-	$(MAKE) -f psykoosi/CMakeFiles/psykoosi.dir/build.make psykoosi/CMakeFiles/psykoosi.dir/build
-.PHONY : psykoosi/fast
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -418,7 +405,6 @@ help:
 	@echo "... capstone-static"
 	@echo "... pe_bliss"
 	@echo "... udis86"
-	@echo "... psykoosi"
 	@echo "... fuzz"
 .PHONY : help
 

@@ -1,4 +1,3 @@
-/Users/mike/psykoosi/psykoosi/CMakeFiles/psykoosi.dir
 /Users/mike/psykoosi/depends/pe_bliss/CMakeFiles/pe_bliss.dir
 /Users/mike/psykoosi/depends/capstone/CMakeFiles/test_arm_regression.dir
 /Users/mike/psykoosi/depends/capstone/CMakeFiles/test_xcore.dir
