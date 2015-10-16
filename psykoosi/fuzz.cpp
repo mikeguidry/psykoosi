@@ -47,6 +47,8 @@ char * Cache_Filename(char *filename, char *type, char *dest) {
 int main(int argc, char *argv[]) {
 	char filename[1024];
 	
+	printf("meszek - psykoosi fuzzing platform\n");
+	
 	// init API Client
 	APIClient apicl;
 	
@@ -58,7 +60,7 @@ int main(int argc, char *argv[]) {
 	
 	
 	if (argc < 2) {
-		printf("meszek - psykoosi fuzzing platform\nusage: %s <binary>\n", argv[0]);
+		printf("usage: %s <PE executable file>\n", argv[0]);
 		exit(-1);
 	}
 
@@ -73,17 +75,22 @@ int main(int argc, char *argv[]) {
 	Sculpture op;
 	// now load emulator before things.. so it can req the aAddress
 	Emulation emu(&op.vmem);
+	// connect the emulator and the sculpture together.. (turns off simulation mode)
 	emu.ConnectToProxy(&apicl);
 	
 
+	// pass classes needed by each other class..
+	// this is a MESS.. fix this :)...
+	// restructure everything!
 	apicl.VM = &op.vmem;
 	op.disasm = new DisassembleTask(&op.vmem);
 	op.analysis = new InstructionAnalysis(op.disasm);
   	op.loader = new BinaryLoader(op.disasm, op.analysis, &op.vmem);
 	op.API = &apicl;
 	emu.Loader = op.loader;
+	
 	int i =  apicl.Ping();
-	printf("Pong: %d\n", i);
+	printf("API Proxy <-> Pong: %d seconds..\n", i);
 
 
 	// we'll create a system for loading configuration details from a file shortly that can be used
@@ -127,7 +134,7 @@ int main(int argc, char *argv[]) {
 	// since our target may not have relocations (fixed:yes in linker)
 	if (ImageBase != 0) {
 		//* (1024 * 16)); add this back whenever we put the change in Init() from above back
-			ImageBase = emu.HeapAlloc(ImageBase, ImageSize );
+		ImageBase = emu.HeapAlloc(ImageBase, ImageSize );
 	} else {
 		printf("Zero ImageBase!\n");
 		exit(-1);
@@ -138,20 +145,17 @@ int main(int argc, char *argv[]) {
 	// if we couldnt allocate the real ImageBase .. we can give another one here...
   	op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase );
 
-	int next_count, inj_count;
+	int next_count = 0, inj_count = 0;
 	int from_cache = 0;
 
 	next_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT);
 	inj_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_INJECTED);
 	printf("next count %d inj %d\n", next_count, inj_count);
-
 	uint32_t highest = op.loader->HighestAddress(1);
-	std::cout << "highest: " << highest << std::endl;
-
+	std::cout << "highest address for binary loader: " << highest << std::endl;
 	op.disasm->SetBinaryLoaderHA(highest);
 	op.disasm->SetPEHandle(op.pe_image);
-	std::cout << "highest: " << highest << std::endl;
-	
+
 	printf("Executing assembly analysis\n");
 
 	int start = time(0);
@@ -221,7 +225,7 @@ int main(int argc, char *argv[]) {
 	//op.vmem.MemDebug = 1;
 	int calls = 40;
 	printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
-	printf("Starting emulation.. [static::%d calls]\n", calls);
+	printf("Starting emulation.. [static::%d instructions]\n", calls);
 	while (calls--) {
 		printf("--\n");
 		// print registers before execution of the next instruction

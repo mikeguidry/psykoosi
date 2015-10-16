@@ -1,1 +1,0 @@
-/usr/bin/cc      CMakeFiles/test_xcore.dir/tests/test_xcore.c.o  -o test_xcore  -L/home/mike/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/psykoosi 

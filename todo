@@ -13,8 +13,54 @@ HIGH PRIORITY:
 
 * generate a DLL to inject into an app which creates and uploads these packets
   for fuzzing that app with all memory, instructions, etc required to fuzz that software
+  - verify speed of different hashing algorithms when enumerating memory allocated
+    for dumping and spotting changes in between instructions/calls, or
+    loading other files/sites/etc in the same app
+    so once we have a base dump of memory.. we will only save the changes
+    since that master 'snapshot' each time a new file is loaded, or site opened
+    create a rewind for the processes (obviously this cant work for kernel handles, or FILE handles)
+    maybe buffer those to emulate it still working properly and just dump to a temp file
+    where it is only available during that execution
+    
+
+  DLL Notes:
+  This is a DLL which is to be injected into a program that is going to be fuzzed...
+  It's goals are to instrument every thread, and log all information once a FILE IO/NETWORK IO happens...
+  the moment the first FILE IO/Network IO that is in a controlled location (IE: data directory, current directory and not a .dll/.exe/etc)
+  or opens a network connection then it freezes and takes a snapshot of the entire memory base..
+  from that point on it will log everything that happens and consider that original state 0
+
+  it needs a controller as well because it should have the ability to manually snapshot 0
+  and then rewind to 0 so the driver(whomever is controlling the app, or script) can 
+  then load another file to be logged...
+
+  every instruction will be emulated with the logger before it is actually executed on the real CPU
+
+  all snapshots besides 0 are linked to each other to save space.. 
+  if a function reads from a data location controlled by a FILE or Network IO then it gets added to a list
+  and so does its own function.. and if it writes to a location, that gets marked and anything that writes to those locations
+  are also monitored
+
+  to handle some state machines... while ((c = *ptr++))  { we want to be able to determine if an entire function has read
+  our data and wrote to another location.. a more 'higher level' appraoch than a single instruction reading/writing 
+
+
+    
+* use autohotkey, autoit, or create a new app which can control the top applications to perform various tasks..
+  possibly monitor real executions of an app by injection, and monitor its window events
+  replaying these events later to perform the same actions on other versions...
+
+* find a way to auto test applications such as passing filenames as arguments
+  and see if we can spot the application attempting to load the file to auto fuzz apps which do this..
+  also try a URL
+  
+  
 LOWER PRIORITY:
 
+* rebuild relocation (or even just modify in memory) for PEs that do not have
+  relocation table.. for a lot of programs this isnt an issue anymore due to
+  ASLR enabled apps
+  
 * modify heap allocation to allow us to request specific areas of memory inside of the heap range..
   first scan and see if we have the range empty (by seeing if its within other heap allocations) and if the range is
   freed but bigger, then we can spit it up.. if its not taken then we can allocate it and then
@@ -24,10 +70,17 @@ LOWER PRIORITY:
   however these are 'binary rewrote' into normal C code that can output executables, asm.js webpages, etc
 
 * integrate unicorn for multiple architecture support
+  replace capstone using emulation (to get size of instruction) and 
+  automatically swap endian-ness and detect absolute and immediate addressing
+  after getting the size of the instruction.. unless qemu has things to give u this information
+  but i dont think so...
 
 * simultaneously brute force all architectures to find opcodes that can be used to
   detect the architecture.. and find a way to determine if a machine is
   win32, bsd, or linux without crashing in any location
+  make an IR language or use TCG to make an arch independent, OS independent backdoor
+  same as shlelcode but without the main technology.. use static inside once it drops to disk
+  grab 1 compiled copy of the destination OS
   
   systematically determine if a crash will kill the process (port listening) or if it
   threads or safely exits if a crash happens so it prioritizes things that dont hurt the

@@ -86,6 +86,9 @@ namespace psykoosi {
 		AllocatedRegion *Regions;
 		
 		VirtualMemory *VM;
+		
+		// flag we turn on to make the next write or peek access the tib
+		bool for_tib;
 	private:
 	
 		// identifier of this execution.. if we reconnect

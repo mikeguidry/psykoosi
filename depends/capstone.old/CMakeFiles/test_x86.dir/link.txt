@@ -1,1 +1,0 @@
-/usr/bin/cc      CMakeFiles/test_x86.dir/tests/test_x86.c.o  -o test_x86  -L/home/mike/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/psykoosi 

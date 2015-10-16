@@ -1,1 +1,0 @@
-/usr/bin/cc      CMakeFiles/test_iter.dir/tests/test_iter.c.o  -o test_iter  -L/home/mike/asm/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/asm/psykoosi 

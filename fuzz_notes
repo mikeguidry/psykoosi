@@ -1,0 +1,24 @@
+detect structures throughout analysis of a DLL/PE by seeing which functions pass memory to other functions
+and seeing whether multiple functions access the same relative bytes of that memory being passed (ie: buffer, handle)
+
+this can help semi-auto locate a state machine or command process loop for software
+to help with use after free bugs in browsers,etc
+
+re-emulate instructions and/or functions using various techniques such as
+modifying the data if it came from possible user controlled variables to
+determine if it can be controlled/manipulated for dWORD writes, etc
+
+try to fuzz compiler flags (seeing if instructions match intel documents
+for particular things like zero flag, carry flag, etc...)
+this could find a new type of bug that nobody has ever used... which could be accessable
+on even secure applications
+
+
+ use same technique as dfuzz for distribution (byte flip, bit flip, bit swap, etc)
+ and give ranges and have 1 machine as the server (and it coudl also start clients)
+ 1 thread per process... dont use pthread for now... ensure simulation
+ can be done over network as well...
+ either using mysql, zeromq, nfs, etc... log to 1 machine as well
+ maybe/could be different from the serving since serving could be taking in
+ new reqursts from desktop/adware
+ 

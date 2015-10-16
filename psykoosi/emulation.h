@@ -168,8 +168,8 @@ namespace psykoosi {
 	  };
 
  // this is a structure for logging register changes during an emulated cycle
-	  typedef struct _reg_changes_simple {
-		  struct _reg_changes_simple *next;
+	  typedef struct _changes_struct {
+		  struct _changes_struct *next;
 
 		  // log ID pertains to the particular change log ID for a set of data that has been logged...
 		  // (this could be reading from one location, and writing to another in a specific order..
@@ -187,12 +187,21 @@ namespace psykoosi {
 		  int Type;
 
 		  // what was the result that was left in this register during this logged change
-		  long long Result;
+		  uint32_t Result;
 
 		  // what was the raw data of the register (this is useful if for instance ASCII, or other data
 		  // is being pushed into the registers)
 		  unsigned char RawResult[8];
-	  } RegChanges;
+      
+      uint32_t Address;
+      int Data_Size;
+      char *Data;
+      
+      // *** FIX REWIND SPEED -
+      // if we dont want to have to keep the origina snapshot in memory
+      // we want to use this for rewinding...
+      //char *Original_Data;
+	  } Changes;
     
 	  // this is the main structure for our emulation logs
 	  typedef struct _emulation_log {
@@ -222,7 +231,7 @@ namespace psykoosi {
 		  MemAddresses *Wrote;
 
 		  // this is the linked list of the register changes from this particular instruction
-		  RegChanges *Changes;
+		  Changes *Changes;
 
 		  // what is the EIP after this instruction has completed? (usually this+size or if a jmp, then the destination)
 		  Emulation::CodeAddr NextEIP;
@@ -290,7 +299,7 @@ namespace psykoosi {
 		  // without enumerating to the end, or putting it first so things are out of order...
 		  EmulationLog *LogLast;
      
-     
+      uint32_t TIB;
 	  } EmulationThread;
 
 	 
@@ -393,9 +402,10 @@ namespace psykoosi {
 	  // this should be called after an instruction has executed to generate the change log to be inserted
 	  // into the threads loggig history
 	  EmulationLog *CreateLog(EmulationThread *);
+    void PrintLog(EmulationLog *logptr);
 
-
-	  Emulation::RegChanges *CreateChangeEntry(Emulation::RegChanges **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
+	  Emulation::Changes *CreateChangeEntryRegister(Emulation::Changes **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
+    Emulation::Changes *CreateChangeLogData(Emulation::Changes **changelist, int which, uint32_t Address, unsigned char *orig, unsigned  char *cur, int size);
     EmulationThread *ExecuteLoop(
 	   VirtualMemory *vmem, Emulation::CodeAddr StartAddr,
 	   Emulation::CodeAddr EndAddr,struct cpu_user_regs *registers,
@@ -433,14 +443,22 @@ namespace psykoosi {
     BinaryLoader *Loader;
     
     uint32_t FindArgument(EmulationThread *thread, Hooks::APIHook *hptr, int);
-    
+
+    int verbose;
     int simulation;
     Hooks APIHooks;
+    APIClient *Proxy;
+    
+    // temp changes is for the 'outside' C functions (x86_emulate ops)
+    // to store their changes so it gets incorporated into the ChangeLog whenever
+    // control returns in StepInstruction()
+    Changes *temp_changes;
+
 	  private:
 
 	  int Current_VM_ID;
 	  int VM_Exec_ID;
-    APIClient *Proxy;
+    
     
     
 

@@ -300,7 +300,10 @@ int APIClient::PushSections() {
 int APIClient::PushData(uint32_t Address, char *Source, int Size) {
 	int ret = 0;
 	printf("pushing data %X %d src %p\n", Address, Size, Source);
-	if (Size < 0) return -1;
+	if (Size < 0) {
+		printf("Size < 0\n");
+		return -1;
+	}
 	// if Source == NULL we push from VMEM
 	int pkt_size = sizeof(MemTransfer) + Size;
 	char *ptr = (char *)malloc(pkt_size + 1);
@@ -317,6 +320,10 @@ int APIClient::PushData(uint32_t Address, char *Source, int Size) {
 	minfo->len = Size;
 	minfo->cmd = MEM_PUSH;
 	minfo->addr = (int32_t)Address;
+	if (for_tib) {
+		for_tib = false;
+		minfo->_virtual = 1;
+	}
 	
 	char *resp = NULL;
 	int resp_size = 0;
@@ -333,7 +340,10 @@ int APIClient::PushData(uint32_t Address, char *Source, int Size) {
 int APIClient::PeekData(uint32_t Address, char *Destination, int Size) {
 	int ret = 0;
 	printf("pulling data %X %d src %p\n", Address, Size, Destination);
-	if (Size < 0) return -1;
+	if (Size < 0) {
+		printf("Size < 0\n");
+		return -1;
+	}
 	// if Source == NULL we push from VMEM
 	int pkt_size = sizeof(MemTransfer) + Size;
 	char *ptr = (char *)malloc(pkt_size + 1);
@@ -350,6 +360,10 @@ int APIClient::PeekData(uint32_t Address, char *Destination, int Size) {
 	minfo->len = Size;
 	minfo->cmd = MEM_PEEK;
 	minfo->addr = (int32_t)Address;
+	if (for_tib) {
+		for_tib = false;
+		minfo->_virtual = 1;
+	}
 	
 	char *resp = NULL;
 	int resp_size = 0;
@@ -804,7 +818,11 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 	PushSections();
 	
 	// push all stack over..
-	PushData(ESP, NULL, (int)(EBP - ESP));
+	int push_size = (int)(EBP - ESP);
+	if (push_size < 0)
+		push_size = 64;
+		 
+	PushData(ESP, NULL, push_size);
 	
 	// should also shadow copy like the windows vversion
 	// using a hashing algorithm to verify changes.. *** FIX
@@ -853,7 +871,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 		}   
 	} else {
 		printf("no RESPONSE\n");
-		throw;
+		//throw;
 	}
 	
 	free(resp);

@@ -1,1 +1,0 @@
-/usr/bin/cc      CMakeFiles/test_mips.dir/tests/test_mips.c.o  -o test_mips  -L/home/mike/psykoosi -rdynamic libcapstone.a -Wl,-rpath,/home/mike/psykoosi 

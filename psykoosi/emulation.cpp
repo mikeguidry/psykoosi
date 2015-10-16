@@ -112,10 +112,23 @@ static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_da
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
 	Emulation *VirtPtr = EmuPtr[thread->ID];
 	VirtualMemory *pVM = _VM2[thread->ID];
+	Emulation::EmulationThread *emuthread = EmuThread[thread->ID];
+	uint32_t off = 0;
+	
+	off = address_from_seg_offset(seg,offset,ctxt);
 
 	printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
 
-	pVM->MemDataWrite(address_from_seg_offset(seg,offset,ctxt),(unsigned char *) p_data, bytes);
+	if (seg == x86_seg_fs) {
+		off = emuthread->TIB + offset;
+	} 
+	printf("final %X\n", off);
+	
+	// *** FIX for rewind.. maybe put the original in thenext call..
+	// read to temporary buffer and push it across.. or allocate here and set on response
+	VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 65536, off, NULL,(unsigned char *) p_data, bytes); 
+	
+	pVM->MemDataWrite(off,(unsigned char *) p_data, bytes);
 
     return X86EMUL_OKAY;
 }
@@ -141,6 +154,7 @@ static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void
 	Emulation *VirtPtr = EmuPtr[thread->ID];
 	VirtualMemory *pVM = _VM2[thread->ID];
 	BinaryLoader *Loader = _BL[0];
+		Emulation::EmulationThread *emuthread = EmuThread[thread->ID];
 
 	if (Loader->Imports != NULL) {
 		BinaryLoader::IAT *iatptr = Loader->Imports;
@@ -152,9 +166,27 @@ static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void
 			memcpy((void *)p_data,(void *) &iatptr->Address, sizeof(uint32_t));
 		}
 	}
+	
+	uint32_t off = address_from_seg_offset(seg,offset,ctxt);
+	
+	// allow TIB (we need for SEH for sure... rest should be mirrored)
+	if (seg == x86_seg_fs) {
+/*		// we must read from the remote TIB until we emulate/implement TIB/PEB locally..
+		VirtPtr->Proxy->for_tib = true;
+		printf("TIB!! vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
+		uint32_t off = (uint32_t)offset;
+		VirtPtr->Proxy->PeekData(off, (char *)p_data, bytes);
+		uint32_t *_dat = (uint32_t *)p_data;
+		printf("%X\n", *_dat); */
+		off = emuthread->TIB + offset; 
 
-    printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
-	pVM->MemDataRead(address_from_seg_offset(seg,offset,ctxt),(unsigned char *) p_data, bytes);
+	} //else {
+	
+    	printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
+		pVM->MemDataRead(off,(unsigned char *) p_data, bytes);
+		
+		VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 131072, off, NULL, (unsigned char *)p_data, bytes);
+	//}
 
 	return X86EMUL_OKAY;
 }
@@ -174,6 +206,9 @@ int Emulation::ConnectToProxy(APIClient *proxy) {
 	Proxy = proxy;
 	
 	printf("EMU Proxy: %p\n", proxy);
+	
+	// turn off simulation (since we will execute live on the API Proxy)
+	simulation = 0;
 	
 	return proxy != NULL;
 }
@@ -266,6 +301,7 @@ int Emulation::SetupThreadStack(EmulationThread *tptr) {
 		}
 	}
 	*/
+	// each thread is default 1meg in win32
 	int Size = 1024 * 1024;
 	uint32_t ESP = 0, EBP = 0;
 	
@@ -312,6 +348,23 @@ int Emulation::SetupThreadStack(EmulationThread *tptr) {
 	SetRegister(tptr, REG_EBP, EBP);
 	SetRegister(tptr, REG_ESP, ESP);
 
+	// lets allocate space for the TIB... (SEH etc)
+	uint32_t _tib = (uint32_t)HeapAlloc(0,4096);
+	tptr->TIB = _tib;
+	// set TIB in FS register (for fs:[0x00] (SEH), TIB, PEB pointer, etc)
+	SetRegister(tptr, REG_FS, tptr->TIB);
+	/* *** FIX
+	emulate 
+	CS = Code segment
+DS = Data segment
+ES = Extra segment
+SS = Stack Segment
+
+this information needs to come from the loader.. and set accordingly for each new thread
+
+*/
+
+	//SetRegister(tptr, REG_SS, tptr->);
 	// put to shadow for when we execute..
 	CopyRegistersToShadow(tptr);
 }
@@ -415,6 +468,9 @@ Emulation::Emulation(VirtualMemory *_VM) {
 		EmuThread[i] = NULL;
 	}
 
+	// we start as a simulation until we are connected to the server
+	simulation = 1;
+	verbose = 1;
 	Proxy = NULL;
 	VM = _VM2[0] = _VM;
 	EmuPtr[0] = this;
@@ -487,7 +543,7 @@ void Emulation::DeleteMemoryAddresses(MemAddresses  *mptr) {
 
 void Emulation::ClearLogEntry(EmulationThread *thread, EmulationLog *log) {
 	EmulationLog *lptr = thread->LogList, *lptr2 = NULL;
-	RegChanges *rptr = NULL, *rptr2 = NULL;
+	Changes *rptr = NULL, *rptr2 = NULL;
 
 
 	if (lptr == NULL) return;
@@ -782,6 +838,13 @@ emu:
 		printf("error with CreateLog.. probably memory related!\n");
 		exit(-1);
 	}
+	
+	// move our 'temporary changes' into the correct posision
+	// in case we had some log from READ/WRITE
+	if (temp_changes != NULL) {
+		ret->Changes = temp_changes;
+		temp_changes = NULL;
+	}
 	// retrieve Virtual Memory changes from the VM subsystem...
 	ret->VMChangeLog = thread->EmuVMEM->ChangeLog_Retrieve(thread->LogID, &ret->VMChangeLog_Count);
 	
@@ -792,6 +855,9 @@ emu:
 	// now update shadow registers for our next execution
 	CopyRegistersToShadow(thread);
 
+	if (ret && verbose) {
+		PrintLog(ret);
+	}
 	// return the changelog to teh caller
 	return ret;
 }
@@ -998,11 +1064,35 @@ void Emulation::DestroyVirtualMachineChild(Emulation::EmulationThread *Thread) {
 	return;
 }
 
-Emulation::RegChanges *Emulation::CreateChangeEntry(Emulation::RegChanges **changelist, int which, unsigned char *orig,
+// adds log for read/writing of data to virtual memory...
+Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changelist, int which, uint32_t Address, unsigned char *orig,
 		unsigned char *cur, int size) {
-	RegChanges *change = new RegChanges;
+	Changes *change = new Changes;
 
-	std::memset(change, 0, sizeof(RegChanges));
+	std::memset(change, 0, sizeof(Changes));
+
+	change->Data_Size = size;
+	change->Type = which;
+	change->Address = Address;
+	
+	change->Data = (char *)malloc(size + 1);
+	if (change->Data == NULL)
+		throw;
+		
+	memcpy(change->Data, cur, size);
+
+	change->next = *changelist;
+	*changelist = change;
+	
+	return change;	
+}
+
+
+Emulation::Changes *Emulation::CreateChangeEntryRegister(Emulation::Changes **changelist, int which, unsigned char *orig,
+		unsigned char *cur, int size) {
+	Changes *change = new Changes;
+
+	std::memset(change, 0, sizeof(Changes));
 
 
 	// ** add 64bit support here...
@@ -1116,68 +1206,67 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 
 	if (thread->registers.eip != thread->registers_shadow.eip) {
 		Monitor |= REG_EIP;
-		//printf("changed EIP %d %p -> %p\n", Monitor & REG_EIP, thread->registers_shadow.eip, thread->registers.eip);
-		CreateChangeEntry(&logptr->Changes, REG_EIP, (unsigned char *)&thread->registers_shadow.eip,  (unsigned char *)&thread->registers.eip, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EIP, (unsigned char *)&thread->registers_shadow.eip,  (unsigned char *)&thread->registers.eip, sizeof(uint32_t));
 	}
 	if (thread->registers.eax != thread->registers_shadow.eax) {
 		Monitor |= REG_EAX;
-		CreateChangeEntry(&logptr->Changes, REG_EAX,  (unsigned char *)&thread->registers_shadow.eax, (unsigned char *) &thread->registers.eax, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EAX,  (unsigned char *)&thread->registers_shadow.eax, (unsigned char *) &thread->registers.eax, sizeof(uint32_t));
 	}
 	if (thread->registers.ebx != thread->registers_shadow.ebx) {
 		Monitor |= REG_EBX;
-		CreateChangeEntry(&logptr->Changes, REG_EBX, (unsigned char *)&thread->registers_shadow.ebx, (unsigned char *) &thread->registers.ebx, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EBX, (unsigned char *)&thread->registers_shadow.ebx, (unsigned char *) &thread->registers.ebx, sizeof(uint32_t));
 	}
 	if (thread->registers.ecx != thread->registers_shadow.ecx) {
 		Monitor |= REG_ECX;
-		CreateChangeEntry(&logptr->Changes, REG_ECX, (unsigned char *) &thread->registers_shadow.ecx, (unsigned char *) &thread->registers.ecx, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_ECX, (unsigned char *) &thread->registers_shadow.ecx, (unsigned char *) &thread->registers.ecx, sizeof(uint32_t));
 	}
 	if (thread->registers.edx != thread->registers_shadow.edx) {
 		Monitor |= REG_EDX;
-		CreateChangeEntry(&logptr->Changes, REG_EDX, (unsigned char *) &thread->registers_shadow.edx, (unsigned char *) &thread->registers.edx, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EDX, (unsigned char *) &thread->registers_shadow.edx, (unsigned char *) &thread->registers.edx, sizeof(uint32_t));
 	}
 	if (thread->registers.esp != thread->registers_shadow.esp) {
 		Monitor |= REG_ESP;
-		CreateChangeEntry(&logptr->Changes, REG_ESP,  (unsigned char *)&thread->registers_shadow.esp,  (unsigned char *)&thread->registers.esp, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_ESP,  (unsigned char *)&thread->registers_shadow.esp,  (unsigned char *)&thread->registers.esp, sizeof(uint32_t));
 	}
 	if (thread->registers.ebp != thread->registers_shadow.ebp) {
 		Monitor |= REG_EBP;
-		CreateChangeEntry(&logptr->Changes, REG_EBP,  (unsigned char *)&thread->registers_shadow.ebp, (unsigned char *) &thread->registers.ebp, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EBP,  (unsigned char *)&thread->registers_shadow.ebp, (unsigned char *) &thread->registers.ebp, sizeof(uint32_t));
 	}
 	if (thread->registers.esi != thread->registers_shadow.esi) {
 		Monitor |= REG_ESI;
-		CreateChangeEntry(&logptr->Changes, REG_ESI,  (unsigned char *)&thread->registers_shadow.esi,  (unsigned char *)&thread->registers.esi, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_ESI,  (unsigned char *)&thread->registers_shadow.esi,  (unsigned char *)&thread->registers.esi, sizeof(uint32_t));
 	}
 	if (thread->registers.edi != thread->registers_shadow.edi) {
 		Monitor |= REG_EDI;
-		CreateChangeEntry(&logptr->Changes, REG_EDI,  (unsigned char *)&thread->registers_shadow.edi, (unsigned char *) &thread->registers.edi, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EDI,  (unsigned char *)&thread->registers_shadow.edi, (unsigned char *) &thread->registers.edi, sizeof(uint32_t));
 	}
 	if (thread->registers.eflags != thread->registers_shadow.eflags) {
 		Monitor |= REG_EFLAGS;
-		CreateChangeEntry(&logptr->Changes, REG_EFLAGS, (unsigned char *) &thread->registers_shadow.eflags,  (unsigned char *)&thread->registers.eflags, sizeof(uint32_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_EFLAGS, (unsigned char *) &thread->registers_shadow.eflags,  (unsigned char *)&thread->registers.eflags, sizeof(uint32_t));
 	}
 	if (thread->registers.cs != thread->registers_shadow.cs) {
 		Monitor |= REG_CS;
-		CreateChangeEntry(&logptr->Changes, REG_CS, (unsigned char *) &thread->registers_shadow.cs, (unsigned char *) &thread->registers.cs, sizeof(uint16_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_CS, (unsigned char *) &thread->registers_shadow.cs, (unsigned char *) &thread->registers.cs, sizeof(uint16_t));
 	}
 	if (thread->registers.es != thread->registers_shadow.es) {
 		Monitor |= REG_ES;
-		CreateChangeEntry(&logptr->Changes, REG_ES, (unsigned char *) &thread->registers_shadow.es,  (unsigned char *)&thread->registers.es, sizeof(uint16_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_ES, (unsigned char *) &thread->registers_shadow.es,  (unsigned char *)&thread->registers.es, sizeof(uint16_t));
 	}
 	if (thread->registers.ds != thread->registers_shadow.ds) {
 		Monitor |= REG_DS;
-		CreateChangeEntry(&logptr->Changes, REG_DS,  (unsigned char *)&thread->registers_shadow.ds,  (unsigned char *)&thread->registers.ds, sizeof(uint16_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_DS,  (unsigned char *)&thread->registers_shadow.ds,  (unsigned char *)&thread->registers.ds, sizeof(uint16_t));
 	}
 	if (thread->registers.fs != thread->registers_shadow.fs) {
 		Monitor |= REG_FS;
-		CreateChangeEntry(&logptr->Changes, REG_FS, (unsigned char *) &thread->registers_shadow.fs, (unsigned char *) &thread->registers.fs, sizeof(uint16_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_FS, (unsigned char *) &thread->registers_shadow.fs, (unsigned char *) &thread->registers.fs, sizeof(uint16_t));
 	}
 	if (thread->registers.gs != thread->registers_shadow.gs) {
 		Monitor |= REG_GS;
-		CreateChangeEntry(&logptr->Changes, REG_GS, (unsigned char *) &thread->registers_shadow.gs, (unsigned char *) &thread->registers.gs, sizeof(uint16_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_GS, (unsigned char *) &thread->registers_shadow.gs, (unsigned char *) &thread->registers.gs, sizeof(uint16_t));
 	}
 	if (thread->registers.ss != thread->registers_shadow.ss) {
 		Monitor |= REG_SS;
-		CreateChangeEntry(&logptr->Changes, REG_SS,  (unsigned char *)&thread->registers_shadow.ss, (unsigned char *) &thread->registers.ss, sizeof(uint16_t));
+		CreateChangeEntryRegister(&logptr->Changes, REG_SS,  (unsigned char *)&thread->registers_shadow.ss, (unsigned char *) &thread->registers.ss, sizeof(uint16_t));
 	}
 
 	// duh! we need it in our structure!
@@ -1187,4 +1276,28 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 	thread->LogList = logptr;
 
 	return logptr;
+}
+
+void Emulation::PrintLog(EmulationLog *logptr) {
+	printf("ChangeLog ID: %X Address: %X [%d EIP change]:",
+		logptr->LogID, logptr->Address, logptr->Size);
+
+	if (logptr->Monitor & REG_EIP) printf("EIP ");
+	if (logptr->Monitor & REG_EAX) printf("EAX ");
+	if (logptr->Monitor & REG_EBX) printf("EBX ");
+	if (logptr->Monitor & REG_ECX) printf("ECX ");
+	if (logptr->Monitor & REG_EDX) printf("EDX ");
+	if (logptr->Monitor & REG_ESP) printf("ESP ");
+	if (logptr->Monitor & REG_EBP) printf("EBP ");
+	if (logptr->Monitor & REG_ESI) printf("ESI ");
+	if (logptr->Monitor & REG_EDI) printf("EDI ");
+	if (logptr->Monitor & REG_EFLAGS) printf("EFLAGS ");
+	if (logptr->Monitor & REG_CS) printf("CS ");
+	if (logptr->Monitor & REG_DS) printf("DS ");
+	if (logptr->Monitor & REG_ES) printf("ES ");
+	if (logptr->Monitor & REG_FS) printf("FS ");
+	if (logptr->Monitor & REG_GS) printf("GS ");
+	if (logptr->Monitor & REG_SS) printf("SS ");
+	
+	printf("\n");
 }
