@@ -31,6 +31,7 @@ extern "C" {
 #include "loading.h"
 #include "apiproxy_client.h"
 #include "emu_hooks.h"
+#include "structures.h"
 #include "emulation.h"
 
 using namespace psykoosi;
@@ -128,7 +129,7 @@ static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_da
 	// read to temporary buffer and push it across.. or allocate here and set on response
 	VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 65536, off, NULL,(unsigned char *) p_data, bytes); 
 	
-	pVM->MemDataWrite(off,(unsigned char *) p_data, bytes);
+	pVM->MemDataWrite(off, (unsigned char *) p_data, bytes);
 
     return X86EMUL_OKAY;
 }
@@ -454,6 +455,8 @@ uint32_t Emulation::Init(uint32_t ReqAddr) {
 	SetRegister(MasterThread, REG_ESI, 4);
 	SetRegister(MasterThread, REG_EDI, 5);
 	
+	VMList = &MasterVM;
+	
 	printf("end init()\n");
 	//SetupThreadStack(MasterThread);
 	return RemAddr;
@@ -474,6 +477,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	Proxy = NULL;
 	VM = _VM2[0] = _VM;
 	EmuPtr[0] = this;
+	completed = 0;
 	std::memset((void *)&MasterVM, 0, sizeof(VirtualMachine));
 	//MasterVM.LogList = NULL;
 	// count of virtual machines and incremental ID
@@ -519,6 +523,8 @@ Emulation::EmulationThread *Emulation::NewThread(Emulation::VirtualMachine *VM) 
 	tptr->EmuVMEM = (VirtualMemory *)VM;
 	tptr->VM = (VirtualMemory *)VM;
 	
+	tptr->next = VM->Threads;
+	VM->Threads = tptr;
 	SetupThreadStack(tptr);
 	
 	return tptr;	
@@ -548,8 +554,11 @@ void Emulation::ClearLogEntry(EmulationThread *thread, EmulationLog *log) {
 
 	if (lptr == NULL) return;
 
-	for (rptr = lptr->Changes; rptr != NULL; rptr = rptr->next) {
+	for (rptr = lptr->Changes; rptr != NULL; ) {
+		Changes *rptr2 = rptr->next;
+		// FIX *** MEMORY LEAK.. free the reest of the structure..
 		delete rptr;
+		rptr = rptr2;
 	}
 
 	DeleteMemoryAddresses(lptr->Read);
@@ -683,7 +692,9 @@ int Emulation::PreExecute(EmulationThread *thread) {
 	uint32_t EIP = thread->thread_ctx.emulation_ctx.regs->eip; 
 	if (EIP == 0xDEADDEAD || EIP == 0) {
 		printf("Done.. EIP %X\n", EIP);
-		exit(-1);
+		completed = 1;
+		//exit(-1);
+		return 1;
 	}
 	
 	//printf("PRE: %p\n", thread->thread_ctx.emulation_ctx.regs->eip);
@@ -781,10 +792,56 @@ int Emulation::PreExecute(EmulationThread *thread) {
 }
 
 
+// emulates a complete cycle on a virtual machine...
+// this includes all threads...
+int Emulation::StepCycle(VirtualMachine *VirtPtr) {
+	int ret = 0;
+	EmulationThread *tptr = VirtPtr->Threads;
+	EmulationLog *logptr = NULL;
+	
+	for (; tptr != NULL; tptr = tptr->next) {
+		// *** FIX we need to detect a thread crash, overflow.. emulated_read_fetch
+
+		printf("--\n");
+		// print registers before execution of the next instruction
+		printf("EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
+		(uint32_t)tptr->registers.eip, (uint32_t)tptr->registers.esp,
+		(uint32_t)tptr->registers.ebp,
+		(uint32_t)tptr->registers.eax,
+		(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
+		(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
+		(uint32_t)tptr->registers.edi);
+
+		logptr = StepInstruction(tptr, 0);
+		
+		Sculpture *op = (Sculpture *)_op;
+		// get the 'instruction information' structure for this particular instruction
+		// from the disassembly subsystem
+		DisassembleTask::InstructionInformation *InsInfo = op->disasm->GetInstructionInformationByAddress(tptr->registers.eip, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
+		if (InsInfo != NULL) {
+			//char *ptrbuf = (char *)InsInfo->InstructionMnemonicString;
+			std::string ptrbuf = op->disasm->disasm_str(InsInfo->Address, (char *)InsInfo->RawData, InsInfo->Size);
+			printf("%p %s\n", tptr->registers.eip,ptrbuf.c_str()); 
+			
+		} else {
+			// report that we didnt find this.. locate why later...
+			printf("[!!!] InsInfo NULL for %X\n", tptr->registers.eip);
+		}
+		
+		// do some sanity checks on the thread...
+		if (!tptr->last_successful) {
+			printf("ERROR on thread %d LogID %d [Cpu Start %d Cycle %d Start Addr %X]\n", tptr->ID, tptr->LogID,
+			tptr->CPUStart, tptr->CPUCycle, tptr->StartAddress);
+		}
+	}
+	
+	return ret;
+}
+
 Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, CodeAddr Address) {
 	EmulationThread *thread = NULL;
 	int r = 0, retry_count = 0;
-	if (_thread == NULL) thread = MasterThread;
+	if (_thread == NULL) thread = MasterThread; else thread = _thread;
 	_BL[0] = Loader;
 	EmulationLog *ret = NULL;
 
@@ -821,7 +878,7 @@ emu:
 	} else if (r == X86EMUL_RETRY) {
 		printf("X86EMUL_RETRY\n");
 		// retry.. like it says..
-		if (retry_count++ < 3)
+		if (retry_count++ < 4)
 			goto emu;
 	} else if (r == X86EMUL_CMPXCHG_FAILED) {
 		// maybe just retry this.. not usre what it means about accessor.. we can test soon
@@ -842,9 +899,20 @@ emu:
 	// move our 'temporary changes' into the correct posision
 	// in case we had some log from READ/WRITE
 	if (temp_changes != NULL) {
-		ret->Changes = temp_changes;
+		printf("temp changes\n");
+		if (ret->Changes == NULL) {
+			ret->Changes = temp_changes;
+		} else {
+			Changes *chptr = ret->Changes;
+			while (chptr->next != NULL) {
+				printf("c\n");
+				chptr = chptr->next;	
+			}
+			chptr->next = temp_changes;
+		}
 		temp_changes = NULL;
 	}
+	
 	// retrieve Virtual Memory changes from the VM subsystem...
 	ret->VMChangeLog = thread->EmuVMEM->ChangeLog_Retrieve(thread->LogID, &ret->VMChangeLog_Count);
 	
@@ -855,9 +923,16 @@ emu:
 	// now update shadow registers for our next execution
 	CopyRegistersToShadow(thread);
 
-	if (ret && verbose) {
-		PrintLog(ret);
+	if (ret) {
+		if (verbose) {
+			PrintLog(ret);
+		}
 	}
+	
+	if (thread->LogLast == NULL && thread->LogList != NULL) {
+		thread->LogLast = thread->LogList;
+	}
+	
 	// return the changelog to teh caller
 	return ret;
 }
@@ -1067,6 +1142,8 @@ void Emulation::DestroyVirtualMachineChild(Emulation::EmulationThread *Thread) {
 // adds log for read/writing of data to virtual memory...
 Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changelist, int which, uint32_t Address, unsigned char *orig,
 		unsigned char *cur, int size) {
+			
+	printf("CHANGE DATA\n");
 	Changes *change = new Changes;
 
 	std::memset(change, 0, sizeof(Changes));
@@ -1081,8 +1158,24 @@ Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changeli
 		
 	memcpy(change->Data, cur, size);
 
-	change->next = *changelist;
+	
+/*	change->next = *changelist;
 	*changelist = change;
+*/
+	Emulation::Changes *cptr = *changelist;
+	if (cptr != NULL) {
+		int c = 0;
+		while (cptr->next != NULL) {
+			cptr = cptr->next;
+			c++;
+		}
+		
+		cptr->next = change;
+		
+		printf("Added to next [%d count]\n", c);
+	} else {
+		*changelist = change;
+	}
 	
 	return change;	
 }
@@ -1272,14 +1365,19 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 	// duh! we need it in our structure!
 	logptr->Monitor = Monitor;
 
-	logptr->next = thread->LogList;
-	thread->LogList = logptr;
-
+	if (thread->LogList == NULL) {
+		thread->LogList = thread->LogLast = logptr;
+	} else {
+		thread->LogLast->next = logptr;
+		thread->LogLast = logptr;
+	}
+	
 	return logptr;
 }
 
+
 void Emulation::PrintLog(EmulationLog *logptr) {
-	printf("ChangeLog ID: %X Address: %X [%d EIP change]:",
+	printf("ChangeLog ID: %d Address: %X [%d EIP change]:",
 		logptr->LogID, logptr->Address, logptr->Size);
 
 	if (logptr->Monitor & REG_EIP) printf("EIP ");

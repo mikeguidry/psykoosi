@@ -28,6 +28,7 @@ do higher level analysis (ie: where its reading/writing to)
 #include <sys/uio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
 #include "virtualmemory.h"
 #include "apiproxy_client.h"
 extern "C" {
@@ -37,6 +38,7 @@ extern "C" {
 #include "disassemble.h"
 #include "analysis.h"
 #include "loading.h"
+#include "structures.h"
 #include "emu_hooks.h"
 #include "emulation.h"
 

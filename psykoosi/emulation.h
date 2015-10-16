@@ -300,6 +300,7 @@ namespace psykoosi {
 		  EmulationLog *LogLast;
      
       uint32_t TIB;
+      uint32_t StartAddress;
 	  } EmulationThread;
 
 	 
@@ -436,6 +437,7 @@ namespace psykoosi {
     int ConnectToProxy(APIClient *);
     
     uint32_t Init(uint32_t);
+    int StepCycle(VirtualMachine *VirtPtr);
     int SetupThreadStack(EmulationThread *tptr);
     
     int UsingProxy();  
@@ -449,11 +451,17 @@ namespace psykoosi {
     Hooks APIHooks;
     APIClient *Proxy;
     
+    VirtualMachine *VMList;
+    
     // temp changes is for the 'outside' C functions (x86_emulate ops)
     // to store their changes so it gets incorporated into the ChangeLog whenever
     // control returns in StepInstruction()
     Changes *temp_changes;
 
+    bool completed;
+    
+    void *_op;
+    
 	  private:
 
 	  int Current_VM_ID;

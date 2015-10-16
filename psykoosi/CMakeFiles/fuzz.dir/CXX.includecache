@@ -167,6 +167,8 @@ analysis.h
 /Users/mike/psykoosi/psykoosi/analysis.h
 loading.h
 /Users/mike/psykoosi/psykoosi/loading.h
+structures.h
+/Users/mike/psykoosi/psykoosi/structures.h
 emu_hooks.h
 /Users/mike/psykoosi/psykoosi/emu_hooks.h
 emulation.h
@@ -209,6 +211,8 @@ apiproxy_client.h
 /Users/mike/psykoosi/psykoosi/apiproxy_client.h
 emu_hooks.h
 /Users/mike/psykoosi/psykoosi/emu_hooks.h
+structures.h
+/Users/mike/psykoosi/psykoosi/structures.h
 emulation.h
 /Users/mike/psykoosi/psykoosi/emulation.h
 
@@ -253,12 +257,12 @@ rebuild.h
 /Users/mike/psykoosi/psykoosi/rebuild.h
 apiproxy_client.h
 /Users/mike/psykoosi/psykoosi/apiproxy_client.h
-structures.h
-/Users/mike/psykoosi/psykoosi/structures.h
 emu_hooks.h
 /Users/mike/psykoosi/psykoosi/emu_hooks.h
 emulation.h
 /Users/mike/psykoosi/psykoosi/emulation.h
+structures.h
+/Users/mike/psykoosi/psykoosi/structures.h
 unistd.h
 -
 

@@ -1,7 +1,20 @@
 TODO FOR PSY/MESZEK 10/15/15
 
+This software is meant to test your own software, or network.  I take no responsbility for any damages caused by other uses from users with more malicious intent.
 
 HIGH PRIORITY:
+
+* implement multithreading support, and finish on API Proxy Server
+  multithreading is purely for emulation..
+  we will run 1 instruction per thread per CPU 'cycle...'
+  this will allow us to also analyze malware and fake antu debugging
+  (such as RDTSC, etc, etc)
+  it can look exactly as a real machine would look because we contorl all variables
+  we can defeat polymorphism by creating hashes of log data... or
+  use to create our polymorphism as well
+  new emu thread, and similar to ROP use to find code and make
+  a database of what code does so it can be reused later (see frankstein)
+  
 * finish PostExecute (ret_fix/ret_eax) for writing the protocol exchange data AddProtocolExchange()
 
 * test on fake vulnerabilities, and some real apps: adobe flash, adobe reader, IE,FF, IE, CHr

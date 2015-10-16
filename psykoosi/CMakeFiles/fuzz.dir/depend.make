@@ -152,6 +152,7 @@ psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/emu_hooks.cpp
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/emu_hooks.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/emulation.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/loading.h
+psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/structures.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/virtualmemory.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/xen/x86_emulate.h
 psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o: psykoosi/xen/xen-x86_32.h
@@ -203,6 +204,7 @@ psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/emu_hooks.h
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/emulation.cpp
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/emulation.h
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/loading.h
+psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/structures.h
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/virtualmemory.h
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/xen/x86_emulate.h
 psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o: psykoosi/xen/xen-x86_32.h

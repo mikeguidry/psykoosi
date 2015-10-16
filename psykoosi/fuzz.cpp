@@ -4,7 +4,10 @@
  *
  * meszek
  *
+ * The intentions of this software is to find bugs solely in your own products.  I take no responsibility for
+ * any damages created by anyone who takes and decides to use this software in their own way.
  */
+
 #include <cstddef>
 #include <iostream>
 #include <cstring>
@@ -19,10 +22,10 @@
 #include "loading.h"
 #include "rebuild.h"
 #include "apiproxy_client.h"
-#include "structures.h"
+
 #include "emu_hooks.h"
 #include "emulation.h"
-
+#include "structures.h"
 extern "C" {
 #include <unistd.h>
 }
@@ -74,9 +77,11 @@ int main(int argc, char *argv[]) {
 	// Lets initialize our main class....
 	Sculpture op;
 	// now load emulator before things.. so it can req the aAddress
+	
 	Emulation emu(&op.vmem);
 	// connect the emulator and the sculpture together.. (turns off simulation mode)
 	emu.ConnectToProxy(&apicl);
+	emu._op = (void *)&op;
 	
 
 	// pass classes needed by each other class..
@@ -226,7 +231,8 @@ int main(int argc, char *argv[]) {
 	int calls = 40;
 	printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	printf("Starting emulation.. [static::%d instructions]\n", calls);
-	while (calls--) {
+	while (calls-- && !emu.completed) {
+		/*
 		printf("--\n");
 		// print registers before execution of the next instruction
 		printf("EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
@@ -255,9 +261,34 @@ int main(int argc, char *argv[]) {
 		Emulation::EmulationLog *exec_log = emu.StepInstruction(NULL, 0);
 		if (exec_log == NULL) {
 			printf("ERROR executing that instruction...\n");
-		} 
+		} */
+		emu.StepCycle(emu.VMList);
 	}
 	
 	
-	printf("Done\n");
+	printf("Emulation Completed...\n");
+	
+	printf("Printing resulting logs:\n");
+	Emulation::EmulationLog *logptr = emu.MasterThread->LogList;
+	
+	while (logptr != NULL) {
+		printf("LogID: %d EIP Address: %X NextEIP %X ChangeLog Count %d\n",
+			logptr->LogID, logptr->Address, logptr->NextEIP, logptr->VMChangeLog_Count);
+		
+		emu.PrintLog(logptr);
+		
+		Emulation::Changes *chptr = logptr->Changes;
+		
+		while (chptr != NULL) {
+			printf("\tLogged Changes Type %d Address %X Data Size %d\n", chptr->Type, chptr->Address, chptr->Data_Size);
+			
+			chptr = chptr->next;
+		}
+		printf("--\n");
+		
+		logptr = logptr->next;
+	}
+	
+	
+	
 }

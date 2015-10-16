@@ -153,6 +153,7 @@ psykoosi/CMakeFiles/fuzz.dir/emu_hooks.cpp.o
  /Users/mike/psykoosi/psykoosi/emu_hooks.h
  /Users/mike/psykoosi/psykoosi/emulation.h
  /Users/mike/psykoosi/psykoosi/loading.h
+ /Users/mike/psykoosi/psykoosi/structures.h
  /Users/mike/psykoosi/psykoosi/virtualmemory.h
  /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
  /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h
@@ -204,6 +205,7 @@ psykoosi/CMakeFiles/fuzz.dir/emulation.cpp.o
  /Users/mike/psykoosi/psykoosi/emulation.cpp
  /Users/mike/psykoosi/psykoosi/emulation.h
  /Users/mike/psykoosi/psykoosi/loading.h
+ /Users/mike/psykoosi/psykoosi/structures.h
  /Users/mike/psykoosi/psykoosi/virtualmemory.h
  /Users/mike/psykoosi/psykoosi/xen/x86_emulate.h
  /Users/mike/psykoosi/psykoosi/xen/xen-x86_32.h

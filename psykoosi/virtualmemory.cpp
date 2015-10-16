@@ -153,6 +153,10 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
     return mptr;
 }
 
+/*
+ 	changelog should be setup here.. since we will support multi arch using unicorn
+	*** FIX
+*/
 
 VirtualMemory::ChangeLog *VirtualMemory::ChangeLog_Add(int type, CodeAddr Addr, unsigned char *data, int len) {
 	if (type == VMEM_READ && !Settings[SettingType::SETTINGS_CHANGELOG_READS]) return NULL;
@@ -221,7 +225,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 
 		// current is so we only do a changelog at the end, or when a page changes.. so we dont have
 		// change logs for single bytes... or if its the last byte...
-		if (Settings[SettingType::SETTINGS_CHANGELOG]) {
+		/*if (Settings[SettingType::SETTINGS_CHANGELOG]) {
 			if (mptr_current != mptr || ((i + 1) == len)) {
 				// Logs if our internal page changes...
 				current_count++;
@@ -243,7 +247,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			} else
 				// otherwise increases the count.. so we can log later (when completed... or changes)
 				current_count++;
-		}
+		}*/
 
 		count++;
     }
