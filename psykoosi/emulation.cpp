@@ -1035,11 +1035,6 @@ uint32_t Emulation::CreateThread(EmulationThread *tptr) {
 	uint32_t dwCreationFlags = StackPop(tptr);
 	uint32_t lpThreadID = StackPop(tptr);
 	
-	
-	
-	
-
-	
 	printf("CreateThread ID %X flags %X param %X start addr %X stack size %d thread attr %d\n",
 	lpThreadID, dwCreationFlags, lpParameter, lpStartAddress, dwStackSize, lpThreadAttributes); 
 
@@ -1066,7 +1061,10 @@ uint32_t Emulation::CreateThread(EmulationThread *tptr) {
 	SetRegister(thread, REG_EIP, lpStartAddress);
 	
 	printf("New Thread %X\n", thread);
-	EmuThread[thread->ID] = thread; 
+	EmuThread[thread->ID] = thread;
+	if (lpThreadID != NULL) {
+		thread->EmuVMEM->MemDataWrite(lpThreadID, (unsigned char *)&thread->ID, sizeof(uint32_t));
+	} 
 	return thread->ID;
 }
 
@@ -1078,10 +1076,8 @@ void Emulation::StackPush(EmulationThread *thread, uint32_t value) {
 
 uint32_t Emulation::StackPop(EmulationThread *thread) {
 	uint32_t ret = 0;
-
-	printf("thread %X ESP %X\n", thread, thread->thread_ctx.emulation_ctx.regs->esp);	
-	VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->esp, (unsigned char *)&ret, sizeof(uint32_t));
-	printf("POPPPED %X\n", ret);
+	
+	VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->esp, (unsigned char *)&ret, sizeof(uint32_t));	
 	thread->thread_ctx.emulation_ctx.regs->esp += sizeof(uint32_t);
 	
 	return ret;
