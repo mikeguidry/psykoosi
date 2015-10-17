@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
 	emu.SetRegister(emu.MasterThread, Emulation::REG_EBX, emu.MasterVM.PEB);
 	
 	//op.vmem.MemDebug = 1;
-	int calls = 40;
+	int calls = 500000000;
 	printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	printf("Starting emulation.. [static::%d instructions]\n", calls);
 	while (calls-- && !emu.completed) {

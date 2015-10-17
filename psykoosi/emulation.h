@@ -261,7 +261,7 @@ namespace psykoosi {
       
 		  // the identifier for this thread which is used to correlate data within the specialty functions,
 		  // and logging operations
-		  int ID;
+		  uint32_t ID;
 
 		  // what CPU cycle has this thread started at?
 		  // this is useful to determine if this thread has to be cloned during creation of more VMs of specific
@@ -301,6 +301,11 @@ namespace psykoosi {
      
       uint32_t TIB;
       uint32_t StartAddress;
+      int completed;
+      
+      int sleep_start;
+      int sleep_time;
+      int state;
 	  } EmulationThread;
 
 	 
@@ -424,9 +429,13 @@ namespace psykoosi {
     EmulationThread *NewVirtualMachineChild(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
     void DestroyVirtualMachineChild(Emulation::EmulationThread *Thread);
 
+    void StackPush(EmulationThread *, uint32_t value);
+    uint32_t StackPop(EmulationThread *);
+
     int PreExecute(EmulationThread *thread);
     int PostExecute(EmulationThread *thread, uint32_t);
     
+    uint32_t CreateThread(EmulationThread *tptr);
 	  EmulationThread *MasterThread;
     VirtualMachine MasterVM;
 
@@ -444,7 +453,7 @@ namespace psykoosi {
     VirtualMemory *VM;
     BinaryLoader *Loader;
     
-    uint32_t FindArgument(EmulationThread *thread, Hooks::APIHook *hptr, int);
+    uint32_t FindArgument(EmulationThread *thread,  int arg_information);
 
     int verbose;
     int simulation;

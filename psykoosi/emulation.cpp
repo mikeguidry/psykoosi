@@ -508,7 +508,7 @@ Emulation::EmulationThread *Emulation::NewThread(Emulation::VirtualMachine *VM) 
 	
 	std::memset(tptr, 0, sizeof(EmulationThread));
 	
-	tptr->thread_ctx.ID = VM->thread_id++;
+	tptr->thread_ctx.ID = tptr->ID = VM->thread_id++;
 	tptr->thread_ctx.emulation_ctx.addr_size = 32;
 	tptr->thread_ctx.emulation_ctx.sp_size = 32;
 	tptr->thread_ctx.emulation_ctx.regs = &tptr->registers;
@@ -520,11 +520,16 @@ Emulation::EmulationThread *Emulation::NewThread(Emulation::VirtualMachine *VM) 
 	SetRegister(tptr, REG_ESI, 4);
 	SetRegister(tptr, REG_EDI, 5);
 	
-	tptr->EmuVMEM = (VirtualMemory *)VM;
+	tptr->EmuVMEM = (VirtualMemory *)VM->Memory;
 	tptr->VM = (VirtualMemory *)VM;
 	
 	tptr->next = VM->Threads;
 	VM->Threads = tptr;
+	
+	EmuPtr[tptr->ID] = this;
+	_VM2[tptr->ID] = tptr->EmuVMEM;
+	EmuThread[tptr->ID] = tptr;
+	
 	SetupThreadStack(tptr);
 	
 	return tptr;	
@@ -612,8 +617,8 @@ int Emulation::PostExecute(EmulationThread *thread, uint32_t EIP) {
 			// log the data returned to our user appointed buffer
 			// so we can simulate on another execution
 			if (hptr) {
-				uint32_t buf_addr = FindArgument(thread, hptr, hptr->find_buffer);
-				uint32_t buf_size = FindArgument(thread, hptr, hptr->find_size);
+				uint32_t buf_addr = FindArgument(thread, hptr->find_buffer);
+				uint32_t buf_size = FindArgument(thread, hptr->find_size);
 				char *buf = NULL;
 				
 				if (buf_size) {
@@ -645,7 +650,7 @@ int Emulation::PostExecute(EmulationThread *thread, uint32_t EIP) {
 
 // this will take a current thread context.. and find the buffer for the function thats hooked
 // *** Finish this.. and try to remove the constants.. maybe programmatically handle this
-uint32_t Emulation::FindArgument(EmulationThread *thread, Hooks::APIHook *hptr, int arg_information) {
+uint32_t Emulation::FindArgument(EmulationThread *thread, int arg_information) {
 	uint32_t ESP = thread->thread_ctx.emulation_ctx.regs->esp;
 	uint32_t ret = 0;
 	
@@ -685,14 +690,14 @@ uint32_t Emulation::FindArgument(EmulationThread *thread, Hooks::APIHook *hptr, 
 	return ret;
 }
 
-
 // catch IAT (called functions in DLLs) and redirect to either
 // foreign machine/wine using API proxy.. or simulate from a log
 int Emulation::PreExecute(EmulationThread *thread) {
 	uint32_t EIP = thread->thread_ctx.emulation_ctx.regs->eip; 
 	if (EIP == 0xDEADDEAD || EIP == 0) {
 		printf("Done.. EIP %X\n", EIP);
-		completed = 1;
+		thread->completed = 1;
+		//completed = 1;
 		//exit(-1);
 		return 1;
 	}
@@ -703,6 +708,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 	if (Loader->Imports) {
 		BinaryLoader::IAT *iatptr = Loader->FindIAT(EIP);
 		if (iatptr != NULL) {
+			int proxied = 0;
 			uint32_t eax_ret = 0;
 			uint32_t ret_fix = 0;
 			uint32_t esp = 0;
@@ -713,62 +719,101 @@ int Emulation::PreExecute(EmulationThread *thread) {
 				hptr = APIHooks.HookFind(iatptr->module, iatptr->function);
 			}
 			
-			// we found a redirected function for the API Proxy
-			printf("Proxy Func/IAT: %s %s\n", iatptr->module, iatptr->function);
-
-			VirtualMachine *_VM = (VirtualMachine *)thread->VM;
-			
-			if (!simulation || hptr == NULL) {
-				// call the function on the proxy server...
-				int call_ret = Proxy->CallFunction(iatptr->module, iatptr->function,0,
-					thread->thread_ctx.emulation_ctx.regs->esp,
-					thread->thread_ctx.emulation_ctx.regs->ebp,
-					MasterVM.HeapLow, (MasterVM.HeapHigh - MasterVM.HeapLow), &eax_ret, _VM->StackHigh, &ret_fix);
-	
-				// *** FIX
-				if (call_ret != 1) {	
-					printf("ERROR Making call.. fix logic later! (reconnect, etc, etc, local emu)\n");
-					exit(-1);
-				}
+			printf("FUNC \"%s\"\n", iatptr->function);
+			if (strcmp(iatptr->function, "ExitThread")==0) {
+				thread->completed = 1;
+				ret_fix = 4;
+				proxied = 0;
+			}
+			else if (strcmp(iatptr->function, "Sleep")==0) {
+				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				ret_eip = StackPop(thread);
 				
-
+				thread->sleep_time = StackPop(thread);
+				if (thread->sleep_time > 1000) thread->sleep_time /= 1000;
+				
+				printf("Sleep time: %d\n", thread->sleep_time);
+				thread->sleep_start = time(0);
+				thread->state = 1;
+				
+				ret_fix = 4;
+				proxied = 0;
+			} else if (strcmp(iatptr->function, "CreateThread")==0) {
+				proxied = 0;
+				// hack since we are using StackPop() .. later we should keep stack pop...
+				// but it has to get the return address up here rather than down *** FIX
+				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				ret_eip = StackPop(thread);
+				eax_ret = CreateThread(thread);
+				ret_fix = 0;
+				printf("EIP create %X eax ret %X\n", ret_eip, eax_ret);
+				//thread->thread_ctx.emulation_ctx.regs->esp = esp;
 			} else {
-				// we are simulating.. lets load from the database...
-				Hooks::ProtocolExchange *xptr = APIHooks.NextProtocolExchange(hptr->id, hptr->side);
-				if (xptr == NULL) {
-					printf("Missing protocl exchange... hook id %d side %d module %s func %s\n",
-						hptr->id, hptr->side, hptr->module_name, hptr->function_name);
-						throw;
-				}
-				
-				// how many bytes & whats the return info for this call..
-				eax_ret = xptr->call_ret;
-				ret_fix = xptr->ret_fix;
-				
-				// now we have to copy the real data.. this requires differences for each
-				// we need to use a strategy (pretty generic way to tell our hooking functions
-				// that a particular buffer can be found on the stack, or at an address dereferenced
-				// from the stack...
-				uint32_t buf_addr = FindArgument(thread, hptr, hptr->find_buffer);
-				//uint32_t buf_size = FindArgument(thread, hptr, hptr->find_size);
-				
-				// copy the data in place..
-				thread->EmuVMEM->MemDataWrite(buf_addr, (unsigned char *)xptr->buf, xptr->size);
-				
-				// we are done!
-				
+				proxied = 1;
 			}
 			
-			printf("Ret fix %d ESP %X\n", ret_fix,
-				thread->thread_ctx.emulation_ctx.regs->esp);
+			if (proxied == 1) {
+				// we found a redirected function for the API Proxy
+				printf("Proxy Func/IAT: %s %s\n", iatptr->module, iatptr->function);
+	
+				VirtualMachine *_VM = (VirtualMachine *)thread->VM;
+				
+				if (!simulation || hptr == NULL) {
+					// call the function on the proxy server...
+					int call_ret = Proxy->CallFunction(iatptr->module, iatptr->function,0,
+						thread->thread_ctx.emulation_ctx.regs->esp,
+						thread->thread_ctx.emulation_ctx.regs->ebp,
+						MasterVM.HeapLow, (MasterVM.HeapHigh - MasterVM.HeapLow), &eax_ret, _VM->StackHigh, &ret_fix);
+		
+					// *** FIX
+					if (call_ret != 1) {	
+						printf("ERROR Making call.. fix logic later! (reconnect, etc, etc, local emu)\n");
+						exit(-1);
+					}
+					
+	
+				} else {
+					// we are simulating.. lets load from the database...
+					Hooks::ProtocolExchange *xptr = APIHooks.NextProtocolExchange(hptr->id, hptr->side);
+					if (xptr == NULL) {
+						printf("Missing protocl exchange... hook id %d side %d module %s func %s\n",
+							hptr->id, hptr->side, hptr->module_name, hptr->function_name);
+							throw;
+					}
+					
+					// how many bytes & whats the return info for this call..
+					eax_ret = xptr->call_ret;
+					ret_fix = xptr->ret_fix;
+					
+					// now we have to copy the real data.. this requires differences for each
+					// we need to use a strategy (pretty generic way to tell our hooking functions
+					// that a particular buffer can be found on the stack, or at an address dereferenced
+					// from the stack...
+					uint32_t buf_addr = FindArgument(thread, hptr->find_buffer);
+					//uint32_t buf_size = FindArgument(thread, hptr, hptr->find_size);
+					
+					// copy the data in place..
+					thread->EmuVMEM->MemDataWrite(buf_addr, (unsigned char *)xptr->buf, xptr->size);
+					
+					// we are done!
+					
+				}
+			}
+				
+			printf("Ret fix %d ESP %X proxied %d\n", ret_fix,
+			thread->thread_ctx.emulation_ctx.regs->esp, proxied);
 			
 			// return the return value in EAX.. 
 			SetRegister(thread, REG_EAX, eax_ret);
 			
-			// find return address from call instruction
-			ret_eip = 0;
-			esp = thread->thread_ctx.emulation_ctx.regs->esp;
-			VM->MemDataRead(esp, (unsigned char *)&ret_eip, sizeof(uint32_t));
+			if (ret_eip == 0) {
+				// find return address from call instruction
+				ret_eip = 0;
+				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				VM->MemDataRead(esp, (unsigned char *)&ret_eip, sizeof(uint32_t));
+				
+				esp += sizeof(uint32_t);
+			}
 			
 			
 			printf("RET EIP from Call: %X [from esp %X]\n", ret_eip, esp);
@@ -781,9 +826,8 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			
 			// mimic a return from a called function..
 			// EIP = *ESP.. add esp, sizeof(DWORD_PTR)
-			SetRegister(thread, REG_EIP, ret_eip);
-			esp += sizeof(uint32_t);
 			SetRegister(thread, REG_ESP, esp);
+			SetRegister(thread, REG_EIP, ret_eip);
 			
 			return 1;
 		}
@@ -798,43 +842,68 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 	int ret = 0;
 	EmulationThread *tptr = VirtPtr->Threads;
 	EmulationLog *logptr = NULL;
+	int count = 0;
+	int active = 0;
 	
+	// loop all threads and perform an instruction...
+	// this isnt as efficient as a real task scheduler...
+	// for now it wont matter :)
 	for (; tptr != NULL; tptr = tptr->next) {
+		if (tptr->completed) continue;
+		count++;
+		if (tptr->state == 1) {
+			int cur_ts = time(0);
+			if ((cur_ts - tptr->sleep_start) >= tptr->sleep_time) {
+				tptr->state = 0;
+			} else {
+				printf("Thread %d asleep\n", tptr->ID);
+				continue;
+			}
+		}
+		active++;
 		// *** FIX we need to detect a thread crash, overflow.. emulated_read_fetch
-
-		printf("--\n");
-		// print registers before execution of the next instruction
-		printf("EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
-		(uint32_t)tptr->registers.eip, (uint32_t)tptr->registers.esp,
-		(uint32_t)tptr->registers.ebp,
-		(uint32_t)tptr->registers.eax,
-		(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
-		(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
-		(uint32_t)tptr->registers.edi);
+		if (verbose) {
+			printf("--\n");
+			// print registers before execution of the next instruction
+			printf("TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
+			tptr->ID,
+			(uint32_t)tptr->registers.eip, (uint32_t)tptr->registers.esp,
+			(uint32_t)tptr->registers.ebp,
+			(uint32_t)tptr->registers.eax,
+			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
+			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
+			(uint32_t)tptr->registers.edi);
+		}
 
 		logptr = StepInstruction(tptr, 0);
 		
-		Sculpture *op = (Sculpture *)_op;
-		// get the 'instruction information' structure for this particular instruction
-		// from the disassembly subsystem
-		DisassembleTask::InstructionInformation *InsInfo = op->disasm->GetInstructionInformationByAddress(tptr->registers.eip, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
-		if (InsInfo != NULL) {
-			//char *ptrbuf = (char *)InsInfo->InstructionMnemonicString;
-			std::string ptrbuf = op->disasm->disasm_str(InsInfo->Address, (char *)InsInfo->RawData, InsInfo->Size);
-			printf("%p %s\n", tptr->registers.eip,ptrbuf.c_str()); 
+		if (verbose) {
+			Sculpture *op = (Sculpture *)_op;
+			// get the 'instruction information' structure for this particular instruction
+			// from the disassembly subsystem
+			DisassembleTask::InstructionInformation *InsInfo = op->disasm->GetInstructionInformationByAddress(tptr->registers.eip, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
+			if (InsInfo != NULL) {
+				//char *ptrbuf = (char *)InsInfo->InstructionMnemonicString;
+				std::string ptrbuf = op->disasm->disasm_str(InsInfo->Address, (char *)InsInfo->RawData, InsInfo->Size);
+				printf("%p %s\n", tptr->registers.eip,ptrbuf.c_str()); 
+				
+			} else {
+				// report that we didnt find this.. locate why later...
+				printf("[!!!] InsInfo NULL for %X\n", tptr->registers.eip);
+			}
 			
-		} else {
-			// report that we didnt find this.. locate why later...
-			printf("[!!!] InsInfo NULL for %X\n", tptr->registers.eip);
-		}
-		
-		// do some sanity checks on the thread...
-		if (!tptr->last_successful) {
-			printf("ERROR on thread %d LogID %d [Cpu Start %d Cycle %d Start Addr %X]\n", tptr->ID, tptr->LogID,
-			tptr->CPUStart, tptr->CPUCycle, tptr->StartAddress);
+			// do some sanity checks on the thread...
+			if (!tptr->last_successful) {
+				printf("ERROR on thread %d LogID %d [Cpu Start %d Cycle %d Start Addr %X]\n", tptr->ID, tptr->LogID,
+				tptr->CPUStart, tptr->CPUCycle, tptr->StartAddress);
+			}
 		}
 	}
 	
+	if (count == 0) completed = 1;
+	if (!active) {
+		sleep(1);
+	}
 	return ret;
 }
 
@@ -899,13 +968,11 @@ emu:
 	// move our 'temporary changes' into the correct posision
 	// in case we had some log from READ/WRITE
 	if (temp_changes != NULL) {
-		printf("temp changes\n");
 		if (ret->Changes == NULL) {
 			ret->Changes = temp_changes;
 		} else {
 			Changes *chptr = ret->Changes;
 			while (chptr->next != NULL) {
-				printf("c\n");
 				chptr = chptr->next;	
 			}
 			chptr->next = temp_changes;
@@ -949,6 +1016,75 @@ Emulation::VirtualMachine *Emulation::NewVirtualMachine(VirtualMachine *parent) 
 		vptr->Memory = parent->Memory;
 		vptr->Threads = parent->Threads;
 	}
+}
+/*HANDLE WINAPI CreateThread(
+  _In_opt_  LPSECURITY_ATTRIBUTES  lpThreadAttributes,
+  _In_      SIZE_T                 dwStackSize,
+  _In_      LPTHREAD_START_ROUTINE lpStartAddress,
+  _In_opt_  LPVOID                 lpParameter,
+  _In_      DWORD                  dwCreationFlags,
+  _Out_opt_ LPDWORD                lpThreadId
+);*/
+
+uint32_t Emulation::CreateThread(EmulationThread *tptr) {
+	// retreive the argments... (ensure we popped the return address in the prior function which handles hooking)
+	uint32_t lpThreadAttributes = StackPop(tptr);
+	uint32_t dwStackSize = StackPop(tptr);
+	uint32_t lpStartAddress = StackPop(tptr);
+	uint32_t lpParameter = StackPop(tptr);
+	uint32_t dwCreationFlags = StackPop(tptr);
+	uint32_t lpThreadID = StackPop(tptr);
+	
+	
+	
+	
+
+	
+	printf("CreateThread ID %X flags %X param %X start addr %X stack size %d thread attr %d\n",
+	lpThreadID, dwCreationFlags, lpParameter, lpStartAddress, dwStackSize, lpThreadAttributes); 
+
+	EmulationThread *thread = NewThread(&MasterVM);
+	if (thread == NULL) {
+		printf("Couldnt start new thread\n");
+		throw;
+		return -1;
+	}
+	
+	//thread->thread_ctx.ID = 0;
+	thread->thread_ctx.emulation_ctx.addr_size = 32;
+	thread->thread_ctx.emulation_ctx.sp_size = 32;
+	thread->thread_ctx.emulation_ctx.regs = &thread->registers;
+
+	// grabbed these from entry point on an app in IDA pro.. (after dlls+tls etc all loaded
+	SetRegister(thread, REG_EAX, 0);
+	SetRegister(thread, REG_EBX, 1);
+	SetRegister(thread, REG_ECX, 2);
+	SetRegister(thread, REG_EDX, 3);
+	SetRegister(thread, REG_ESI, 4);
+	SetRegister(thread, REG_EDI, 5);
+	
+	SetRegister(thread, REG_EIP, lpStartAddress);
+	
+	printf("New Thread %X\n", thread);
+	EmuThread[thread->ID] = thread; 
+	return thread->ID;
+}
+
+void Emulation::StackPush(EmulationThread *thread, uint32_t value) {
+	thread->registers.esp -= sizeof(uint32_t);
+	
+	thread->EmuVMEM->MemDataWrite(thread->registers.esp, (unsigned char *)&value, sizeof(uint32_t));
+}
+
+uint32_t Emulation::StackPop(EmulationThread *thread) {
+	uint32_t ret = 0;
+
+	printf("thread %X ESP %X\n", thread, thread->thread_ctx.emulation_ctx.regs->esp);	
+	VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->esp, (unsigned char *)&ret, sizeof(uint32_t));
+	printf("POPPPED %X\n", ret);
+	thread->thread_ctx.emulation_ctx.regs->esp += sizeof(uint32_t);
+	
+	return ret;
 }
 
 uint32_t Emulation::HeapAlloc(uint32_t ReqAddr, int Size) {
