@@ -1218,7 +1218,8 @@ x86_emulate(
     /* Shadow copy of register state. Committed on successful emulation. */
     struct cpu_user_regs _regs = *ctxt->regs;
     struct cpu_user_regs _temp_regs = *ctxt->regs;
-
+    int fix_ebp = 0;
+    
     uint8_t b, d, sib, sib_index, sib_base, twobyte = 0, rex_prefix = 0;
     uint8_t modrm = 0, modrm_mod = 0, modrm_reg = 0, modrm_rm = 0;
     unsigned int op_bytes, def_op_bytes, ad_bytes, def_ad_bytes;
@@ -1799,6 +1800,9 @@ x86_emulate(
         dst.bytes = op_bytes;
         if ( mode_64bit() && (dst.bytes == 4) )
             dst.bytes = 8;
+        if (dst.reg != (unsigned long *)&_regs.ebp) {
+            fix_ebp = 1;
+        }
         if ( (rc = read_ulong(x86_seg_ss, sp_post_inc(dst.bytes),
                               &dst.val, dst.bytes, ctxt, ops)) != 0 )
             goto done;
@@ -2024,7 +2028,9 @@ x86_emulate(
 
     case 0xa8 ... 0xa9: /* test imm,%%eax */
     case 0x84 ... 0x85: test: /* test */
-        emulate_2op_SrcV("test", src, dst, _regs.eflags);
+        _temp_regs = _regs;
+        emulate_2op_SrcV("test", src, dst, _temp_regs.eflags);
+        _regs.eflags = _temp_regs.eflags;
         dst.type = OP_NONE;
         break;
 
@@ -2045,7 +2051,15 @@ x86_emulate(
     case 0xc6 ... 0xc7: /* mov (sole member of Grp11) */
         generate_exception_if((modrm_reg & 7) != 0, EXC_UD, -1);
     case 0x88 ... 0x8b: /* mov */
+        // temp fix for EBP change...
+        fix_ebp = 1;
+        if (dst.type == OP_REG) {
+            if (dst.reg == (unsigned long *)&_regs.ebp)
+                fix_ebp = 0;
+        }
+        
         dst.val = src.val;
+        
         break;
 
     case 0x8c: /* mov Sreg,r/m */ {
@@ -3493,7 +3507,11 @@ x86_emulate(
 
     /* Commit shadow register state. */
     _regs.eflags &= ~EFLG_RF;
+    //printf("EBP %X <- %X\n", ctxt->regs->ebp, _regs.ebp);
     *ctxt->regs = _regs;
+    if (fix_ebp == 1) {
+        ctxt->regs->ebp = _temp_regs.ebp;
+    }
 
  done:
     return rc;

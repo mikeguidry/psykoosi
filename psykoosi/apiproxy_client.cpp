@@ -222,11 +222,11 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 	}
 	
 	ZmqRet *ret = (ZmqRet *)(final);
-	//printf("call type %d extra len %d\n", type, ret->extra_len);
+	printf("call type %d extra len %d resp %d\n", type, ret->extra_len, ret->response);
 	if (ret->extra_len && ret->response == 1) {
 		
 		if ((ret->extra_len+sizeof(ZmqRet)) > final_size) {
-			//printf("too big. replace\n");
+			printf("too big. replace\n");
 			char *replace_buf = (char *)malloc(ret->extra_len + sizeof(ZmqRet) + 1);
 			if (replace_buf == NULL) {
 				close(proxy_socket);
@@ -342,7 +342,8 @@ int APIClient::PeekData(uint32_t Address, char *Destination, int Size) {
 	printf("pulling data %X %d src %p\n", Address, Size, Destination);
 	if (Size < 0) {
 		printf("Size < 0\n");
-		return -1;
+		//return -1;
+		Size = 16;
 	}
 	// if Source == NULL we push from VMEM
 	int pkt_size = sizeof(MemTransfer) + Size;
@@ -841,7 +842,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 	ZmqRet *ret = (ZmqRet *)(resp);
 	
 	// process the response of this function call
-	if (resp && ret->response == 1 && ret->extra_len >= sizeof(uint32_t)) {
+	if (resp && resp_size) {//ret->response == 1 && ret->extra_len >= sizeof(uint32_t)) {
 		printf("have response\n");
 		RetPkt = (struct _ret_pkt *)(resp);
 		//uint32_t *_eax_ret = (uint32_t *)resp;
@@ -870,7 +871,8 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 			memptr += REGION_BLOCK;			
 		}   
 	} else {
-		printf("no RESPONSE\n");
+		printf("no RESPONSE resp %p resp %d extra %d\n",
+		resp, ret->response, ret->extra_len);
 		//throw;
 	}
 	

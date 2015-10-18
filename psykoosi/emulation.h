@@ -303,6 +303,9 @@ namespace psykoosi {
       uint32_t StartAddress;
       int completed;
       
+      uint32_t StackLow;
+      uint32_t StackHigh;
+      
       int sleep_start;
       int sleep_time;
       int state;

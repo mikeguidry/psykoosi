@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
 	
 	printf("Printing resulting logs:\n");
 	Emulation::EmulationLog *logptr = emu.MasterThread->LogList;
-	
+	exit(0);
 	while (logptr != NULL) {
 		printf("LogID: %d EIP Address: %X NextEIP %X ChangeLog Count %d\n",
 			logptr->LogID, logptr->Address, logptr->NextEIP, logptr->VMChangeLog_Count);

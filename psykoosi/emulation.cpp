@@ -123,7 +123,7 @@ static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_da
 	if (seg == x86_seg_fs) {
 		off = emuthread->TIB + offset;
 	} 
-	printf("final %X\n", off);
+	//printf("final %X\n", off);
 	
 	// *** FIX for rewind.. maybe put the original in thenext call..
 	// read to temporary buffer and push it across.. or allocate here and set on response
@@ -327,6 +327,8 @@ int Emulation::SetupThreadStack(EmulationThread *tptr) {
 	MasterVM.StackHigh = ESP + Size;
 	MasterVM.StackLow = ESP;
 	
+	tptr->StackHigh = ESP + Size;
+	tptr->StackLow = ESP;
 	// add to list
 	sptr->next = MasterVM.StackList;
 	MasterVM.StackList = sptr;
@@ -334,7 +336,7 @@ int Emulation::SetupThreadStack(EmulationThread *tptr) {
 	// we should put a final return address on the stack .. *** FIX
 	// put 0xDEADDEAD on top of the stack so we know when the program
 	// is complete... (so we dont have to deal with conventions,etc)
-	uint32_t end_addr = 0xDEADDEAD;
+	uint32_t end_addr =0xDEADDEAD;
 	char *data = (char *)&end_addr;
 	uint32_t _where = sptr->High - 32;
 	while (_where < sptr->High) {
@@ -694,7 +696,7 @@ uint32_t Emulation::FindArgument(EmulationThread *thread, int arg_information) {
 // foreign machine/wine using API proxy.. or simulate from a log
 int Emulation::PreExecute(EmulationThread *thread) {
 	uint32_t EIP = thread->thread_ctx.emulation_ctx.regs->eip; 
-	if (EIP == 0xDEADDEAD || EIP == 0) {
+	if ((EIP == 0xDEADDEAD || EIP == 0) || ((EIP > thread->StackLow) && (EIP < thread->StackHigh))) {
 		printf("Done.. EIP %X\n", EIP);
 		thread->completed = 1;
 		//completed = 1;
@@ -724,6 +726,31 @@ int Emulation::PreExecute(EmulationThread *thread) {
 				thread->completed = 1;
 				ret_fix = 4;
 				proxied = 0;
+			} else if (strcmp(iatptr->function, "HeapAlloc")==0) {
+				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				ret_eip = StackPop(thread);
+				
+				uint32_t hHeap = StackPop(thread);
+				uint32_t dwFlags = StackPop(thread);
+				uint32_t dwBytes = StackPop(thread);
+				
+				eax_ret = HeapAlloc(0, dwBytes);
+				
+				ret_fix = 12;
+				proxied = 0;				
+			} else if (strcmp(iatptr->function, "HeapFree")==0) {
+				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				ret_eip = StackPop(thread);
+				eax_ret = 1;
+				ret_fix = 12;
+				proxied = 0;
+			} else if (strcmp(iatptr->function, "GetProcessHeap")==0) {
+				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				ret_eip = StackPop(thread);
+
+				proxied = 0;
+				ret_fix = 0;
+				eax_ret = 0xBEEFBEEF;				
 			}
 			else if (strcmp(iatptr->function, "Sleep")==0) {
 				esp = thread->thread_ctx.emulation_ctx.regs->esp;
@@ -875,7 +902,6 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 			(uint32_t)tptr->registers.edi);
 		}
 
-		logptr = StepInstruction(tptr, 0);
 		
 		if (verbose) {
 			Sculpture *op = (Sculpture *)_op;
@@ -891,7 +917,24 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 				// report that we didnt find this.. locate why later...
 				printf("[!!!] InsInfo NULL for %X\n", tptr->registers.eip);
 			}
+		}
+		
+		logptr = StepInstruction(tptr, 0);
+
+		if (verbose) {
+				if (verbose) {
 			
+			// print registers before execution of the next instruction
+			printf("TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
+			tptr->ID,
+			(uint32_t)tptr->registers.eip, (uint32_t)tptr->registers.esp,
+			(uint32_t)tptr->registers.ebp,
+			(uint32_t)tptr->registers.eax,
+			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
+			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
+			(uint32_t)tptr->registers.edi);
+		}
+	
 			// do some sanity checks on the thread...
 			if (!tptr->last_successful) {
 				printf("ERROR on thread %d LogID %d [Cpu Start %d Cycle %d Start Addr %X]\n", tptr->ID, tptr->LogID,
@@ -929,29 +972,64 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	thread->EmuVMEM->Configure(VirtualMemory::SettingType::SETTINGS_VM_CPU_CYCLE, ++thread->CPUCycle);
 
 	VirtualMachine *_VM = (VirtualMachine *)(thread->VM);
-	
+	EmulationThread *tptr = thread;
 emu:
+	// print registers before execution of the next instruction
+			printf("1 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
+			tptr->ID,
+			(uint32_t)tptr->registers.eip, (uint32_t)tptr->registers.esp,
+			(uint32_t)tptr->registers.ebp,
+			(uint32_t)tptr->registers.eax,
+			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
+			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
+			(uint32_t)tptr->registers.edi);
 	r = x86_emulate((struct x86_emulate_ctxt *)&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&_VM->emulate_ops) == X86EMUL_OKAY;
+		// print registers before execution of the next instruction
+			printf("2 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
+			tptr->ID,
+			(uint32_t)tptr->registers.eip, (uint32_t)tptr->registers.esp,
+			(uint32_t)tptr->registers.ebp,
+			(uint32_t)tptr->registers.eax,
+			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
+			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
+			(uint32_t)tptr->registers.edi);
 	// set to 0 since we added more if's below.. maybe rewrite using switch()
 	// trying to keep it simple for tons of execs.. might not matter!
 	thread->last_successful = 0;
 	
 	if (r == X86EMUL_OKAY) {
 		thread->last_successful = 1;
+		printf("emu ok\n");
+		char blah[1024];
+		VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
+		uint32_t blahI=0xDEADDEAD;
+		uint32_t *_blah = (uint32_t *)blah;
+		if (*_blah == blahI) {
+			printf("DONE\n");
+			exit(0);
+		}
+		for (int i = 0; i < 13; i++) {
+			printf("%02X", (unsigned char)blah[i]);
+		}
+		printf("\n%X\n", *_blah);
 	} else if (r == X86EMUL_UNHANDLEABLE) {
 		printf("UNHANDLEABLE\n");
 		// see why things are returning this!! maybe ops are responding
 		// incorrectly!
 		thread->last_successful = 1;
 	} else if (r == X86EMUL_EXCEPTION) {
+		printf("Exception\n");
 	} else if (r == X86EMUL_RETRY) {
 		printf("X86EMUL_RETRY\n");
 		// retry.. like it says..
 		if (retry_count++ < 4)
 			goto emu;
 	} else if (r == X86EMUL_CMPXCHG_FAILED) {
+		printf("fail\n");
 		// maybe just retry this.. not usre what it means about accessor.. we can test soon
 		// *** FIX	
+	} else {
+		printf("bad\n");
 	}
 	
 	if (!thread->last_successful) {
@@ -984,8 +1062,8 @@ emu:
 	ret->VMChangeLog = thread->EmuVMEM->ChangeLog_Retrieve(thread->LogID, &ret->VMChangeLog_Count);
 	
 	// save registers for this specific execution as well for this exact cpu cycle
-	std::memcpy(&ret->registers_shadow, &ret->registers_shadow, sizeof(cpu_user_regs_t));
-	std::memcpy(&ret->registers, &ret->registers, sizeof(cpu_user_regs_t));
+	//std::memcpy(&ret->registers_shadow, &ret->registers_shadow, sizeof(cpu_user_regs_t));
+	//std::memcpy(&ret->registers, &ret->registers, sizeof(cpu_user_regs_t));
 
 	// now update shadow registers for our next execution
 	CopyRegistersToShadow(thread);
@@ -1275,7 +1353,7 @@ void Emulation::DestroyVirtualMachineChild(Emulation::EmulationThread *Thread) {
 Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changelist, int which, uint32_t Address, unsigned char *orig,
 		unsigned char *cur, int size) {
 			
-	printf("CHANGE DATA\n");
+	//printf("CHANGE DATA\n");
 	Changes *change = new Changes;
 
 	std::memset(change, 0, sizeof(Changes));
@@ -1304,7 +1382,7 @@ Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changeli
 		
 		cptr->next = change;
 		
-		printf("Added to next [%d count]\n", c);
+		//printf("Added to next [%d count]\n", c);
 	} else {
 		*changelist = change;
 	}

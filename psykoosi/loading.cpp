@@ -143,7 +143,7 @@ pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase) {
 				 int space = (s.get_virtual_address()) - Last_Section_Addr;
 				 //printf("Space in-between section: %d\n", space);
 			 }
-/*
+
 			 std::cout << "Section [" << s.get_name() << "]" << std::endl
 					 << "RVA " << s.get_pointer_to_raw_data() << std::endl
 					 << "Characteristics: " << s.get_characteristics() << std::endl
@@ -153,7 +153,7 @@ pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase) {
 					 << "Raw Data Size: " << s.get_size_of_raw_data() << std::endl
 					 << "addr: " << (ImageBase + s.get_virtual_address()) << std::endl
 					 << std::endl;
-*/
+
 			 mptr = _VM->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
 			 mptr->ImageBase = ImageBase;
 			 // insert into images loaded list... (used later for getprocaddress, etc maybe hooking of win32 api)
@@ -526,8 +526,7 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 				CodeAddr ProcAddr = iat_addr;//GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
 				// write IAT
 				//VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
-				//printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ] %d\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr,
-				//iat_addr);
+				//printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ] %d\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr,iat_addr);
 
 				IAT *iatptr = new IAT;
 				memset((void *)iatptr, 0, sizeof(IAT));
@@ -538,9 +537,10 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 				
 				
 				
+				//printf("PUTTING AT %X / %X\n", IAT_Addr, Original_IAT_Addr);
 				iatptr->Redirect = iat_addr;
 				VMem->MemDataWrite(IAT_Addr, (unsigned char *)&iat_addr, (int)sizeof(uint32_t));
-				VMem->MemDataWrite(Original_IAT_Addr, (unsigned char *)&iat_addr, (int)sizeof(uint32_t));
+				//VMem->MemDataWrite(Original_IAT_Addr, (unsigned char *)&iat_addr, (int)sizeof(uint32_t));
 				
 				iatptr->next = Imports;
 				Imports = iatptr;
