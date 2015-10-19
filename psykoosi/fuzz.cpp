@@ -277,7 +277,7 @@ int main(int argc, char *argv[]) {
 		
 		emu.PrintLog(logptr);
 		
-		Emulation::Changes *chptr = logptr->Changes;
+		Emulation::TraceChanges *chptr = logptr->Changes;
 		
 		while (chptr != NULL) {
 			printf("\tLogged Changes Type %d Address %X Data Size %d\n", chptr->Type, chptr->Address, chptr->Data_Size);

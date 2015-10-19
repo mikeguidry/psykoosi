@@ -201,7 +201,7 @@ namespace psykoosi {
       // if we dont want to have to keep the origina snapshot in memory
       // we want to use this for rewinding...
       //char *Original_Data;
-	  } Changes;
+	  } TraceChanges;
     
 	  // this is the main structure for our emulation logs
 	  typedef struct _emulation_log {
@@ -231,7 +231,7 @@ namespace psykoosi {
 		  MemAddresses *Wrote;
 
 		  // this is the linked list of the register changes from this particular instruction
-		  Changes *Changes;
+		  TraceChanges *Changes;
 
 		  // what is the EIP after this instruction has completed? (usually this+size or if a jmp, then the destination)
 		  Emulation::CodeAddr NextEIP;
@@ -417,8 +417,8 @@ namespace psykoosi {
 	  EmulationLog *CreateLog(EmulationThread *);
     void PrintLog(EmulationLog *logptr);
 
-	  Emulation::Changes *CreateChangeEntryRegister(Emulation::Changes **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
-    Emulation::Changes *CreateChangeLogData(Emulation::Changes **changelist, int which, uint32_t Address, unsigned char *orig, unsigned  char *cur, int size);
+	  Emulation::TraceChanges *CreateChangeEntryRegister(Emulation::TraceChanges **changelist, int which, unsigned char *orig, unsigned  char *cur, int size);
+    Emulation::TraceChanges *CreateChangeLogData(Emulation::TraceChanges **changelist, int which, uint32_t Address, unsigned char *orig, unsigned  char *cur, int size);
     EmulationThread *ExecuteLoop(
 	   VirtualMemory *vmem, Emulation::CodeAddr StartAddr,
 	   Emulation::CodeAddr EndAddr,struct cpu_user_regs *registers,
@@ -475,7 +475,7 @@ namespace psykoosi {
     // temp changes is for the 'outside' C functions (x86_emulate ops)
     // to store their changes so it gets incorporated into the ChangeLog whenever
     // control returns in StepInstruction()
-    Changes *temp_changes;
+    TraceChanges *temp_changes;
 
     bool completed;
     

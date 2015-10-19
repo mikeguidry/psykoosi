@@ -564,13 +564,13 @@ void Emulation::DeleteMemoryAddresses(MemAddresses  *mptr) {
 
 void Emulation::ClearLogEntry(EmulationThread *thread, EmulationLog *log) {
 	EmulationLog *lptr = thread->LogList, *lptr2 = NULL;
-	Changes *rptr = NULL, *rptr2 = NULL;
+	TraceChanges *rptr = NULL, *rptr2 = NULL;
 
 
 	if (lptr == NULL) return;
 
 	for (rptr = lptr->Changes; rptr != NULL; ) {
-		Changes *rptr2 = rptr->next;
+		TraceChanges *rptr2 = rptr->next;
 		// FIX *** MEMORY LEAK.. free the reest of the structure..
 		delete rptr;
 		rptr = rptr2;
@@ -1113,7 +1113,7 @@ emu:
 		if (ret->Changes == NULL) {
 			ret->Changes = temp_changes;
 		} else {
-			Changes *chptr = ret->Changes;
+			TraceChanges *chptr = ret->Changes;
 			while (chptr->next != NULL) {
 				chptr = chptr->next;	
 			}
@@ -1433,13 +1433,13 @@ void Emulation::DestroyVirtualMachineChild(Emulation::EmulationThread *Thread) {
 }
 
 // adds log for read/writing of data to virtual memory...
-Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changelist, int which, uint32_t Address, unsigned char *orig,
+Emulation::TraceChanges *Emulation::CreateChangeLogData(Emulation::TraceChanges **changelist, int which, uint32_t Address, unsigned char *orig,
 		unsigned char *cur, int size) {
 			
 	//printf("CHANGE DATA\n");
-	Changes *change = new Changes;
+	TraceChanges *change = new TraceChanges;
 
-	std::memset(change, 0, sizeof(Changes));
+	std::memset(change, 0, sizeof(TraceChanges));
 
 	change->Data_Size = size;
 	change->Type = which;
@@ -1455,7 +1455,7 @@ Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changeli
 /*	change->next = *changelist;
 	*changelist = change;
 */
-	Emulation::Changes *cptr = *changelist;
+	Emulation::TraceChanges *cptr = *changelist;
 	if (cptr != NULL) {
 		int c = 0;
 		while (cptr->next != NULL) {
@@ -1474,11 +1474,11 @@ Emulation::Changes *Emulation::CreateChangeLogData(Emulation::Changes **changeli
 }
 
 
-Emulation::Changes *Emulation::CreateChangeEntryRegister(Emulation::Changes **changelist, int which, unsigned char *orig,
+Emulation::TraceChanges *Emulation::CreateChangeEntryRegister(Emulation::TraceChanges **changelist, int which, unsigned char *orig,
 		unsigned char *cur, int size) {
-	Changes *change = new Changes;
+	TraceChanges *change = new TraceChanges;
 
-	std::memset(change, 0, sizeof(Changes));
+	std::memset(change, 0, sizeof(TraceChanges));
 
 
 	// ** add 64bit support here...
