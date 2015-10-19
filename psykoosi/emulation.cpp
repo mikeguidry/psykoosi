@@ -21,6 +21,7 @@
 #include <inttypes.h>
 #include <udis86.h>
 #include <pe_lib/pe_bliss.h>
+#include <unistd.h>
 #include "virtualmemory.h"
 extern "C" {
 #include <capstone/capstone.h>
