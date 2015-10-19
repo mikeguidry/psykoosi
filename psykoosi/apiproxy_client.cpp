@@ -812,7 +812,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 	
 	printf("Pushing call to remote side [%s %s] %d %d / %d %d\n", _module, _function,
 	module_len, function_len, cinfo->module_len, cinfo->func_len);
-	printf("Region %X size %d\n", Region, Region_Size);
+	//printf("Region %X size %d\n", Region, Region_Size);
 
 	char *resp = NULL;
 	int resp_size = 0;
@@ -876,7 +876,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 			
 			
 			// write the returned data into the virtual memory
-			printf("Writing memory to %X changed from region [%X]\n", MemAddr, _MData);
+			//printf("Writing memory to %X changed from region [%X]\n", MemAddr, _MData);
 			VM->MemDataWrite(*MemAddr, (unsigned char *)&_MData, sizeof(uint32_t));
 			
 			

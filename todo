@@ -14,6 +14,13 @@ HIGH PRIORITY:
   use to create our polymorphism as well
   new emu thread, and similar to ROP use to find code and make
   a database of what code does so it can be reused later (see frankstein)
+
+* like we have CRC verify on the API Proxy Server side..
+  there needs to be a solution so that we sync heap data which may
+  be modified on this side.. we can be stupid about it and push
+  the entire region for now if necessary.. but it'd be smart to
+  checksum after we return from the Proxy Server, and then
+  before the next call.. and update anything remotely
   
 * finish PostExecute (ret_fix/ret_eax) for writing the protocol exchange data AddProtocolExchange()
 
