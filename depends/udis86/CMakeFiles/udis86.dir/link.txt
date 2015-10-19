@@ -1,2 +1,0 @@
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar cq libudis86.a  CMakeFiles/udis86.dir/decode.c.o CMakeFiles/udis86.dir/itab.c.o CMakeFiles/udis86.dir/syn-att.c.o CMakeFiles/udis86.dir/syn-intel.c.o CMakeFiles/udis86.dir/syn.c.o CMakeFiles/udis86.dir/udis86.c.o
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib libudis86.a
