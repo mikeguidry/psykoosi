@@ -813,10 +813,13 @@ int Emulation::PreExecute(EmulationThread *thread) {
 				
 				if (!simulation || hptr == NULL) {
 					// call the function on the proxy server...
-					int call_ret = Proxy->CallFunction(iatptr->module, iatptr->function,0,
+					int call_ret = Proxy->CallFunction(iatptr->module, 
+					iatptr->function,0,
 						thread->thread_ctx.emulation_ctx.regs->esp,
 						thread->thread_ctx.emulation_ctx.regs->ebp,
-						MasterVM.RegionLow, (MasterVM.RegionHigh - MasterVM.RegionLow), &eax_ret, _VM->StackHigh, &ret_fix);
+						MasterVM.RegionLow,
+						 (MasterVM.RegionHigh - MasterVM.RegionLow),
+						  &eax_ret, _VM->StackHigh, &ret_fix);
 		
 					// *** FIX
 					if (call_ret != 1) {	
@@ -871,7 +874,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			}
 			
 			
-			printf("RET EIP from Call: %X [from esp %X]\n", ret_eip, esp);
+			//printf("RET EIP from Call: %X [from esp %X]\n", ret_eip, esp);
 			
 			// accomodate calling convention return fixes (callee cleans up)
 			//thread->thread_ctx.emulation_ctx.regs->esp += ret_fix;
@@ -881,7 +884,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			SetRegister(thread, REG_ESP, esp);
 			SetRegister(thread, REG_EIP, ret_eip);
 			
-			printf("ESP after ret %X\n",thread->thread_ctx.emulation_ctx.regs->esp );
+			//printf("ESP after ret %X\n",thread->thread_ctx.emulation_ctx.regs->esp );
 			
 			
 			return 1;
