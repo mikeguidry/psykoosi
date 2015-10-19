@@ -1,0 +1,6 @@
+[submodule "apiproxy"]
+	path = apiproxy
+	url = https://github.com/mikeguidry/apiproxy.git
+[submodule "depends/capstone"]
+	path = depends/capstone
+	url = https://github.com/aquynh/capstone.git
