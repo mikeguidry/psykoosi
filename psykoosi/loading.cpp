@@ -361,8 +361,9 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	 if (lptr != NULL) {
 		 // *** FIX build symbol table for export so we increase the speed of GetProcAddress
 		 
-		 if (dll_image->has_imports())
-			 LoadImports(dll_image, VMem, ImageBase);
+		 if (dll_image->has_imports()) {
+			 //LoadImports(dll_image, VMem, ImageBase);
+		 }
 
 		 // put in queue for emulation since each DLL will have to be executed before we can run the
 		 // PEs code itself since we are loading them..
@@ -526,7 +527,7 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 				CodeAddr ProcAddr = iat_addr;//GetProcAddress((char *)lib.get_name().c_str(), (char *)func.get_name().c_str());
 				// write IAT
 				//VMem->MemDataWrite(IAT_Addr, (unsigned char *)&ProcAddr, (int)sizeof(uint32_t));
-				//printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ] %d\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr,iat_addr);
+				printf("GetProcAddress(\"%s\", \"%s\") = %p [ wrote to IAT Address %p ] %d\n", (char *)lib.get_name().c_str(), (char *)func.get_name().c_str(), ProcAddr, IAT_Addr,iat_addr);
 
 				IAT *iatptr = new IAT;
 				memset((void *)iatptr, 0, sizeof(IAT));

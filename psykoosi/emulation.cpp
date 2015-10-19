@@ -95,12 +95,20 @@ static int emulated_rep_movs(enum x86_segment src_seg,unsigned long src_offset,e
 	VirtualMemory *pVM = _VM2[thread->ID];
 	unsigned long bytes_to_copy = *reps * bytes_per_rep;
 
-    //printf("vm %p rep movs src seg %d offset %x dst seg %d offset %d bytes per %d reps %d id %d ctxt %p\n", _VM2[0],src_seg, src_offset, dst_seg, dst_offset, bytes_per_rep, *reps,  ctxt);
+    printf("!!! vm %p rep movs src seg %d offset %x dst seg %d offset %x bytes per %d reps %d ctxt %p\n",
+	 _VM2[0],src_seg, src_offset, dst_seg, dst_offset, bytes_per_rep, *reps, ctxt);
 
     unsigned char *data = new unsigned char [bytes_to_copy];
 
-	pVM->MemDataRead(address_from_seg_offset(src_seg,src_offset,ctxt), (unsigned char *) data, bytes_to_copy);
-	pVM->MemDataWrite(address_from_seg_offset(dst_seg, dst_offset,ctxt), (unsigned char *)data, bytes_to_copy);
+	pVM->MemDataRead(
+		//address_from_seg_offset(src_seg,src_offset,ctxt)
+		src_offset
+		, (unsigned char *) data, bytes_to_copy);
+		printf("data: %s\n", data);
+	pVM->MemDataWrite(
+		//address_from_seg_offset(dst_seg, dst_offset,ctxt)
+		dst_offset
+		, (unsigned char *)data, bytes_to_copy);
 
 	delete data;
 
@@ -696,7 +704,7 @@ uint32_t Emulation::FindArgument(EmulationThread *thread, int arg_information) {
 // foreign machine/wine using API proxy.. or simulate from a log
 int Emulation::PreExecute(EmulationThread *thread) {
 	uint32_t EIP = thread->thread_ctx.emulation_ctx.regs->eip; 
-	if ((EIP == 0xDEADDEAD || EIP == 0) || ((EIP > thread->StackLow) && (EIP < thread->StackHigh))) {
+	if ((EIP == 0xDEADDEAD || EIP == 0) || ((EIP > thread->StackLow) && (EIP < thread->StackHigh)) || EIP < 10) {
 		printf("Done.. EIP %X\n", EIP);
 		thread->completed = 1;
 		//completed = 1;
@@ -713,7 +721,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			int proxied = 0;
 			uint32_t eax_ret = 0;
 			uint32_t ret_fix = 0;
-			uint32_t esp = 0;
+			uint32_t esp = thread->thread_ctx.emulation_ctx.regs->esp;
 			uint32_t ret_eip = 0;
 			Hooks::APIHook *hptr = NULL;
 			
@@ -724,54 +732,72 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			printf("FUNC \"%s\"\n", iatptr->function);
 			if (strcmp(iatptr->function, "ExitThread")==0) {
 				thread->completed = 1;
-				ret_fix = 4;
+				ret_fix = 0;
 				proxied = 0;
 			} else if (strcmp(iatptr->function, "HeapAlloc")==0) {
-				esp = thread->thread_ctx.emulation_ctx.regs->esp;
-				ret_eip = StackPop(thread);
 				
-				uint32_t hHeap = StackPop(thread);
-				uint32_t dwFlags = StackPop(thread);
-				uint32_t dwBytes = StackPop(thread);
+				ret_eip = StackPop(thread, &esp);
+				
+				uint32_t hHeap = StackPop(thread, &esp);
+				uint32_t dwFlags = StackPop(thread, &esp);
+				uint32_t dwBytes = StackPop(thread, &esp);
 				
 				eax_ret = HeapAlloc(0, dwBytes);
 				
-				ret_fix = 12;
+				ret_fix = 0;
 				proxied = 0;				
 			} else if (strcmp(iatptr->function, "HeapFree")==0) {
-				esp = thread->thread_ctx.emulation_ctx.regs->esp;
-				ret_eip = StackPop(thread);
+				
+				ret_eip = StackPop(thread, &esp);
+				
+				uint32_t hHeap = StackPop(thread, &esp);
+				uint32_t dwFlags = StackPop(thread, &esp);
+				uint32_t lpMem = StackPop(thread, &esp);
+
+				HeapFree(lpMem);
+				
 				eax_ret = 1;
-				ret_fix = 12;
+				ret_fix = 0;
+				
 				proxied = 0;
-			} else if (strcmp(iatptr->function, "GetProcessHeap")==0) {
+			}/* else if (strcmp(iatptr->function, "CloseHandle")==0) {
+				ret_fix = 4;
+				eax_ret = 1;
 				esp = thread->thread_ctx.emulation_ctx.regs->esp;
 				ret_eip = StackPop(thread);
+				
+			}*/ 
+			else if (strcmp(iatptr->function, "GetProcessHeap")==0) {
+				
+				ret_eip = StackPop(thread, &esp);
 
 				proxied = 0;
 				ret_fix = 0;
 				eax_ret = 0xBEEFBEEF;				
 			}
 			else if (strcmp(iatptr->function, "Sleep")==0) {
-				esp = thread->thread_ctx.emulation_ctx.regs->esp;
-				ret_eip = StackPop(thread);
 				
-				thread->sleep_time = StackPop(thread);
+				ret_eip = StackPop(thread, &esp);
+				
+				thread->sleep_time = StackPop(thread, &esp);
 				if (thread->sleep_time > 1000) thread->sleep_time /= 1000;
 				
 				printf("Sleep time: %d\n", thread->sleep_time);
 				thread->sleep_start = time(0);
 				thread->state = 1;
 				
-				ret_fix = 4;
+				ret_fix = 0;
 				proxied = 0;
+			} else if (strcmp(iatptr->function, "ExitProcess")==0) {
+				thread->completed = 1;
+				
 			} else if (strcmp(iatptr->function, "CreateThread")==0) {
 				proxied = 0;
 				// hack since we are using StackPop() .. later we should keep stack pop...
 				// but it has to get the return address up here rather than down *** FIX
-				esp = thread->thread_ctx.emulation_ctx.regs->esp;
-				ret_eip = StackPop(thread);
-				eax_ret = CreateThread(thread);
+				
+				ret_eip = StackPop(thread, &esp);
+				eax_ret = CreateThread(thread, &esp);
 				ret_fix = 0;
 				printf("EIP create %X eax ret %X\n", ret_eip, eax_ret);
 				//thread->thread_ctx.emulation_ctx.regs->esp = esp;
@@ -790,7 +816,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 					int call_ret = Proxy->CallFunction(iatptr->module, iatptr->function,0,
 						thread->thread_ctx.emulation_ctx.regs->esp,
 						thread->thread_ctx.emulation_ctx.regs->ebp,
-						MasterVM.HeapLow, (MasterVM.HeapHigh - MasterVM.HeapLow), &eax_ret, _VM->StackHigh, &ret_fix);
+						MasterVM.RegionLow, (MasterVM.RegionHigh - MasterVM.RegionLow), &eax_ret, _VM->StackHigh, &ret_fix);
 		
 					// *** FIX
 					if (call_ret != 1) {	
@@ -827,16 +853,18 @@ int Emulation::PreExecute(EmulationThread *thread) {
 				}
 			}
 				
-			printf("Ret fix %d ESP %X proxied %d\n", ret_fix,
-			thread->thread_ctx.emulation_ctx.regs->esp, proxied);
+			printf("Ret fix %d ESP %X proxied %d EAX ret: %X\n", ret_fix,
+			thread->thread_ctx.emulation_ctx.regs->esp, proxied, eax_ret);
 			
 			// return the return value in EAX.. 
 			SetRegister(thread, REG_EAX, eax_ret);
 			
 			if (ret_eip == 0) {
 				// find return address from call instruction
-				ret_eip = 0;
-				esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				
+				// we do this above.. during initialization of esp
+				//esp = thread->thread_ctx.emulation_ctx.regs->esp;
+				
 				VM->MemDataRead(esp, (unsigned char *)&ret_eip, sizeof(uint32_t));
 				
 				esp += sizeof(uint32_t);
@@ -848,13 +876,13 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			// accomodate calling convention return fixes (callee cleans up)
 			//thread->thread_ctx.emulation_ctx.regs->esp += ret_fix;
 			esp += ret_fix;
-			
-			printf("ESP after ret %X\n",thread->thread_ctx.emulation_ctx.regs->esp );
-			
 			// mimic a return from a called function..
 			// EIP = *ESP.. add esp, sizeof(DWORD_PTR)
 			SetRegister(thread, REG_ESP, esp);
 			SetRegister(thread, REG_EIP, ret_eip);
+			
+			printf("ESP after ret %X\n",thread->thread_ctx.emulation_ctx.regs->esp );
+			
 			
 			return 1;
 		}
@@ -876,7 +904,12 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 	// this isnt as efficient as a real task scheduler...
 	// for now it wont matter :)
 	for (; tptr != NULL; tptr = tptr->next) {
-		if (tptr->completed) continue;
+		if (tptr->completed) {
+			if (!tptr->dumped) {
+				DumpStack(tptr);
+			}
+			continue;
+		}
 		count++;
 		if (tptr->state == 1) {
 			int cur_ts = time(0);
@@ -911,7 +944,7 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 			if (InsInfo != NULL) {
 				//char *ptrbuf = (char *)InsInfo->InstructionMnemonicString;
 				std::string ptrbuf = op->disasm->disasm_str(InsInfo->Address, (char *)InsInfo->RawData, InsInfo->Size);
-				printf("%p %s\n", tptr->registers.eip,ptrbuf.c_str()); 
+				printf("%p %s\n", tptr->registers.eip,ptrbuf.c_str());
 				
 			} else {
 				// report that we didnt find this.. locate why later...
@@ -922,7 +955,7 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 		logptr = StepInstruction(tptr, 0);
 
 		if (verbose) {
-				if (verbose) {
+		if (verbose) {
 			
 			// print registers before execution of the next instruction
 			printf("TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
@@ -933,7 +966,7 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
 			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
 			(uint32_t)tptr->registers.edi);
-		}
+		} 
 	
 			// do some sanity checks on the thread...
 			if (!tptr->last_successful) {
@@ -948,6 +981,30 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 		sleep(1);
 	}
 	return ret;
+}
+
+void Emulation::DumpStack(EmulationThread *thread) {
+	return;
+	FILE *fd;
+	char fname[1024];
+	int stack_size = thread->StackHigh - thread->StackLow;
+	
+	sprintf(fname, "ID.%d.Thread.%d.stack.%X.dat", start_ts/10000, thread->ID,
+	thread->StackLow);
+	
+	printf("Stack Size: %d File: %s\n", stack_size, fname);
+	
+	if ((fd = fopen(fname, "wb")) == NULL) return;
+	char *buf = (char *)malloc(stack_size + 1);
+	if (buf == NULL) { fclose(fd); unlink(buf); return; }
+
+	// write memory from virtual memory to the dump file
+	thread->EmuVMEM->MemDataRead(thread->StackLow, (unsigned char *)&buf, stack_size);
+	fwrite(buf, 1, stack_size, fd);
+	
+	fclose(fd);
+	
+	return;	
 }
 
 Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, CodeAddr Address) {
@@ -974,6 +1031,7 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	VirtualMachine *_VM = (VirtualMachine *)(thread->VM);
 	EmulationThread *tptr = thread;
 emu:
+	
 	// print registers before execution of the next instruction
 			printf("1 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
 			tptr->ID,
@@ -983,7 +1041,9 @@ emu:
 			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
 			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
 			(uint32_t)tptr->registers.edi);
+			
 	r = x86_emulate((struct x86_emulate_ctxt *)&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&_VM->emulate_ops) == X86EMUL_OKAY;
+
 		// print registers before execution of the next instruction
 			printf("2 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
 			tptr->ID,
@@ -993,6 +1053,7 @@ emu:
 			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
 			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
 			(uint32_t)tptr->registers.edi);
+
 	// set to 0 since we added more if's below.. maybe rewrite using switch()
 	// trying to keep it simple for tons of execs.. might not matter!
 	thread->last_successful = 0;
@@ -1013,7 +1074,7 @@ emu:
 		}
 		printf("\n%X\n", *_blah);
 	} else if (r == X86EMUL_UNHANDLEABLE) {
-		printf("UNHANDLEABLE\n");
+		//printf("UNHANDLEABLE\n");
 		// see why things are returning this!! maybe ops are responding
 		// incorrectly!
 		thread->last_successful = 1;
@@ -1104,14 +1165,14 @@ Emulation::VirtualMachine *Emulation::NewVirtualMachine(VirtualMachine *parent) 
   _Out_opt_ LPDWORD                lpThreadId
 );*/
 
-uint32_t Emulation::CreateThread(EmulationThread *tptr) {
+uint32_t Emulation::CreateThread(EmulationThread *tptr, uint32_t *esp) {
 	// retreive the argments... (ensure we popped the return address in the prior function which handles hooking)
-	uint32_t lpThreadAttributes = StackPop(tptr);
-	uint32_t dwStackSize = StackPop(tptr);
-	uint32_t lpStartAddress = StackPop(tptr);
-	uint32_t lpParameter = StackPop(tptr);
-	uint32_t dwCreationFlags = StackPop(tptr);
-	uint32_t lpThreadID = StackPop(tptr);
+	uint32_t lpThreadAttributes = StackPop(tptr, esp);
+	uint32_t dwStackSize = StackPop(tptr, esp);
+	uint32_t lpStartAddress = StackPop(tptr, esp);
+	uint32_t lpParameter = StackPop(tptr, esp);
+	uint32_t dwCreationFlags = StackPop(tptr, esp);
+	uint32_t lpThreadID = StackPop(tptr, esp);
 	
 	printf("CreateThread ID %X flags %X param %X start addr %X stack size %d thread attr %d\n",
 	lpThreadID, dwCreationFlags, lpParameter, lpStartAddress, dwStackSize, lpThreadAttributes); 
@@ -1152,11 +1213,30 @@ void Emulation::StackPush(EmulationThread *thread, uint32_t value) {
 	thread->EmuVMEM->MemDataWrite(thread->registers.esp, (unsigned char *)&value, sizeof(uint32_t));
 }
 
-uint32_t Emulation::StackPop(EmulationThread *thread) {
+uint32_t Emulation::StackPop(EmulationThread *thread, uint32_t *esp) {
 	uint32_t ret = 0;
 	
-	VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->esp, (unsigned char *)&ret, sizeof(uint32_t));	
-	thread->thread_ctx.emulation_ctx.regs->esp += sizeof(uint32_t);
+	VM->MemDataRead(*esp, (unsigned char *)&ret, sizeof(uint32_t));
+		
+	*esp += sizeof(uint32_t);
+	
+	printf("Popped: %X\n", ret);
+	
+	return ret;
+}
+
+// pulls an argument off of the stack.. however
+// it will not destroy/modify ESP
+uint32_t Emulation::StackPeek(EmulationThread *thread, int arg) {
+	uint32_t ret = 0;
+	uint32_t esp = thread->thread_ctx.emulation_ctx.regs->esp;
+	
+	// skip by however many args
+	// we are starting with 1 no matter what.. this will skip the return address
+	// since this is expected to happen during a call
+	esp += (1+arg) * sizeof(uint32_t);
+	
+	VM->MemDataRead(esp, (unsigned char *)&ret, sizeof(uint32_t));
 	
 	return ret;
 }
@@ -1529,6 +1609,7 @@ Emulation::EmulationLog *Emulation::CreateLog(EmulationThread *thread) {
 	}
 	if (thread->registers.esp != thread->registers_shadow.esp) {
 		Monitor |= REG_ESP;
+		printf("ESP changes: %d\n", thread->registers.esp - thread->registers_shadow.esp);
 		CreateChangeEntryRegister(&logptr->Changes, REG_ESP,  (unsigned char *)&thread->registers_shadow.esp,  (unsigned char *)&thread->registers.esp, sizeof(uint32_t));
 	}
 	if (thread->registers.ebp != thread->registers_shadow.ebp) {

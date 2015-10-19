@@ -306,9 +306,13 @@ namespace psykoosi {
       uint32_t StackLow;
       uint32_t StackHigh;
       
+      uint32_t ESP_last_call;
+      
       int sleep_start;
       int sleep_time;
       int state;
+      
+      int dumped;
 	  } EmulationThread;
 
 	 
@@ -419,6 +423,8 @@ namespace psykoosi {
 	   VirtualMemory *vmem, Emulation::CodeAddr StartAddr,
 	   Emulation::CodeAddr EndAddr,struct cpu_user_regs *registers,
     int new_thread);
+    
+    void DumpStack(EmulationThread *thread);
 
 	  Emulation::VirtualMachine *NewVirtualMachine(VirtualMachine *);
 	  void DestroyVirtualMachine(VirtualMachine *);
@@ -433,12 +439,13 @@ namespace psykoosi {
     void DestroyVirtualMachineChild(Emulation::EmulationThread *Thread);
 
     void StackPush(EmulationThread *, uint32_t value);
-    uint32_t StackPop(EmulationThread *);
+    uint32_t StackPop(EmulationThread *, uint32_t *);
+    uint32_t StackPeek(EmulationThread *, int);
 
     int PreExecute(EmulationThread *thread);
     int PostExecute(EmulationThread *thread, uint32_t);
     
-    uint32_t CreateThread(EmulationThread *tptr);
+    uint32_t CreateThread(EmulationThread *tptr, uint32_t *);
 	  EmulationThread *MasterThread;
     VirtualMachine MasterVM;
 
@@ -473,6 +480,8 @@ namespace psykoosi {
     bool completed;
     
     void *_op;
+    
+    int start_ts;
     
 	  private:
 

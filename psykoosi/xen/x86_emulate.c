@@ -1219,6 +1219,8 @@ x86_emulate(
     struct cpu_user_regs _regs = *ctxt->regs;
     struct cpu_user_regs _temp_regs = *ctxt->regs;
     int fix_ebp = 0;
+    int fix_eax = 0, fix_ebx = 0, fix_ecx = 0, fix_edx = 0, fix_edi = 0;
+    int fix_esi = 0;
     
     uint8_t b, d, sib, sib_index, sib_base, twobyte = 0, rex_prefix = 0;
     uint8_t modrm = 0, modrm_mod = 0, modrm_reg = 0, modrm_rm = 0;
@@ -1632,32 +1634,40 @@ x86_emulate(
         break;
 
     case 0x08 ... 0x0d: or:  /* or */
-        emulate_2op_SrcV("or", src, dst, _regs.eflags);
-        break;
-
-    case 0x10 ... 0x15: adc: /* adc */
-        emulate_2op_SrcV("adc", src, dst, _regs.eflags);
-        break;
-
-    case 0x18 ... 0x1d: sbb: /* sbb */
-        emulate_2op_SrcV("sbb", src, dst, _regs.eflags);
-        break;
-
-    case 0x20 ... 0x25: and: /* and */
-        emulate_2op_SrcV("and", src, dst, _regs.eflags);
-        break;
-
-    case 0x28 ... 0x2d: sub: /* sub */
-        emulate_2op_SrcV("sub", src, dst, _regs.eflags);
-        break;
-
-    case 0x30 ... 0x35: xor: /* xor */
-    _temp_regs = _regs;
-        emulate_2op_SrcV("xor", src, dst, _temp_regs.eflags);
+        _temp_regs = _regs;
+        emulate_2op_SrcV("or", src, dst, _temp_regs.eflags);
         _regs.eflags = _temp_regs.eflags;
         break;
 
+    case 0x10 ... 0x15: adc: /* adc */
+        _temp_regs = _regs;
+        emulate_2op_SrcV("adc", src, dst, _temp_regs.eflags);
+        _regs.eflags = _temp_regs.eflags;
+        break;
 
+    case 0x18 ... 0x1d: sbb: /* sbb */
+         _temp_regs = _regs;
+        emulate_2op_SrcV("sbb", src, dst, _temp_regs.eflags);
+        _regs.eflags = _temp_regs.eflags;
+        break;
+
+    case 0x20 ... 0x25: and: /* and */
+        _temp_regs = _regs;
+        emulate_2op_SrcV("and", src, dst, _temp_regs.eflags);
+        _regs.eflags = _temp_regs.eflags;
+        break;
+
+    case 0x28 ... 0x2d: sub: /* sub */
+        _temp_regs = _regs;
+        emulate_2op_SrcV("sub", src, dst, _temp_regs.eflags);
+        _regs.eflags = _temp_regs.eflags;
+        break;
+
+    case 0x30 ... 0x35: xor: /* xor */
+        _temp_regs = _regs;
+        emulate_2op_SrcV("xor", src, dst, _temp_regs.eflags);
+        _regs.eflags = _temp_regs.eflags;
+        break;
     case 0x38 ... 0x3d: cmp: /* cmp */
     	_temp_regs = _regs;
         emulate_2op_SrcV("cmp", src, dst, _temp_regs.eflags);
@@ -1791,6 +1801,10 @@ x86_emulate(
     case 0x50 ... 0x57: /* push reg */
         src.val = *(unsigned long *)decode_register(
             (b & 7) | ((rex_prefix & 1) << 3), &_regs, 0);
+        if (dst.reg != (unsigned long *)&_regs.eax) {
+            fix_eax = 1;
+        }
+
         goto push;
 
     case 0x58 ... 0x5f: /* pop reg */
@@ -1803,6 +1817,19 @@ x86_emulate(
         if (dst.reg != (unsigned long *)&_regs.ebp) {
             fix_ebp = 1;
         }
+        if (dst.reg != (unsigned long *)&_regs.eax) {
+            fix_eax = 1;
+        }
+        if (dst.reg != (unsigned long *)&_regs.ebx) {
+            fix_ebx = 1;
+        }
+        if (dst.reg != (unsigned long *)&_regs.ecx) {
+            fix_ecx = 1;
+        }
+        if (dst.reg != (unsigned long *)&_regs.edx) {
+            fix_edx = 1;
+        }
+
         if ( (rc = read_ulong(x86_seg_ss, sp_post_inc(dst.bytes),
                               &dst.val, dst.bytes, ctxt, ops)) != 0 )
             goto done;
@@ -2056,6 +2083,20 @@ x86_emulate(
         if (dst.type == OP_REG) {
             if (dst.reg == (unsigned long *)&_regs.ebp)
                 fix_ebp = 0;
+            if (dst.reg != (unsigned long *)&_regs.eax)
+                fix_eax = 1;
+            if (dst.reg != (unsigned long *)&_regs.ebx)
+                fix_ebx = 1;
+            if (dst.reg != (unsigned long *)&_regs.ecx)
+                fix_ecx = 1;
+            if (dst.reg != (unsigned long *)&_regs.edx)
+                fix_edx = 1;
+            if (dst.reg != (unsigned long *)&_regs.edi)
+                fix_edi = 1;
+            if (dst.reg != (unsigned long *)&_regs.esi)
+                fix_esi = 1;
+
+
         }
         
         dst.val = src.val;
@@ -2089,6 +2130,17 @@ x86_emulate(
 
     case 0x8d: /* lea */
         dst.val = ea.mem.off;
+        if (dst.type == OP_REG) {
+            fix_ebp = 1;
+            if (dst.reg != (unsigned long *)&_regs.esi)
+                fix_esi = 1;
+             if (dst.reg == (unsigned long *)&_regs.esi)
+                fix_ebp = 0;
+             if (dst.reg != (unsigned long *)&_regs.edx)
+                fix_edx = 1;
+
+        }
+
         break;
 
     case 0x8f: /* pop (sole member of Grp1a) */
@@ -2323,6 +2375,20 @@ x86_emulate(
         dst.reg = decode_register(
             (b & 7) | ((rex_prefix & 1) << 3), &_regs, (rex_prefix == 0));
         dst.val = src.val;
+         if (dst.type == OP_REG) {
+            if (dst.reg == (unsigned long *)&_regs.ebp)
+                fix_ebp = 0;
+            if (dst.reg != (unsigned long *)&_regs.eax)
+                fix_eax = 1;
+            if (dst.reg != (unsigned long *)&_regs.ebx)
+                fix_ebx = 1;
+            if (dst.reg != (unsigned long *)&_regs.ecx)
+                fix_ecx = 1;
+            if (dst.reg != (unsigned long *)&_regs.edx)
+                fix_edx = 1;
+
+        }
+
         break;
 
     case 0xb8 ... 0xbf: /* mov imm{16,32,64},r{16,32,64} */
@@ -2331,35 +2397,63 @@ x86_emulate(
                        ((uint64_t)insn_fetch_type(uint32_t) << 32));
         dst.reg = decode_register(
             (b & 7) | ((rex_prefix & 1) << 3), &_regs, 0);
+           if (dst.type == OP_REG) {
+            if (dst.reg == (unsigned long *)&_regs.ebp)
+                fix_ebp = 0;
+            if (dst.reg != (unsigned long *)&_regs.eax)
+                fix_eax = 1; else fix_eax = 1;
+            if (dst.reg != (unsigned long *)&_regs.ebx)
+                fix_ebx = 1;
+            if (dst.reg != (unsigned long *)&_regs.ecx)
+                fix_ecx = 1;
+            if (dst.reg != (unsigned long *)&_regs.edx)
+                fix_edx = 1;
+
+        }
         dst.val = src.val;
         break;
 
     case 0xc0 ... 0xc1: grp2: /* Grp2 */
+        _temp_regs = _regs;
         switch ( modrm_reg & 7 )
         {
         case 0: /* rol */
-            emulate_2op_SrcB("rol", src, dst, _regs.eflags);
+            emulate_2op_SrcB("rol", src, dst, _temp_regs.eflags);
             break;
         case 1: /* ror */
-            emulate_2op_SrcB("ror", src, dst, _regs.eflags);
+            emulate_2op_SrcB("ror", src, dst, _temp_regs.eflags);
             break;
         case 2: /* rcl */
-            emulate_2op_SrcB("rcl", src, dst, _regs.eflags);
+            emulate_2op_SrcB("rcl", src, dst, _temp_regs.eflags);
             break;
         case 3: /* rcr */
-            emulate_2op_SrcB("rcr", src, dst, _regs.eflags);
+            emulate_2op_SrcB("rcr", src, dst, _temp_regs.eflags);
             break;
         case 4: /* sal/shl */
         case 6: /* sal/shl */
-            emulate_2op_SrcB("sal", src, dst, _regs.eflags);
+            emulate_2op_SrcB("sal", src, dst, _temp_regs.eflags);
             break;
         case 5: /* shr */
-            emulate_2op_SrcB("shr", src, dst, _regs.eflags);
+            emulate_2op_SrcB("shr", src, dst, _temp_regs.eflags);
             break;
         case 7: /* sar */
-            emulate_2op_SrcB("sar", src, dst, _regs.eflags);
+            emulate_2op_SrcB("sar", src, dst, _temp_regs.eflags);
             break;
         }
+        if (dst.reg != (unsigned long *)&_regs.eax) {
+            fix_eax = 1;
+        }
+        if (dst.reg != (unsigned long *)&_regs.ebx) {
+            fix_ebx = 1;
+        }
+        if (dst.reg != (unsigned long *)&_regs.ecx) {
+            fix_ecx = 1;
+        }
+        if (dst.reg != (unsigned long *)&_regs.edx) {
+            fix_edx = 1;
+        }
+
+        _regs.eflags = _temp_regs.eflags;
         break;
 
     case 0xc2: /* ret imm16 (near) */
@@ -3512,6 +3606,22 @@ x86_emulate(
     if (fix_ebp == 1) {
         ctxt->regs->ebp = _temp_regs.ebp;
     }
+    if (fix_eax == 1) 
+        ctxt->regs->eax = _temp_regs.eax;
+    if (fix_ebx == 1)
+        ctxt->regs->ebx = _temp_regs.ebx;
+
+    if (fix_ecx == 1)
+        ctxt->regs->ecx = _temp_regs.ecx;
+    if (fix_edx == 1)
+        ctxt->regs->edx = _temp_regs.edx;
+    if (fix_esi == 1)
+        ctxt->regs->esi = _temp_regs.esi;
+    if (fix_edx == 1)
+        ctxt->regs->edx = _temp_regs.edx;
+    if (fix_edi == 1)
+        ctxt->regs->edi = _temp_regs.edi;
+        
 
  done:
     return rc;

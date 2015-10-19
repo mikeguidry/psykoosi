@@ -118,7 +118,7 @@ typedef struct call_info {
 	int32_t arg_len;
 } CallInfo;
 
-#define REGION_BLOCK 128
+#define REGION_BLOCK (sizeof(uint32_t)*2)
 
 #pragma pack(pop)
 }
@@ -224,17 +224,15 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 	ZmqRet *ret = (ZmqRet *)(final);
 	printf("call type %d extra len %d resp %d\n", type, ret->extra_len, ret->response);
 	if (ret->extra_len && ret->response == 1) {
-		
 		if ((ret->extra_len+sizeof(ZmqRet)) > final_size) {
 			printf("too big. replace\n");
-			char *replace_buf = (char *)malloc(ret->extra_len + sizeof(ZmqRet) + 1);
+			char *replace_buf = (char *)realloc(final, ret->extra_len + sizeof(ZmqRet) + 1);
 			if (replace_buf == NULL) {
+				free(final);
 				close(proxy_socket);
 				connected = 0;
 				return -1;
 			}
-			memcpy(replace_buf, final, sizeof(ZmqRet));
-			free(final);
 			final = replace_buf;
 			final_size = ret->extra_len + sizeof(ZmqRet);
 		}
@@ -342,8 +340,7 @@ int APIClient::PeekData(uint32_t Address, char *Destination, int Size) {
 	printf("pulling data %X %d src %p\n", Address, Size, Destination);
 	if (Size < 0) {
 		printf("Size < 0\n");
-		//return -1;
-		Size = 16;
+		return -1;
 	}
 	// if Source == NULL we push from VMEM
 	int pkt_size = sizeof(MemTransfer) + Size;
@@ -749,8 +746,10 @@ return packet:
 0x08+ region changes returns as dword addr, dword data
 
 */
-int APIClient::CallFunction(char *module, char *function, CodeAddr Address, CodeAddr ESP, CodeAddr EBP,
-CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uint32_t *ret_fix) {
+int APIClient::CallFunction(char *module, char *function, CodeAddr Address,
+ CodeAddr ESP, CodeAddr EBP,
+CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
+ uint32_t *ret_fix) {
 	struct _ret_pkt {
 		uint32_t eax_ret;
 		uint32_t ret_fix;
@@ -796,19 +795,24 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 	//ESP += (sizeof(uint32_t) * 2);
 
 	char adata[64];
-	VM->MemDataRead(StartESP, (unsigned char *)&adata, arg_len);
+	if (arg_len > 0) {
+		
+		VM->MemDataRead(StartESP, (unsigned char *)&adata, arg_len);
+		memcpy(_arg, adata, arg_len);
+	}
 	//VM->MemDataWrite(ESP, (unsigned char *)&adata, arg_len);
-	memcpy(_arg, adata, arg_len);
+	
 	
 	cinfo->addr = (uint32_t)Address;
 	cinfo->ESP = ESP;
 	cinfo->EBP = EBP;
-	cinfo->Region = 0;//Region;
-	cinfo->Region_Size = 0;//Region_Size;
+	cinfo->Region = Region;
+	cinfo->Region_Size = Region_Size;
 	cinfo->arg_len = arg_len;
 	
 	printf("Pushing call to remote side [%s %s] %d %d / %d %d\n", _module, _function,
 	module_len, function_len, cinfo->module_len, cinfo->func_len);
+	printf("Region %X size %d\n", Region, Region_Size);
 
 	char *resp = NULL;
 	int resp_size = 0;
@@ -820,6 +824,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 	
 	// push all stack over..
 	int push_size = (int)(EBP - ESP);
+	printf("push size %d\n", push_size);
 	if (push_size < 0)
 		push_size = 64;
 		 
@@ -832,7 +837,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 	//ESP += sizeof(uint32_t);
 	
 	// pull it back down in case some local variables were modified
-	PeekData(ESP, NULL, (int)(EBP - ESP));
+	PeekData(ESP, NULL, (int)push_size);
 		
 	// later fix to do the size of (DWORD_PTR) *** FIX
 	//ESP -= (sizeof(uint32_t) * 2);
@@ -843,7 +848,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 	
 	// process the response of this function call
 	if (resp && resp_size) {//ret->response == 1 && ret->extra_len >= sizeof(uint32_t)) {
-		printf("have response\n");
+		printf("have response %X size %d [%d]\n", resp, resp_size, resp_size - sizeof(struct _ret_pkt));
 		RetPkt = (struct _ret_pkt *)(resp);
 		//uint32_t *_eax_ret = (uint32_t *)resp;
 		
@@ -856,19 +861,25 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uin
 		printf("eax %d ret %d\n", RetPkt->eax_ret, RetPkt->ret_fix);
 		
 		// now we may be interested in regions of memory that have changed due to the call
-		int memory_change_count = (ret->extra_len - (sizeof(RetPkt)) / REGION_BLOCK);
+		int memory_change_count = (resp_size - sizeof(RetPkt)) / (REGION_BLOCK);
 		char *memptr = (char *)(resp + sizeof(RetPkt));
-		//printf("memory change %d\n", memory_change_count);
+		printf("memory change %d\n", memory_change_count);
 		// ignore memory changes for now.. buggy
-		memory_change_count = 0;
+		//memory_change_count = 0;
 		for (int a = 0; a < memory_change_count; a++) {
 			// get the data address of our changed memory
 			uint32_t *MemAddr = (uint32_t *)memptr;
 			memptr += sizeof(uint32_t);
+			uint32_t *MemData = (uint32_t *)memptr;
+			memptr += sizeof(uint32_t);
+			uint32_t *_MData = (uint32_t *)*MemData;
+			
 			
 			// write the returned data into the virtual memory
-			VM->MemDataWrite(*MemAddr, (unsigned char *)memptr, REGION_BLOCK);
-			memptr += REGION_BLOCK;			
+			printf("Writing memory to %X changed from region [%X]\n", MemAddr, _MData);
+			VM->MemDataWrite(*MemAddr, (unsigned char *)&_MData, sizeof(uint32_t));
+			
+			
 		}   
 	} else {
 		printf("no RESPONSE resp %p resp %d extra %d\n",
