@@ -499,12 +499,12 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 
     for(imported_functions_list::const_iterator it = imports.begin(); it != imports.end(); ++it) {
 		const import_library& lib = *it;
-		VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0);
+		/*VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0);
 		if (DLL_code_sect) {
 			//printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
 		} else {
 			printf("Couldn't load DLL %s\n", (char *)lib.get_name().c_str());
-		}
+		}*/
 		uint32_t iat_rva = (*it).get_rva_to_iat();
 		section iat_section = imp_image->section_from_rva(iat_rva);
 		if (iat_section.empty()) {

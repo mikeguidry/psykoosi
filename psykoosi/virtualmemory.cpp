@@ -65,7 +65,14 @@ void VirtualMemory::AddChild() {
 void VirtualMemory::ReleaseChild() {
 	Children--;
 }
-
+/*
+#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+#define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+#define round_down(x, y) ((x) & ~__round_mask(x, y))
+static inline UINT64 round_down(UINT64 x, UINT64 y) {
+	return (x & ~(y - 1));
+}
+*/
 unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
 	unsigned long ret;
     if(block <= 1) return n;
@@ -123,6 +130,8 @@ VirtualMemory::MemPage *VirtualMemory::NewPage(unsigned long round, int size) {
 
    // what page range is this for
    mptr->round = round;
+   
+   mptr->addr = round;
    // size of this page
    mptr->size = Settings[SETTINGS_PAGE_SIZE];
    // lets allocate the data
@@ -205,7 +214,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			data[i] = mptr->data[pageaddr];
 			//if ((addr < 0x60000000))
 			if (MemDebug)
-			printf("(r) %X = %02X\n", addr + i, (unsigned char)(data[i]));
+			printf("(r) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i]));
 			break;
 		  case VMEM_WRITE:
 			// clone on write.... from parent
@@ -215,7 +224,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			}
 			//if ((addr < 0x60000000))
 			if (MemDebug)
-			printf("(w) %X = %02X\n", addr + i, (unsigned char)(data[i])); 
+			printf("(w) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i])); 
 			mptr->data[pageaddr] = data[i];
 			break;
 		  default:

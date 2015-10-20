@@ -710,12 +710,12 @@ int Emulation::PreExecute(EmulationThread *thread) {
 				
 				proxied = 0;
 			}/* else if (strcmp(iatptr->function, "CloseHandle")==0) {
-				ret_fix = 4;
-				eax_ret = 1;
-				esp = thread->thread_ctx.emulation_ctx.regs->esp;
-				ret_eip = StackPop(thread);
+			//	ret_fix = 4;
+			//	eax_ret = 1;
+			//	esp = thread->thread_ctx.emulation_ctx.regs->esp;
+			//	ret_eip = StackPop(thread);
 				
-			}*/ 
+			} */
 			else if (strcmp(iatptr->function, "GetProcessHeap")==0) {
 				
 				ret_eip = StackPop(thread, &esp);
@@ -900,6 +900,9 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 	for (; tptr != NULL; tptr = tptr->next) {
 		if (tptr->completed) {
 			if (!tptr->dumped) {
+				Snapshot_Create(1);
+				Snapshot_Dump(1,"snapshot.dat");
+
 				DumpStack(tptr);
 			}
 			continue;
@@ -1731,6 +1734,7 @@ int Emulation::Snapshot_Create(int id) {
 	shotptr->thread_count = thread_count;
 	shotptr->id = id;
 	
+	//printf("Snapshot ID %d total size %d memory count %d thread count %d\n",id, total_size, mem_pages_count, thread_count);
 	
 	tptr = MasterVM.Threads;
 	for (i = 0; i < thread_count; i++) {
@@ -1752,12 +1756,14 @@ int Emulation::Snapshot_Create(int id) {
 	for (i = 0; i < mem_pages_count; i++) {
 		SnapshotMemPage *snappageptr = (SnapshotMemPage *)ptr;
 		
-		snappageptr->Address = mptr->addr;
+		snappageptr->Address = mptr->round;
 		snappageptr->Size = mptr->size;
 		
 		ptr += sizeof(SnapshotMemPage);
 		
-		VM->MemDataRead(mptr->addr, (unsigned char *)ptr, mptr->size);
+		//printf("VMEM read for snap: %X  %X size %d\n", mptr->addr, mptr->round, mptr->size);
+		memcpy(ptr, mptr->data, mptr->size);
+		//VM->MemDataRead(mptr->addr, (unsigned char *)ptr, mptr->size);
 		ptr += mptr->size;
 		
 		mptr = mptr->next;
@@ -1808,8 +1814,19 @@ int Emulation::Snapshot_Revert(int id) {
 		SnapshotMemPage *snappageptr = (SnapshotMemPage *)ptr;
 		
 		ptr += sizeof(SnapshotMemPage);
-		
-		VM->MemDataWrite(snappageptr->Address, (unsigned char *)ptr, snappageptr->Size);
+	
+		VirtualMemory::MemPage *mptr = (VirtualMemory::MemPage *)VM->Memory_Pages;
+		while (mptr->round != snappageptr->Address) {
+			mptr = mptr->next;
+		}
+		if (mptr == NULL) {
+			printf("error finding page to revert\n");
+			throw;
+		} else {
+			memcpy(mptr->data, ptr, mptr->size);	
+				
+		}
+		//VM->MemDataWrite(snappageptr->Address, (unsigned char *)ptr, snappageptr->Size);
 		ptr += snappageptr->Size;
 	}
 
