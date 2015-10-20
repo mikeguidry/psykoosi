@@ -604,61 +604,6 @@ void Emulation::ClearLogs(EmulationThread *thread) {
 }
 
 
-/* pre is for simulation
-   post is for logging
-   
-   *** FIX: one problem is we have to load the ret_fix ...
-       maybe move this function inside of PreExecute() instead of 
-	   as another function so we can accomodate all variables
-*/
-int Emulation::PostExecute(EmulationThread *thread, uint32_t EIP) {
-	int ret = 0;
-	// if we are not simulating... we dont care to keep logs of functions because we are filling the data
-	// so postexec is irrelevant
-	if (!simulation) return 0;
-	
-	if (Loader->Imports) {
-		BinaryLoader::IAT *iatptr = Loader->FindIAT(EIP);
-		
-		if (iatptr != NULL) {
-			Hooks::APIHook *hptr = NULL;
-			
-			hptr = APIHooks.HookFind(iatptr->module, iatptr->function);
-			
-			// log the data returned to our user appointed buffer
-			// so we can simulate on another execution
-			if (hptr) {
-				uint32_t buf_addr = FindArgument(thread, hptr->find_buffer);
-				uint32_t buf_size = FindArgument(thread, hptr->find_size);
-				char *buf = NULL;
-				
-				if (buf_size) {
-					buf = (char *)malloc(buf_size + 1);
-				}
-				
-				if (buf) {
-					// read the buffer into our temporary buffer...
-					thread->EmuVMEM->MemDataRead(buf_addr, (unsigned char *)buf, buf_size);
-				
-					// now log it into our protocol exchange list for simulating on another execution
-					Hooks::ProtocolExchange *xptr =
- 						APIHooks.AddProtocolExchange(hptr->id,
-	 						hptr->module_name, hptr->function_name,hptr->side, 
-	 						buf, buf_size);
-					
-					if (xptr != NULL)
-						ret = 1;
-					
-					free(buf); 
-				}				 				
-			}
-		}
-	}
-	
-	return ret;
-}
-
-
 // this will take a current thread context.. and find the buffer for the function thats hooked
 // *** Finish this.. and try to remove the constants.. maybe programmatically handle this
 uint32_t Emulation::FindArgument(EmulationThread *thread, int arg_information) {
@@ -828,7 +773,43 @@ int Emulation::PreExecute(EmulationThread *thread) {
 						exit(-1);
 					}
 					
-	
+					// lets see if this is a hooked function..if so lets log it.
+					Hooks::APIHook *hptr = NULL;
+					
+					hptr = APIHooks.HookFind(iatptr->module, iatptr->function);
+					// log the data returned to our user appointed buffer
+					// so we can simulate on another execution
+					if (hptr != NULL) {
+
+						// lets write this data for later simulation
+						uint32_t buf_addr = FindArgument(thread, hptr->find_buffer);
+						uint32_t buf_size = FindArgument(thread, hptr->find_size);
+						
+//						printf("buf addr %X size %d\n", buf_addr, buf_size);
+						
+						char *buf = NULL;
+						
+						if (buf_size) {
+							buf = (char *)malloc(buf_size + 1 + 1);
+//							printf("buf %p\n", buf);
+						}
+						
+						if (buf != NULL) {
+							memset(buf,0,buf_size + 1);
+							// read the buffer into our temporary buffer...
+							thread->EmuVMEM->MemDataRead(buf_addr, (unsigned char *)buf, buf_size);
+//							printf("buf: \"%s\"\n", buf);
+						
+							// now log it into our protocol exchange list for simulating on another execution
+							Hooks::ProtocolExchange *xptr =
+								APIHooks.AddProtocolExchange(hptr->id,
+									hptr->module_name, hptr->function_name,hptr->side, 
+									buf, buf_size);
+														
+							free(buf); 
+						}
+//						sleep(3);
+					}
 				} else {
 					// we are simulating.. lets load from the database...
 					Hooks::ProtocolExchange *xptr = APIHooks.NextProtocolExchange(hptr->id, hptr->side);
@@ -847,8 +828,14 @@ int Emulation::PreExecute(EmulationThread *thread) {
 					// that a particular buffer can be found on the stack, or at an address dereferenced
 					// from the stack...
 					uint32_t buf_addr = FindArgument(thread, hptr->find_buffer);
-					//uint32_t buf_size = FindArgument(thread, hptr, hptr->find_size);
+					uint32_t buf_size = FindArgument(thread, hptr->find_size);
 					
+					if (buf_size > xptr->size) {
+						printf("buf size is less than the prior exchanged communication [simul %d buf %d]\n",
+						xptr->size, buf_size);
+						
+						throw;
+					}
 					// copy the data in place..
 					thread->EmuVMEM->MemDataWrite(buf_addr, (unsigned char *)xptr->buf, xptr->size);
 					

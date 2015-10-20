@@ -10,7 +10,12 @@ the rest is irrelevant unless its a state machine where we can hope the applicat
 handles its own internal buffering so we can merge logs together for replays, or
 do higher level analysis (ie: where its reading/writing to)
 
+
+fasted way to fuzz file I/O (buffer sizes) is to increase the size and keep track
+
 */
+
+
 #include <cstddef>
 #include <iostream>
 #include <cstring>
@@ -48,12 +53,17 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 
+// initialize HOOKs
 Hooks::Hooks() {
 	exchange = exchange_last = NULL;
 	hooks = NULL;
 	hook_id = 0;
+	simulation = 0;
+	read_count_id = write_count_id = 0;
+	Init();
 }
 
+// free the hooks
 Hooks::~Hooks() {
 	while (hooks != NULL) {
 		HookFree(hooks);
@@ -68,8 +78,28 @@ Hooks::~Hooks() {
 // change this to a scripting language.. or a list of functions in 
 // a file
 int Hooks::Init() {
-//HookFunction(void *func, char *module, char *function, int side, int id, int logging) {
+	//HookFunction(void *func, char *module, char *function, int side, int id, int logging) {
 	//HookFunction()
+	
+	// *** FIX add WriteFile/send/etc (both sides of the protocols)
+	// for later.. so we can use these same exact
+	// protocol exchanges for creating new hidden communications for the p2p worm
+	APIHook *hptr = NULL;
+	// Add Kernel32.dll -> ReadFile(hFile,lpBuffer,ToRead,Read,lpOver);
+	hptr = HookFunction(NULL,"kernel32", "ReadFile", 0, 1, 1);
+	if (hptr) {
+		hptr->find_buffer = BUF_ESP_p8;
+		hptr->find_size = BUF_ESP_p12;
+	}
+
+	// Add ws2_32.dll -> recv(sock,buf,size,flags)	
+	hptr = HookFunction(NULL,"ws2_32", "recv", 0, 1, 1);
+	if (hptr) {
+		hptr->find_buffer = BUF_ESP_p12;
+		hptr->find_size = BUF_ESP_p8;
+	}
+	
+	
 	return 1;	
 }
 
@@ -85,6 +115,8 @@ Hooks::APIHook *Hooks::HookFunction(void *func, char *module, char *function, in
 	aptr->function_name = strdup(function);
 	aptr->module_name = strdup(module);
 	
+	aptr->next = hooks;
+	hooks = aptr;
 	return aptr;
 }
 
@@ -114,7 +146,7 @@ int Hooks::HookRead(int hook_id, char *dst, int size) {
 		eptr = NextProtocolExchange(hook_id, 0);
 		if (eptr == NULL) {
 			printf("Cannot find next read protocol exchange for %d [cur count id %d]\n",
-			hook_id, count_id);
+			hook_id, read_count_id);
 			throw;
 			return -1;
 		}
@@ -131,7 +163,7 @@ int Hooks::HookWrite(int hook_id, char *src, int size) {
 		eptr = NextProtocolExchange(hook_id, 1);
 		if (eptr == NULL) {
 			printf("Cannot find next write protocol exchange for %d [cur count id %d]\n",
-			hook_id, count_id);
+				hook_id, write_count_id);
 			throw;
 			return -1;
 		}
@@ -148,8 +180,11 @@ Hooks::ProtocolExchange *Hooks::NextProtocolExchange(int hook_id, int side) {
 	ProtocolExchange *eptr = exchange;
 	while (eptr != NULL) {
 		if (eptr->hook_id == hook_id && eptr->side == side) {
-			if (eptr->id == count_id) {
-				count_id++;
+			if (eptr->id == (side == 0 ? read_count_id : write_count_id)) {
+				if (side == 0)
+					read_count_id++;
+				else
+					write_count_id++;
 				break;
 			}
 		}
@@ -171,7 +206,7 @@ Hooks::ProtocolExchange *Hooks::AddProtocolExchange(int hook_id, char *module, c
 		eptr->function = strdup(function);
 	
 	eptr->hook_id = hook_id;
-	eptr->id = ++count_id;
+	eptr->id = (side == 0) ? ++read_count_id : ++write_count_id;
 	eptr->side = side;
 	eptr->ordered = 1;
 	eptr->size = size;
@@ -262,9 +297,13 @@ int Hooks::Load(char *file) {
 		eptr->function = function;
 		eptr->buf = data;
 		eptr->size = save.size;
+		eptr->side = save.side;
 		
-		if (count_id < eptr->id)
-			count_id = eptr->id + 1;
+		if (save.side == 0) {
+				read_count_id = eptr->id;
+		} else {
+				write_count_id = eptr->id;
+		}
 			
 		count++;
 	}
@@ -306,15 +345,19 @@ int Hooks::Save(char *file) {
 	return count;
 }
 
+
 Hooks::APIHook *Hooks::HookFind(char *module, char *function) {
 	APIHook *aptr = hooks;
 	while (aptr != NULL) {
 		if (aptr->module_name && aptr->function_name) {
-			if ((strcmp(aptr->module_name, module)==0) &&
+			//printf("aptr %s %s\n", aptr->module_name, aptr->function_name);
+			if ((strcasestr(module, aptr->module_name) != NULL) &&
 				(strcmp(aptr->function_name, function)==0)) {
 					break;
 			}
 		}
+		
+		aptr = aptr->next;
 	}
 	return aptr;
 }

@@ -269,6 +269,10 @@ int main(int argc, char *argv[]) {
 	printf("Emulation Completed...\n");
 	
 	printf("Printing resulting logs:\n");
+	
+	// save protocol communications to a file...
+	emu.APIHooks.Save("proto.dat");
+	
 	Emulation::EmulationLog *logptr = emu.MasterThread->LogList;
 	exit(0);
 	while (logptr != NULL) {
@@ -288,6 +292,7 @@ int main(int argc, char *argv[]) {
 		
 		logptr = logptr->next;
 	}
+	
 	
 	
 	

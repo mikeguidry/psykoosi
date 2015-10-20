@@ -4,6 +4,19 @@ This software is meant to test your own software, or network.  I take no respons
 
 HIGH PRIORITY:
 
+* for people without xeon PHIs.. create a docker version so everyone can begin fuzzing ASAP
+
+* detail documentation for open sourcing and explaining the direction so others can help build if they have ideas
+
+* merge unicorn but try to sync directly to qemu virtual memory
+
+* keep distribution separated from the fuzz app...
+  use an outside server via zeromq/nanomsg which will log to MySQL or grab information as needed
+  make it simple for compiling for the XEON Phi cards...
+  find some way to compare iterations of 'fuzz' on machines so it can be used for determining
+  functions/loops/data that will take longer or shorter.. the shorter ones can go on to browsers using asm.js
+  the PHI farm can handle the longer tasks..
+  
 * implement multithreading support, and finish on API Proxy Server
   multithreading is purely for emulation..
   we will run 1 instruction per thread per CPU 'cycle...'

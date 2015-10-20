@@ -4,3 +4,6 @@
 [submodule "depends/capstone"]
 	path = depends/capstone
 	url = https://github.com/aquynh/capstone.git
+[submodule "depends/nanomsg"]
+	path = depends/nanomsg
+	url = https://github.com/nanomsg/nanomsg.git

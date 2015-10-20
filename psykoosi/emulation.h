@@ -390,7 +390,6 @@ namespace psykoosi {
       BUF_DEREF=524288,
 		};
 		
-  	  public:
 
 	  Emulation(VirtualMemory *_VM);
 	  ~Emulation();
@@ -443,7 +442,6 @@ namespace psykoosi {
     uint32_t StackPeek(EmulationThread *, int);
 
     int PreExecute(EmulationThread *thread);
-    int PostExecute(EmulationThread *thread, uint32_t);
     
     uint32_t CreateThread(EmulationThread *tptr, uint32_t *);
 	  EmulationThread *MasterThread;
