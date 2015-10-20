@@ -22,6 +22,7 @@
 #include <udis86.h>
 #include <pe_lib/pe_bliss.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include "virtualmemory.h"
 extern "C" {
 #include <capstone/capstone.h>
@@ -488,7 +489,9 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	Proxy = NULL;
 	VM = _VM2[0] = _VM;
 	EmuPtr[0] = this;
+	SnapshotList = NULL;
 	completed = 0;
+	SnapshotList = NULL;
 	std::memset((void *)&MasterVM, 0, sizeof(VirtualMachine));
 	//MasterVM.LogList = NULL;
 	// count of virtual machines and incremental ID
@@ -1680,4 +1683,204 @@ void Emulation::PrintLog(EmulationLog *logptr) {
 	if (logptr->Monitor & REG_SS) printf("SS ");
 	
 	printf("\n");
+}
+
+// create a snapshot of the entire current state (so we can rewind.. for both fuzzing and exploit generation)
+int Emulation::Snapshot_Create(int id) {
+	int i = 0;
+	// count the amount of memory pages...
+	VirtualMemory::MemPage *mptr = VM->Memory_Pages;
+	int mem_pages_count = 0;
+	int mem_pages_size = 0;
+	while (mptr != NULL) {
+		mem_pages_count++;
+		mem_pages_size += mptr->size;
+		mptr = mptr->next;
+	}
+	
+	EmulationThread *tptr = MasterVM.Threads;
+	int thread_count = 0;
+	int stack_size = 0;
+	while (tptr != NULL) {
+		thread_count++;
+		stack_size += tptr->StackHigh - tptr->StackLow;
+		tptr = tptr->next;
+	}
+	// total size for ALL data regarding the snapshot...
+	int total_size = sizeof(EmuSnapshot) + ((sizeof(SnapshotMemPage) * mem_pages_count) + mem_pages_size) +
+		(sizeof(SnapshotThread) * thread_count);
+		// no need for stack to be included since we have the pages in memory
+		// + stack_size;
+		
+	char *snapdata = (char *)malloc(total_size + 1);
+	char *ptr = (char *)snapdata;
+	if (snapdata == NULL) {
+		printf("couldnt allocate %d bytes for snapshot\n", total_size);
+		throw;
+		return 0;
+	}
+	memset(snapdata, 0, total_size);
+	
+	EmuSnapshot *shotptr = (EmuSnapshot *)ptr;
+	ptr += sizeof(EmuSnapshot);
+	
+	// wont use next in final file
+	shotptr->next = (EmuSnapshot *)0xFFFFFFFF;
+	shotptr->total_size = total_size;
+	shotptr->memory_page_count = mem_pages_count;
+	shotptr->thread_count = thread_count;
+	shotptr->id = id;
+	
+	
+	tptr = MasterVM.Threads;
+	for (i = 0; i < thread_count; i++) {
+		SnapshotThread *threadptr = (SnapshotThread *)ptr;
+		threadptr->StartAddress = tptr->StartAddress;
+		threadptr->CPUStart = tptr->CPUStart;
+		threadptr->CPUCycle = tptr->CPUCycle;
+		threadptr->LogID = tptr->LogID;
+		memcpy(&threadptr->registers, &tptr->registers, sizeof(struct cpu_user_regs));
+		threadptr->stack.Thread_ID = tptr->ID;
+		threadptr->stack.StackLow = tptr->StackLow;
+		threadptr->stack.StackHigh = tptr->StackHigh;
+		
+		ptr += sizeof(SnapshotThread);
+		tptr = tptr->next;
+	}
+	
+	mptr = VM->Memory_Pages;
+	for (i = 0; i < mem_pages_count; i++) {
+		SnapshotMemPage *snappageptr = (SnapshotMemPage *)ptr;
+		
+		snappageptr->Address = mptr->addr;
+		snappageptr->Size = mptr->size;
+		
+		ptr += sizeof(SnapshotMemPage);
+		
+		VM->MemDataRead(mptr->addr, (unsigned char *)ptr, mptr->size);
+		ptr += mptr->size;
+		
+		mptr = mptr->next;
+	}
+	
+	// add to list..
+	shotptr->next = SnapshotList;
+	SnapshotList = shotptr;
+	
+	return 1;
+}
+
+// revert the state of the emulator to a prior saved or loaded snapshot by ID
+int Emulation::Snapshot_Revert(int id) {
+	int i = 0;
+	EmuSnapshot *snapptr = SnapshotList;
+	// find the snapshot..
+	while (snapptr != NULL && snapptr->id != id)
+		snapptr = snapptr->next;
+	// if not error...
+	if (snapptr == NULL) return -1;
+	char *ptr = (char *)((char *)snapptr + sizeof(EmuSnapshot));
+	// snapshot found.. lets revert all information backwards!
+	
+	for (i = 0; i < snapptr->thread_count; i++) {
+		SnapshotThread *threadptr = (SnapshotThread *)ptr;
+		EmulationThread *tptr = FindThread(threadptr->stack.Thread_ID);
+		if (tptr == NULL) {
+			printf("Couldnt find thread %d for revert\n");
+			throw;
+			return -1;
+		}
+		tptr->StartAddress = threadptr->StartAddress; 
+		tptr->CPUStart = threadptr->CPUStart; 
+		tptr->CPUCycle = threadptr->CPUCycle;
+		tptr->LogID = threadptr->LogID;
+		memcpy(&tptr->registers, &threadptr->registers, sizeof(struct cpu_user_regs));
+		//threadptr->stack.Thread_ID = tptr->ID;
+		tptr->StackLow = threadptr->stack.StackLow; 
+		tptr->StackHigh = threadptr->stack.StackHigh;
+		
+		ptr += sizeof(SnapshotThread);
+		
+	}
+
+	// write all memory back to how it was before..	
+	for (i = 0; i < snapptr->memory_page_count; i++) {
+		SnapshotMemPage *snappageptr = (SnapshotMemPage *)ptr;
+		
+		ptr += sizeof(SnapshotMemPage);
+		
+		VM->MemDataWrite(snappageptr->Address, (unsigned char *)ptr, snappageptr->Size);
+		ptr += snappageptr->Size;
+	}
+
+	return 1;
+}
+
+// dump a state to a file
+int Emulation::Snapshot_Dump(int id, char *file) {
+	FILE *fd;
+	EmuSnapshot *sptr = Snapshot_Find(id);
+	if (sptr == NULL) {
+		printf("couldnt find snapshot %d to save\n", id);
+		throw;
+		return -1;
+	}
+	if ((fd = fopen(file, "wb")) == NULL) {
+		printf("couldnt open %s to dump snapshot %d\n", file, id);
+		throw;
+		return -1;
+	}
+	fwrite((char *)sptr, 1, sptr->total_size, fd);
+	
+	fclose(fd);
+}
+
+
+Emulation::EmuSnapshot *Emulation::Snapshot_Find(int id) {
+	EmuSnapshot *snapptr = SnapshotList;
+	while (snapptr != NULL) {
+		if (snapptr->id == id) return snapptr;
+		snapptr = snapptr->next;
+	}
+	return NULL;
+}
+
+
+// load a snapshot from disk into a file
+int Emulation::Snapshot_Load(char *filename, int id) {
+	FILE *fd;
+	struct stat stv;
+	if ((fd = fopen(filename, "rb")) == NULL) {
+		printf("couldnt open snapshot file %s\n", filename);
+		throw;
+		return -1;
+	}
+	fstat(fileno(fd), &stv);
+	char *buf = (char *)malloc(stv.st_size + 1);
+	if (buf == NULL) {
+		printf("couldnt allocate %d bytes to read snapshot\n", stv.st_size);
+		fclose(fd);
+		throw;
+		return -1;
+	}
+	fread(buf, 1, stv.st_size, fd);
+	fclose(fd);
+	
+	EmuSnapshot *sptr = (EmuSnapshot *)buf;
+	
+	sptr->next = SnapshotList;
+	SnapshotList = sptr;
+	
+	return 1;
+}
+
+
+Emulation::EmulationThread *Emulation::FindThread(int id) {
+	EmulationThread *tptr = MasterVM.Threads;
+	
+	while (tptr != NULL) {
+		if (tptr->ID == id) return tptr;
+	}
+	
+	return NULL;
 }

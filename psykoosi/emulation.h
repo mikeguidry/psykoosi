@@ -71,7 +71,43 @@ namespace psykoosi {
 	  };
 
   	  public:
+
+
+      // snapshot information
+      // the counts of thread/mem pages are just the counts
+      // for the information behind it..
+      typedef struct _emu_snapshot {
+          struct _emu_snapshot *next;
+          int total_size;
+          int id;
+          int memory_page_count;
+          int thread_count;
+      } EmuSnapshot;
       
+      // memory page (data follows)
+      typedef struct _snapshot_mem_page {
+        uint32_t Address;
+        uint32_t Size; 
+      } SnapshotMemPage;
+      
+      // stack information (high/low...)
+      typedef struct _snapshot_stack {
+        int Thread_ID;
+        uint32_t StackHigh;
+        uint32_t StackLow;
+      } SnapshotStack;
+
+      // thread being saved (stack data follows)
+      typedef struct _snapshot_thread {
+        struct cpu_user_regs registers;
+        uint32_t StartAddress;
+        unsigned long CPUStart;
+        unsigned long CPUCycle;
+        unsigned long LogID;
+        SnapshotStack stack;  
+      } SnapshotThread;
+      
+        
       typedef struct _stack_allocations {
         struct _stack_allocations *next;
         
@@ -81,7 +117,6 @@ namespace psykoosi {
         CodeAddr High;
         
         int Size;
-        
       } StackRegions;
       
       // a heap allocation during emulation
@@ -440,13 +475,20 @@ namespace psykoosi {
     void StackPush(EmulationThread *, uint32_t value);
     uint32_t StackPop(EmulationThread *, uint32_t *);
     uint32_t StackPeek(EmulationThread *, int);
-
+    EmulationThread *FindThread(int id);
     int PreExecute(EmulationThread *thread);
     
     uint32_t CreateThread(EmulationThread *tptr, uint32_t *);
 	  EmulationThread *MasterThread;
     VirtualMachine MasterVM;
 
+
+    int Snapshot_Create(int);
+    int Snapshot_Revert(int);
+    int Snapshot_Dump(int id, char *file);
+    int Snapshot_Load(char *filename, int id);
+    EmuSnapshot *Snapshot_Find(int);
+    
 	  int Global_ChangeLog_Read;
 	  int Global_ChangeLog_Write;
 	  int Global_ChangeLog_Verify;
@@ -481,6 +523,9 @@ namespace psykoosi {
     
     int start_ts;
     
+    EmuSnapshot *SnapshotList;
+
+
 	  private:
 
 	  int Current_VM_ID;

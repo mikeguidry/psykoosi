@@ -175,9 +175,11 @@ namespace psykoosi {
       Memory_Section *Section_Last;
 
 	  int MemDebug;
+	  
+	  MemPage *Memory_Pages;
     private:
       int MemDataIO(int operation, unsigned long addr, unsigned char *result, int len);
-      MemPage *Memory_Pages;
+      
       ChangeLog *LogList, *LogLast;
       VirtualMemory *VMParent;
       int Children;
