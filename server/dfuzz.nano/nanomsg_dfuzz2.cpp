@@ -11,8 +11,6 @@
 #include <string.h>
 #include <mysql.h>
 #include <Python.h>
-#include <sys/param.h>
-#include <netdb.h>
 
 
 
@@ -170,20 +168,18 @@ typedef struct _exceptions {
     int checked;
     int extra_size;
     unsigned char *extra;
-    int queue_id;
 } Exceptions;
-
-
 
 
 Operations *operations = NULL;
 Complete *complete = NULL;
 Queue *queue = NULL;
+// requeue is for timed out.. so we distribute to another client
 Queue *requeue = NULL;
 Exceptions *exceptions = NULL;
 Samples *samples = NULL;
 
-
+// mysql handle
 MYSQL *mysql = NULL;
 
 Queue *GetQueue(Operations *optr);
@@ -232,13 +228,7 @@ Samples *sample_by_id(int id, int parent) {
 // this is used to initialize mysql.. but can also be called later to reconnect if we get any server has gone away messages from idles, etc
 // we just exit if error since we'll just loop this application
 void mysql_reopen(void) {
-    char name[MAXHOSTNAMELEN];
-    size_t namelen = MAXHOSTNAMELEN;
     MYSQL *sql = NULL;
-    char *sock=NULL;
-    
-    if ((gethostname(name, namelen) != -1) && (strcmp(name, "RC665")==0))
-        sock = "/var/run/mysqld/mysqld.sock";
     
     if (mysql != NULL) mysql_close(mysql);
 
@@ -246,7 +236,7 @@ void mysql_reopen(void) {
         printf("Fatal sql error\n");
         exit(-1);
     }
-    if (!(mysql_real_connect(sql,"localhost","root","",0,0,sock,0))) {
+    if (!(mysql_real_connect(sql,"localhost","root","",0,0,NULL,0))) {
         printf("Error connecting to SQL\n");
         exit(-1);
     }
@@ -320,7 +310,7 @@ void Operations_Load() {
         strncpy(optr->sample, row[3], 24);
         optr->thinapp = atoi(row[4]);
         optr->max_clients = atoi(row[5]);
-        optr->queue_timeout = atoi(row[6]);
+        optr->queue_timeout = 3;//atoi(row[6]);
         optr->memory_only = atoi(row[7]);
         optr->trace_mode = atoi(row[8]);
 
@@ -420,7 +410,7 @@ void Queue_Load() {
     MYSQL_ROW			row;
     
     printf("Queue_Load();\n");
-    querylen = snprintf(query, sizeof(query) - 1, "SELECT *,unix_timestamp(ts) from queue where complete = 0;");
+    querylen = snprintf(query, sizeof(query) - 1, "SELECT *,unix_timestamp(ts) from queue;");
     res = my_sql_query(mysql, query, querylen, 0);
     
     queue = NULL;
@@ -537,7 +527,6 @@ end:;
 
 
 int LogException(Exceptions *eptr) {
-    Operations *optr;
 
     char *query = NULL;
     int query_len= 0;
@@ -559,10 +548,6 @@ int LogException(Exceptions *eptr) {
     }
     memset(query, 0, sizeof(Exceptions) + 1024);
     
-    if ((optr = operation_by_id(eptr->operation_id)) != NULL) {
-        strncpy(eptr->application, optr->application, 24);
-        strncpy(eptr->version, optr->version, 24);
-    }
     mysql_real_escape_string(mysql, application, eptr->application, sizeof(eptr->application));
     mysql_real_escape_string(mysql, version, eptr->version, sizeof(eptr->version));
     mysql_real_escape_string(mysql, exception_address, eptr->exception_address, sizeof(eptr->exception_address));
@@ -571,8 +556,8 @@ int LogException(Exceptions *eptr) {
     mysql_real_escape_string(mysql, hash, eptr->hash, sizeof(eptr->hash));
     mysql_real_escape_string(mysql, ip, eptr->ip, sizeof(eptr->ip));
     
-    query_len = sprintf(query, "INSERT into exceptions set operation_id=%d,sample_id=%d,byte=%d,mode=%d,application='%s',version='%s',exception_address='%s',exception_code='%s',newbyte='%s',hash='%s',ip='%s',extra_size=%d,queue_id=%d;", eptr->operation_id,
-            eptr->sample_id, eptr->byte, eptr->mode, application, version, exception_address, exception_code, newbyte, hash, ip, eptr->extra_size, eptr->queue_id);
+    query_len = sprintf(query, "INSERT into exceptions set operation_id=%d,sample_id=%d,byte=%d,mode=%d,application='%s',version='%s',exception_address='%s',exception_code='%s',newbyte='%s',hash='%s',ip='%s',extra_size=%d;", eptr->operation_id,
+            eptr->sample_id, eptr->byte, eptr->mode, application, version, exception_address, exception_code, newbyte, hash, ip, eptr->extra_size);
     
     if (my_sql_query(mysql, query, query_len, 0)==NULL) {
         // failed to insert row?.. crash and/or save another way
@@ -621,6 +606,7 @@ int AddQueue(Queue *eptr, int update) {
     char ip[sizeof(eptr->ip) * 2 + 1];
         char update_str[1024];
 
+    printf("Addqueue %d\n", update);
     
     if ((query = (char *)malloc(sizeof(Queue) + 1024)) == NULL) {
         // crash fail miserably...
@@ -770,6 +756,7 @@ void CheckQueue() {
         optr = operation_by_id(qptr->operation_id);
         if (optr == NULL) continue; // fix this later.. should never happen though unless DB issues
         if (optr && ((time(0) - qptr->ts) > optr->queue_timeout)) {
+            printf("check queue found timeout\n");
             
             qptr->timeout=1;
             AddQueue(qptr, 1);
@@ -845,8 +832,6 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
             break;
     }
     
-    if (optr == NULL || qptr == NULL) return;
-    
     if ((sptr = sample_by_id(qptr->sample_id, 0)) == NULL) return;
     
     if (qptr == NULL || optr == NULL) return;
@@ -859,7 +844,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     pkthdr->type = CONTACT_RESP;
     pkthdr->len = sizeof(NanoPkt) + sizeof(ClientOp) + sptr->bytes;
     
-    ClientOp *clientop = (ClientOp *)((char *)_ret + sizeof(NanoPkt));
+    ClientOp *clientop = (ClientOp *)(_ret + sizeof(NanoPkt));
     strncpy(clientop->application, optr->application, 24);
     strncpy(clientop->installer_url, optr->installer_url, 1023);
     strncpy(clientop->installer_command_line, optr->installer_command_line, 1023);
@@ -873,7 +858,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     clientop->sample_id = qptr->sample_id;
     clientop->sample_size = sptr->bytes;
     
-    memcpy((void *)((char *)_ret + sizeof(NanoPkt) + sizeof(ClientOp)), sptr->data, sptr->bytes);
+    memcpy(_ret + sizeof(NanoPkt) + sizeof(ClientOp), sptr->data, sptr->bytes);
 
 
     *ret = (unsigned char *)_ret;
@@ -884,103 +869,15 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
 
 
 
-typedef struct _complete_op {
-    int operation_id;
-    int queue_id;
-    int sample_id;
-    int mode;
-    int byte;
-    int count;
-} CompleteOp;
-
-
-
-
 void nginx_complete(unsigned char *pkt, unsigned char **ret, int *ret_len) {
      NanoPkt *pkthdr;
-    CompleteOp *cptr;
-    Operations *optr;
-    Samples *sptr;
-    Queue *qptr;
-    
-    pkthdr = (NanoPkt *)pkt;
-    
-    if (pkthdr->len != (sizeof(NanoPkt) + sizeof(CompleteOp))) return;
-    
-    cptr = (CompleteOp *)(pkt + sizeof(NanoPkt));
-    
-    
-    for (qptr = queue; qptr != NULL; qptr = qptr->next) {
-        if (qptr->id == cptr->queue_id) break;
-    }
-    
-    sptr = sample_by_id(cptr->sample_id, 0);
-    
-    optr = operation_by_id(cptr->operation_id);
-    
-    if ((sptr == NULL) || (optr == NULL) || (qptr == NULL)) return;
-    
-    // mark queue as complete....
-    qptr->complete = 1;
-    
-    AddQueue(qptr, 1);
 }
 
 
-typedef struct _exception_op {
-    int operation_id;
-    int queue_id;
-    int sample_id;
-    int mode;
-    int byte;
-    char exception_address[23];
-    char exception_code[23];
-    char newbyte[23];
-} ExceptionOp;
+
 
 void nginx_exception(unsigned char *pkt, unsigned char **ret, int *ret_len) {
      NanoPkt *pkthdr;
-     ExceptionOp *eptr;
-    Operations *optr;
-    Samples *sptr;
-    Queue *qptr;
-    Exceptions *xptr;
-    
-     pkthdr = (NanoPkt *)pkt;
-    
-    if (pkthdr->len != (sizeof(NanoPkt) + sizeof(ExceptionOp))) return;
-    
-    eptr = (ExceptionOp *)(pkt + sizeof(NanoPkt));
-    
-    //if (pkthdr->len != (sizeof(NanoPkt) + sizeof(ExceptionOp))) return;
-    
-    for (qptr = queue; qptr != NULL; qptr = qptr->next) {
-        if (qptr->id == eptr->queue_id) break;
-    }
-    
-    sptr = sample_by_id(eptr->sample_id, 0);
-    
-    optr = operation_by_id(eptr->operation_id);
-    
-    if ((sptr == NULL) || (optr == NULL) || (qptr == NULL)) return;
-    
-    /// all good log exception
-    
-    xptr = (Exceptions *)malloc(sizeof(Exceptions) + 1);
-    memset(xptr, 0, sizeof(Exceptions));
-    
-    xptr->operation_id = eptr->operation_id;
-    xptr->sample_id = eptr->sample_id;
-    xptr->byte = eptr->byte;
-    xptr->queue_id = eptr->queue_id;
-    memcpy(xptr->exception_address, eptr->exception_address, 23);
-    memcpy(xptr->exception_code, eptr->exception_code, 23);
-    memcpy(xptr->newbyte, eptr->newbyte, 23);
-    
-    LogException(xptr);
-    
-    free(xptr);
-    
 }
 
 
@@ -996,104 +893,80 @@ struct _packet_types {
 };
 
 
-unsigned char *Python_SampleGenerate(char *python_file, char *python_function, int iteration, int *_len, unsigned char *initial,
-int i_len) {
+
+unsigned char *Python_SampleGenerate(char *python_file, char *python_function, int iteration, int *_len, unsigned char *initial, int i_len) {
     PyObject *pName=NULL, *pModule=NULL, *pFunc=NULL;
     PyObject *pArgs=NULL, *pFilename = NULL, *pValue=NULL;
     PyObject *pArray=NULL;
     int size = 0;
     char *data = NULL;
     FILE *fd;
-    char *tmpfile;
-    char _tmpfile[1024] = "null";
-
-    printf("Python_GenerateSample - Python File: %s Function: %s iteration: %d Return Len: %p Initial %p Initial size %d\n", 
-    python_file, python_function, iteration, _len, initial, i_len);
-    Py_Initialize();
+    char *tmpfile = tempnam("/tmp", "initial");
+    char _tmpfile[1024];
     
-    if (initial && i_len) {
-	tmpfile = tempnam("/tmp", "initial");
-	sprintf(_tmpfile, "%s.pdf", tmpfile);
+    sprintf(_tmpfile, "%s.pdf", tmpfile);
     
-	if ((fd = fopen(_tmpfile, "wb")) == NULL) {
-	    return NULL;
-	} else {
-	    size = fwrite(initial, 1, i_len, fd);
-	    if (size != i_len) {
-		return NULL;
-	    }
-	    fclose(fd);
-	}
+    if ((fd = fopen(_tmpfile, "wb")) == NULL) {
+        return NULL;
+    } else {
+        fwrite(initial, i_len, 1, fd);
+        fclose(fd);
     }
-
     
+    printf("tmp file:%s\n", _tmpfile);
+    Py_Initialize();
     PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.path.append(\"/home/mike/PyPDF2\")");
-    //PyRun_SimpleString("sys.path.append(\".\")");
+    PyRun_SimpleString("sys.path.append(\"/home/mike/PyPDF2/PyPDF2/PyPDF2\")");
     
+    printf("py gen file: %s func: %s it: %d len %p\n", python_file, python_function, iteration, _len);
     pName = PyString_FromString(python_file);
     pModule = PyImport_Import(pName);
     Py_DECREF(pName);
-
     
-    if (pModule != NULL) {
+    if (pModule == NULL) goto end;
 	pFunc = PyObject_GetAttrString(pModule, python_function);
-	
-	if ((pFunc && PyCallable_Check(pFunc))) {
+    if (!(pFunc && PyCallable_Check(pFunc))) goto end;
     
-	    // setup and convert arguments for python script
-	    pArgs = PyTuple_New(2);
-	
-	    pFilename = PyString_FromString(_tmpfile);
-	    if (!pFilename) {
-		Py_DECREF(pArgs);
-		Py_DECREF(pModule);
-		return NULL;
-	    }
-	    PyTuple_SetItem(pArgs, 0, pFilename);
+	// setup and convert arguments for python script
+	pArgs = PyTuple_New(2);
+    
+    pFilename = PyString_FromString(_tmpfile);
+    if (!pFilename) goto end;
+	PyTuple_SetItem(pArgs, 0, pFilename);
 
-	    pValue = PyInt_FromLong(iteration);
-	    if (!pValue) {
-		Py_DECREF(pArgs);
-		Py_DECREF(pModule);
-		return NULL;
-	    }
-	    PyTuple_SetItem(pArgs, 1, pValue);
+    pValue = PyInt_FromLong(iteration);
+    if (!pValue) goto end;
+    PyTuple_SetItem(pArgs, 1, pValue);
     
-	    // call python function
-	    pValue = PyObject_CallObject(pFunc, pArgs);
-	    Py_DECREF(pArgs);
     
-	    // if return value.. then we wanna convert and print
-    	    if (pValue != NULL && !PyErr_Occurred()) {
-		if ((pArray = PyByteArray_FromObject(pValue)) != NULL) {
-		    size = PyByteArray_Size(pArray);
-		    if ((data = (char *)malloc(size+1)) != NULL) {
-			memcpy(data, PyByteArray_AsString(pArray), size);
-			*_len = size;
-		    }
-		    
-		    Py_DECREF(pArray);
-		} else {
-		    PyErr_Print();
-		    
-		    Py_DECREF(pValue);
-		    Py_DECREF(pFunc);
-		    Py_DECREF(pModule);
-		    PyErr_Print();
-		    return NULL;
-		}
-		
-		Py_DECREF(pValue);
-	    }
-		
-		
-	    Py_XDECREF(pFunc);
-	}
-	
-	Py_DECREF(pModule);
+	// call python function
+	pValue = PyObject_CallObject(pFunc, pArgs);
+    
+	// if return value.. then we wanna convert and print
+	if (pValue != NULL && !PyErr_Occurred()) {
+	    if ((pArray = PyByteArray_FromObject(pValue)) == NULL) goto end;
+        if (pArray == NULL) goto end;
+	    size = PyByteArray_Size(pArray);
+	    if ((data = (char *)malloc(size+1)) == NULL) goto end;
+	    memcpy(data, PyByteArray_AsString(pArray), size);
+	    *_len = size;
+	} else {
+	    PyErr_Print();
     }
-
+    
+    
+end:;
+    PyErr_Print();
+    
+    // python cleanup.. usually would do differently but python seems to keep it cool with Py_XDECREF....
+    Py_XDECREF(pFunc);
+    Py_XDECREF(pArray);
+    Py_XDECREF(pValue);
+    Py_DECREF(pFilename);
+    Py_XDECREF(pFunc);
+    Py_XDECREF(pModule);
+    Py_XDECREF(pArgs);
+    
     Py_Finalize();
     
     return (unsigned char *)data;
@@ -1108,6 +981,7 @@ Queue *GetQueue(Operations *optr) {
     
     
     if ((qptr = requeue) != NULL) {
+        printf("requeue\n");
         // readd to queue list...should change ip hash etc here..
         requeue = qptr->next;
         qptr->timeout=0;
@@ -1115,23 +989,30 @@ Queue *GetQueue(Operations *optr) {
         AddQueue(qptr,1);
         qptr->next = queue;
         queue = qptr;
+        printf("shouldve updated check\n");
         return qptr;
     }
     
     
     for (sptr = samples; sptr != NULL; sptr = sptr->next) {
-        if (sptr->parent_id != 0) continue;
+        printf("Sample loop %p\n", sptr);
+        if (sptr->parent_id != 0) { printf("parent not 0\n"); continue; }
         if ((sptr->operation_id == optr->id)) {
+            printf("found good op id\n");
             for (gptr = sptr->generated; gptr != NULL; gptr = gptr->next) {
-                if (gptr->exhausted) continue;
+                printf("child sample %d cur %d bytes %d\n", gptr->id, gptr->cur_distribution_byte, gptr->bytes);
+                if (gptr->exhausted) { printf("sample id %d exhausted going to next\n", gptr->id); continue; }
                 if (gptr->cur_distribution_byte > gptr->bytes) {
+                    printf("should be exhausted\n");
                     gptr->exhausted = 1;
                     continue;
                 }
+                printf("sample id %d which is already genereated seems good\n", gptr->id);
                 
                 bytes = gptr->bytes - gptr->cur_distribution_byte;
                 // we have x bytes more to distribute to exhaust this sample file
                 if (bytes > optr->max_bytes_per_worker) {
+                    printf("too many bytes doing max\n");
                     bytes = optr->max_bytes_per_worker;
                 } else {
                     // this will be last distribution for this sample.. lets exhaust it
@@ -1140,6 +1021,7 @@ Queue *GetQueue(Operations *optr) {
                 
 
                 
+                printf("creating queue\n");
                 // create queue ... add to database and distribute to client
                 qptr = (Queue *)malloc(sizeof(Queue) + 1);
                 memset(qptr, 0, sizeof(Queue));
@@ -1155,6 +1037,8 @@ Queue *GetQueue(Operations *optr) {
 
                 gptr->cur_distribution_byte += bytes;
                 
+                printf("new queue op %d sample %d byte %d count %d mode %d cur dist %d\n", qptr->operation_id, qptr->sample_id, qptr->byte, qptr->count,
+                       qptr->mode, gptr->cur_distribution_byte);
                 
                 AddSample(gptr, 1);
                 
@@ -1164,11 +1048,13 @@ Queue *GetQueue(Operations *optr) {
             } // done looking for already generated which isnt exhausted.. now to see if we can generate more
 
             if (sptr->max_generation && sptr->cur_generation > sptr->max_generation) {
+                printf("max gen hit.. exhausting\n");
                 sptr->exhausted = 1;
                 AddSample(sptr, 1);
                 
             }
             
+            printf("generating new sample\n");
 
             int sample_len = 0;
             unsigned char *sample_data = Python_SampleGenerate((char *)"generate", (char *)"generate", sptr->cur_generation++, &sample_len, sptr->initial_file, sptr->initial_file_size);
@@ -1258,27 +1144,43 @@ Queue *GetQueue(Operations *optr) {
 }
 
 
+
+void exceptlogtest() {
+    Exceptions *eptr;
+    
+    eptr = (Exceptions *)malloc(sizeof(Exceptions) + 1);
+    memset(eptr, 0, sizeof(Exceptions));
+  
+    eptr->operation_id = 1;
+    strncpy(eptr->application, "AcroRd32.exe", 24);
+    strncpy(eptr->version, "11.0", 24);
+    strncpy(eptr->exception_address, "0xdeadbeef", 24);
+    strncpy(eptr->exception_code, "0xbeefdead", 24);
+    strncpy(eptr->newbyte, "0x25", 24);
+    strncpy(eptr->hash, "hash", 63);
+    strncpy(eptr->ip, "127.0.0.1", 16);
+    eptr->ts=time(0);
+    eptr->byte=8;
+    eptr->sample_id=3;
+    
+    LogException(eptr);
+    
+    
+}
+
+
+
 int main(int argc, char *argv[]) {
     void *data = NULL;
     int r_len = 0;
+    char file[] = "/tmp/dfuzz.ipc";
+    char ipc[] = "ipc:///tmp/dfuzz.ipc";
     int timeout = 1000;
     unsigned char *s_data = NULL;
-    int s_len = 0;
-    int s;
-    int a;
-    int len;
+    int s = 0, s_len = 0, a = 0, len = 0;
     int _time=time(0);
-    char file[1024];
-    char ipc[1024];
-    int ipc_num = 0;
-
-    if (argc > 1) {
-        ipc_num = atoi(argv[1]) + 1;
-    } else ipc_num = 1;
     
-    sprintf(file, "/tmp/dfuzz%d.ipc", ipc_num);
-    sprintf(ipc, "ipc:///tmp/dfuzz%d.ipc", ipc_num);
-
+    // Initialize Python for sample generation / PDF
 
     // initialize mysql
     mysql_reopen();
@@ -1288,16 +1190,15 @@ int main(int argc, char *argv[]) {
     Samples_Load();
     
     
-    s = nn_socket(AF_SP, NN_REP);
-    nn_setsockopt(s, NN_REP, NN_RCVTIMEO, &timeout, sizeof(timeout));
-    nn_setsockopt(s, NN_REP, NN_SNDTIMEO, &timeout, sizeof(timeout));
+    s = nn_socket(AF_SP, NN_REQ);
+    //nn_setsockopt(s, NN_REP, NN_RCVTIMEO, &timeout, sizeof(timeout));
+    //nn_setsockopt(s, NN_REP, NN_SNDTIMEO, &timeout, sizeof(timeout));
     a = nn_bind(s, ipc);
     chmod(file, 0777);
     
     
     
-    printf("Bound to IPC: %s\n", ipc);
-    
+    exceptlogtest();
     
     _time = time(0);
     while (1) {
@@ -1306,7 +1207,7 @@ int main(int argc, char *argv[]) {
         
         len = nn_recv(s, &data, NN_MSG, 0);
         
-        if (data && ((unsigned)len >= (unsigned)sizeof(NanoPkt))) {
+        if (data && ((unsigned)len > (unsigned)sizeof(NanoPkt))) {
             // do whatever with data here... always be sure to set s_data, and s_len
             NanoPkt *pkthdr = (NanoPkt *)data;
             
@@ -1319,11 +1220,11 @@ int main(int argc, char *argv[]) {
             
             // just in case something went wrong.. we have to return something or we will force a stall
             if (s_data == NULL || !s_len) {
-                nn_send(s, "NULL", 4, 0);
-            } else {
-                nn_send(s, s_data, s_len, 0);
-                free(s_data);
+                s_data = (unsigned char *)"NULL";
+                s_len = 4;
             }
+            
+            nn_send(s, s_data, s_len, 0);
             nn_freemsg(data);
             data = NULL;
         }

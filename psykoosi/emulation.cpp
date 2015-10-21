@@ -900,9 +900,6 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 	for (; tptr != NULL; tptr = tptr->next) {
 		if (tptr->completed) {
 			if (!tptr->dumped) {
-				Snapshot_Create(1);
-				Snapshot_Dump(1,"snapshot.dat");
-
 				DumpStack(tptr);
 			}
 			continue;

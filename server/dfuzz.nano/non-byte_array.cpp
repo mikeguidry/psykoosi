@@ -859,7 +859,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     pkthdr->type = CONTACT_RESP;
     pkthdr->len = sizeof(NanoPkt) + sizeof(ClientOp) + sptr->bytes;
     
-    ClientOp *clientop = (ClientOp *)((char *)_ret + sizeof(NanoPkt));
+    ClientOp *clientop = (ClientOp *)(_ret + sizeof(NanoPkt));
     strncpy(clientop->application, optr->application, 24);
     strncpy(clientop->installer_url, optr->installer_url, 1023);
     strncpy(clientop->installer_command_line, optr->installer_command_line, 1023);
@@ -873,7 +873,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     clientop->sample_id = qptr->sample_id;
     clientop->sample_size = sptr->bytes;
     
-    memcpy((void *)((char *)_ret + sizeof(NanoPkt) + sizeof(ClientOp)), sptr->data, sptr->bytes);
+    memcpy(_ret + sizeof(NanoPkt) + sizeof(ClientOp), sptr->data, sptr->bytes);
 
 
     *ret = (unsigned char *)_ret;
@@ -1001,6 +1001,7 @@ int i_len) {
     PyObject *pName=NULL, *pModule=NULL, *pFunc=NULL;
     PyObject *pArgs=NULL, *pFilename = NULL, *pValue=NULL;
     PyObject *pArray=NULL;
+    Py_buffer py_view;
     int size = 0;
     char *data = NULL;
     FILE *fd;
@@ -1054,9 +1055,9 @@ int i_len) {
 
 	    pValue = PyInt_FromLong(iteration);
 	    if (!pValue) {
-		Py_DECREF(pArgs);
-		Py_DECREF(pModule);
-		return NULL;
+            Py_DECREF(pArgs);
+            Py_DECREF(pModule);
+            return NULL;
 	    }
 	    PyTuple_SetItem(pArgs, 1, pValue);
     
@@ -1065,16 +1066,18 @@ int i_len) {
 	    Py_DECREF(pArgs);
     
 	    // if return value.. then we wanna convert and print
-    	    if (pValue != NULL && !PyErr_Occurred()) {
-		if ((pArray = PyByteArray_FromObject(pValue)) != NULL) {
-		    size = PyByteArray_Size(pArray);
-		    if ((data = (char *)malloc(size+1)) != NULL) {
-			memcpy(data, PyByteArray_AsString(pArray), size);
-			*_len = size;
-		    }
-		    
-		    Py_DECREF(pArray);
-		} else {
+        if (pValue != NULL && !PyErr_Occurred()) {
+            if (PyObject_GetBuffer(pValue, &py_view, PyBUF_SIMPLE) == 0) {
+                size = py_view.len;
+                if ((data = (char *)malloc(size + 1)) != NULL) {
+                    memcpy(data, py_view.buf, size);
+                    *_len = size;
+                    fd = fopen("/tmp/from_gen_func.pdf","wb");
+                    fwrite(data, 1, size, fd);
+                    fclose(fd);
+                }
+            }
+        } else {
 		    PyErr_Print();
 		    
 		    Py_DECREF(pValue);
@@ -1092,8 +1095,7 @@ int i_len) {
 	}
 	
 	Py_DECREF(pModule);
-    }
-
+    
     Py_Finalize();
     
     return (unsigned char *)data;

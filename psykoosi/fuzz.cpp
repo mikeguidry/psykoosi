@@ -36,11 +36,10 @@ using namespace pe_win;
 
 
 // was getting  messy
-char * Cache_Filename(char *filename, char *type, char *dest) {
-	char *tmpb = strrchr(filename, '/');
-	if (tmpb == NULL) tmpb = filename; else tmpb++;
-
-	sprintf(dest, "%s.%s.cache", tmpb, type);
+char * Filename_Base(char *filename, char *dest) {
+	char *tmpb = strrchr(filename, '.');
+	
+	strncpy(dest, filename, tmpb - filename);
 
 	return dest;
 }
@@ -67,6 +66,8 @@ int main(int argc, char *argv[]) {
 		exit(-1);
 	}
 
+	Filename_Base(argv[1],(char *) &filename);
+	
 	// so my linux laptop can still move while testing/developing
 	// and soon i would like to add multithreading.. will design that shortly!
 	// splitting up disaassembling tasks into pthreads for the amount of cores from /proc/cpuinfo
@@ -271,8 +272,15 @@ int main(int argc, char *argv[]) {
 	printf("Printing resulting logs:\n");
 	
 	// save protocol communications to a file...
-	emu.APIHooks.Save("proto.dat");
+	char save_file[1024];
+	sprintf(save_file, "%s_proto.dat", filename);
+	emu.APIHooks.Save(save_file);
 	
+	sprintf(save_file, "%s_snapshot.dat", filename);
+	emu.Snapshot_Create(1);
+	emu.Snapshot_Dump(1, save_file);
+
+	// save snapshot to a file
 	Emulation::EmulationLog *logptr = emu.MasterThread->LogList;
 	exit(0);
 	while (logptr != NULL) {

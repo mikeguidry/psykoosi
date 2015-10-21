@@ -859,7 +859,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     pkthdr->type = CONTACT_RESP;
     pkthdr->len = sizeof(NanoPkt) + sizeof(ClientOp) + sptr->bytes;
     
-    ClientOp *clientop = (ClientOp *)((char *)_ret + sizeof(NanoPkt));
+    ClientOp *clientop = (ClientOp *)(_ret + sizeof(NanoPkt));
     strncpy(clientop->application, optr->application, 24);
     strncpy(clientop->installer_url, optr->installer_url, 1023);
     strncpy(clientop->installer_command_line, optr->installer_command_line, 1023);
@@ -873,7 +873,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     clientop->sample_id = qptr->sample_id;
     clientop->sample_size = sptr->bytes;
     
-    memcpy((void *)((char *)_ret + sizeof(NanoPkt) + sizeof(ClientOp)), sptr->data, sptr->bytes);
+    memcpy(_ret + sizeof(NanoPkt) + sizeof(ClientOp), sptr->data, sptr->bytes);
 
 
     *ret = (unsigned char *)_ret;

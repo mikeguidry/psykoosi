@@ -340,7 +340,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 	do {
 		InsInfo = 0;
 		DisassembleRet = DisassembleSingleInstruction(CurAddr, &InsInfo, priority);
-		//printf("Disasm ret %d CurAddr %p priority %d InsInfo %p\n", DisassembleRet, CurAddr, priority, InsInfo);
+		//printf("Disasm rfet %d CurAddr %p priority %d InsInfo %p\n", DisassembleRet, CurAddr, priority, InsInfo);
 
 //		if (!(CurAddr % 100))
 			//std::cout << "\r" << CurAddr;
