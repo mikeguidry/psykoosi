@@ -14,9 +14,11 @@ extern "C" {
 #include "virtualmemory.h"
 #include "disassemble.h"
 #include "analysis.h"
-#include "loading.h"
-#include "rebuild.h"
 #include "apiproxy_client.h"
+#include "loading.h"
+
+#include "rebuild.h"
+
 #include "structures.h"
 #include "emu_hooks.h"
 #include "emulation.h"

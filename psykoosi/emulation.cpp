@@ -30,10 +30,11 @@ extern "C" {
 }
 #include "disassemble.h"
 #include "analysis.h"
-#include "loading.h"
 #include "apiproxy_client.h"
+#include "loading.h"
 #include "emu_hooks.h"
 #include "structures.h"
+#include "loading.h"
 #include "emulation.h"
 
 using namespace psykoosi;
@@ -46,11 +47,55 @@ Emulation *EmuPtr[MAX_VMS];
 Emulation::EmulationThread *EmuThread[MAX_VMS];
 BinaryLoader *_BL[MAX_VMS];
 
+typedef struct _emuthread_handle {
+	struct _emuthread_handle *next;
+	uint32_t ID;
+	Emulation::EmulationThread *ThreadHandle;
+	Emulation *EmuPtr;
+	VirtualMemory *VMem;
+	BinaryLoader *loader;
+} EmuThread_Handle;
+
+EmuThread_Handle *handle_list = NULL;
+
+EmuThread_Handle *EmuByID(uint32_t ID) {
+	EmuThread_Handle *hptr = handle_list;
+	
+	while (hptr != NULL) {
+		if (hptr->ID == ID)
+			return hptr;
+			
+		hptr = hptr->next;
+	}
+	return NULL;
+}
+
+int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle, Emulation *ptr, VirtualMemory *mem, BinaryLoader *loader) {
+	EmuThread_Handle *hptr = new EmuThread_Handle;
+	if (!hptr) {
+		throw;
+		return -1;
+	}
+	
+	hptr->ID = ID;
+	hptr->ThreadHandle = Handle;
+	hptr->EmuPtr = ptr;
+	hptr->VMem = mem;
+	hptr->loader = loader;
+	
+	
+	hptr->next = handle_list;
+	handle_list = hptr;
+	return 1;
+}
+
 static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	Emulation *VirtPtr = EmuPtr[thread->ID];
-	VirtualMemory *pVM = _VM2[thread->ID];
-	Emulation::EmulationThread *emuthread = EmuThread[thread->ID];
+	
+	EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
 
 	unsigned long _seg = 0;
 	uint32_t result = 0;
@@ -93,8 +138,10 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
 
 static int emulated_rep_movs(enum x86_segment src_seg,unsigned long src_offset,enum x86_segment dst_seg, unsigned long dst_offset,unsigned int bytes_per_rep,unsigned long *reps,struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	Emulation *VirtPtr = EmuPtr[thread->ID];
-	VirtualMemory *pVM = _VM2[thread->ID];
+	EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
 	unsigned long bytes_to_copy = *reps * bytes_per_rep;
 
     printf("!!! vm %p rep movs src seg %d offset %x dst seg %d offset %x bytes per %d reps %d ctxt %p\n",
@@ -121,9 +168,10 @@ static int emulated_rep_movs(enum x86_segment src_seg,unsigned long src_offset,e
 
 static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	Emulation *VirtPtr = EmuPtr[thread->ID];
-	VirtualMemory *pVM = _VM2[thread->ID];
-	Emulation::EmulationThread *emuthread = EmuThread[thread->ID];
+	EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
 	uint32_t off = 0;
 	
 	off = address_from_seg_offset(seg,offset,ctxt);
@@ -149,8 +197,10 @@ static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_da
 static int emulated_cmpxchg(enum x86_segment seg,unsigned long offset,void *p_old,void *p_new,unsigned int bytes,
     struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	Emulation *VirtPtr = EmuPtr[thread->ID];
-	VirtualMemory *pVM = _VM2[thread->ID];
+	EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
 
 	//printf("vm %p cmpxchg seg %d offset %x old %p new %p bytes %d ctxt %p\n", seg, offset, p_old, p_new, bytes, ctxt);
 
@@ -162,10 +212,11 @@ static int emulated_cmpxchg(enum x86_segment seg,unsigned long offset,void *p_ol
 
 static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt, int fetch_insn) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-	Emulation *VirtPtr = EmuPtr[thread->ID];
-	VirtualMemory *pVM = _VM2[thread->ID];
-	BinaryLoader *Loader = _BL[0];
-		Emulation::EmulationThread *emuthread = EmuThread[thread->ID];
+		EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
+	BinaryLoader *Loader = hptr->loader;
 
 	if (Loader->Imports != NULL) {
 		BinaryLoader::IAT *iatptr = Loader->Imports;
@@ -192,12 +243,30 @@ static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void
 		off = emuthread->TIB + offset; 
 
 	} //else {
-	
-    	printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
-		pVM->MemDataRead(off,(unsigned char *) p_data, bytes);
 		
-		VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 131072, off, NULL, (unsigned char *)p_data, bytes);
-	//}
+	int done = 0;
+	printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
+	// if we cannot find the memory page in our memory..
+	// we have to read it from the remote API Proxy..
+	if (VirtPtr->Proxy != NULL && pVM->MemPagePtr(off) == NULL) {
+		// lets read from remote side, and then copy into local sides memory
+		char *remote_data = (char *)new char[bytes];
+		if (remote_data == NULL) throw;
+		// read from remote api proxy..
+		VirtPtr->Proxy->PeekData(off, remote_data, bytes);
+		// write into our virtual address space..
+		pVM->MemDataWrite(off, (unsigned char *)remote_data, bytes);
+		
+		// copy into buffer where it was initially requested at
+		memcpy(p_data, remote_data, bytes);
+		delete remote_data;
+		
+		// return so we dont double copy..
+		return X86EMUL_OKAY;
+	} 
+	pVM->MemDataRead(off,(unsigned char *) p_data, bytes);
+		
+	VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 131072, off, NULL, (unsigned char *)p_data, bytes);
 
 	return X86EMUL_OKAY;
 }
@@ -484,11 +553,13 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	}
 
 	// we start as a simulation until we are connected to the server
+	VMList = &MasterVM;
 	simulation = 1;
 	verbose = 1;
 	Proxy = NULL;
 	VM = _VM2[0] = _VM;
 	EmuPtr[0] = this;
+	from_snapshot = 0;
 	SnapshotList = NULL;
 	completed = 0;
 	SnapshotList = NULL;
@@ -544,7 +615,8 @@ Emulation::EmulationThread *Emulation::NewThread(Emulation::VirtualMachine *VM) 
 	_VM2[tptr->ID] = tptr->EmuVMEM;
 	EmuThread[tptr->ID] = tptr;
 	
-	SetupThreadStack(tptr);
+	if (!from_snapshot)
+		SetupThreadStack(tptr);
 	
 	return tptr;	
 }
@@ -935,6 +1007,9 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 			// get the 'instruction information' structure for this particular instruction
 			// from the disassembly subsystem
 			DisassembleTask::InstructionInformation *InsInfo = op->disasm->GetInstructionInformationByAddress(tptr->registers.eip, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
+			if (InsInfo == NULL) {
+				op->disasm->DisassembleSingleInstruction(tptr->registers.eip, &InsInfo, 10);
+			}
 			if (InsInfo != NULL) {
 				//char *ptrbuf = (char *)InsInfo->InstructionMnemonicString;
 				std::string ptrbuf = op->disasm->disasm_str(InsInfo->Address, (char *)InsInfo->RawData, InsInfo->Size);
@@ -1897,4 +1972,116 @@ Emulation::EmulationThread *Emulation::FindThread(int id) {
 	}
 	
 	return NULL;
+}
+
+
+
+
+int Emulation::LoadExecutionSnapshot(char *filename) {
+	printf("Load Snapshot: %s\n", filename);
+	FILE *fd = NULL;
+	struct stat stv;
+	if ((fd = fopen(filename, "rb")) == NULL) {
+		printf("Couldnt open snapshot file %s\n", filename);
+		return -1;
+	}
+	fstat(fileno(fd), &stv);
+	uint32_t count;
+	int i = 0;
+	CONTEXT32 ctx;
+	MODULEENTRY32 modentry;
+	
+	
+	
+	// read each thread and its context, and duplicate for emulation..
+	fread((void *)&count, 1, sizeof(uint32_t), fd);
+	printf("Thread count: %d\n", count);
+	for (i = 0; i < count; i++) {
+		uint32_t thread_id = 0;
+		uint32_t fs_base = 0;
+		uint32_t stacklow = 0;
+		uint32_t stackhigh = 0;
+		uint32_t peb = 0;
+		uint32_t tls = 0;
+		
+		fread((void *)&thread_id, 1, sizeof(uint32_t), fd);
+		fread((void *)&fs_base, 1, sizeof(uint32_t), fd);
+		fread((void *)&stacklow, 1, sizeof(uint32_t), fd);
+		fread((void *)&stackhigh, 1, sizeof(uint32_t), fd);
+		fread((void *)&peb, 1, sizeof(uint32_t), fd);
+		fread((void *)&tls, 1, sizeof(uint32_t), fd);
+		fread((void *)&ctx, 1, sizeof(CONTEXT32), fd);
+
+		printf("TID %X FS %X StackLow %X StackHigh %X PEB %X TLS %X\n",
+		thread_id, fs_base, stacklow, stackhigh, peb, tls);
+		
+		// create threads in emulator..
+		EmulationThread *newthread = NewThread(&MasterVM);
+		if (newthread == NULL) {
+			printf("couldnt allocate new thread!\n");
+			throw;
+			return -1;
+		}
+		
+		newthread->thread_ctx.ID = thread_id;
+		//int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle,
+		 //Emulation *ptr, VirtualMemory *mem, BinaryLoader *loader);
+		 EmuAddID(thread_id, newthread, this, VM, Loader);
+		newthread->ID = thread_id;
+		newthread->EmuVMEM = VM;
+		newthread->TIB = fs_base;
+		newthread->VM = &MasterVM;
+		newthread->StackLow = stacklow;
+		newthread->StackHigh = stackhigh;
+		MasterVM.PEB = peb;
+		
+		SetRegister(newthread, REG_EAX, ctx.Eax);
+		SetRegister(newthread, REG_EBX, ctx.Ebx);
+		SetRegister(newthread, REG_ECX, ctx.Ecx);
+		SetRegister(newthread, REG_EDX, ctx.Edx);
+		SetRegister(newthread, REG_ESI, ctx.Esi);
+		SetRegister(newthread, REG_EDI, ctx.Edi);
+		SetRegister(newthread, REG_ESP, ctx.Esp);
+		SetRegister(newthread, REG_EBP, ctx.Ebp);
+		SetRegister(newthread, REG_EIP, ctx.Eip);
+		SetRegister(newthread, REG_EAX, ctx.Eax);
+		SetRegister(newthread, REG_EFLAGS, ctx.EFlags);
+		SetRegister(newthread, REG_FS, ctx.SegFs);
+		SetRegister(newthread, REG_GS, ctx.SegGs);
+		SetRegister(newthread, REG_ES, ctx.SegEs);
+		SetRegister(newthread, REG_DS, ctx.SegDs);
+		SetRegister(newthread, REG_CS, ctx.SegCs);
+		
+		CopyRegistersToShadow(newthread);
+		
+		printf("Thread ID %X added\n", newthread->ID);
+		
+	}
+	
+	// read each module entry to pair it with the memory we will load later...
+	fread((void *)&count, 1, sizeof(uint32_t), fd);
+	for (i = 0; i < count; i++) {
+		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
+		// create modules in emulator..
+	}
+	
+	// the rest of the file is for memory mappings...
+	int mem_data_len = sizeof(uint32_t) + 0x1000;
+	int data_left_in_file = stv.st_size - ftell(fd);
+	int mem_pages_to_process = data_left_in_file / mem_data_len;
+	for (i = 0; i < mem_pages_to_process; i++) {
+		uint32_t addr = 0;
+		char page_data[0x1000];
+		// read the address of this page..
+		fread((void *)&addr, 1, sizeof(uint32_t), fd);
+		// read the data from the file..
+		fread((void *)&page_data, 1, 0x1000, fd);
+		// write into virtual memory..
+		 VM->MemDataWrite(addr, (unsigned char *)&page_data, 0x1000);
+	}
+	fclose(fd);
+	
+
+	printf("Loaded execution snapshot %s into memory..\n", filename);
+	printf("FUZZING TIME!!\n");
 }

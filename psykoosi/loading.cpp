@@ -7,10 +7,13 @@
 #include <sys/time.h>
 #include <pe_lib/pe_bliss.h>
 #include <pe_lib/pe_section.h>
+#include <sys/stat.h>
 extern "C" {
 #include <capstone/capstone.h>
 }
 #include "virtualmemory.h"
+#include "apiproxy_client.h"
+
 #include "disassemble.h"
 #include "analysis.h"
 #include "loading.h"
@@ -23,6 +26,7 @@ using namespace pe_win;
 BinaryLoader::BinaryLoader(DisassembleTask *DT, InstructionAnalysis *IA, VirtualMemory *VM) {
 	image = NULL;
 
+	Proxy = NULL;
 	_DT = DT;
 	_IA = IA;
 	_VM = VM;
@@ -296,30 +300,45 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	BinaryLoader::LoadedImages *lptr = NULL;
 	CodeAddr Entry=0, ImageBase = 0;
 	char fname[1024];
+	char *name = NULL;
 
+	name = strchr(filename, '\\');
+	if (name != NULL) {
+		name++;
+	} else {
+		name = (char *)filename;
+	}
+	
 	for (BinaryLoader::LoadedImages *lptr = Images_List; lptr != NULL; lptr = lptr->next) {
 		if (lptr->filename != NULL && (strcasecmp(filename, lptr->filename)==0)) {
 			return lptr->CodeSection;
 		}
 	}
-	sprintf(fname, "%s/%s", system_dll_dir, filename);
+	
+	sprintf(fname, "%s/%s", system_dll_dir, name);
 
 	for (int i = 0; i < strlen(fname); i++) fname[i] = tolower(fname[i]);
 	std::ifstream pe_file(fname, std::ios::in | std::ios::binary);
 	if (!pe_file) {
-		printf("LoadDLL(\"%s\"): couldn't open file\n", filename);
+		printf("LoadDLL(\"%s\"): couldn't open file\n", fname);
 		return NULL;
 	}
 
 	 pe_base *dll_image = new pe_base(pe_factory::create_pe(pe_file));
 	 if (!dll_image->get_ep()) {
-		 printf("Issues loading PE file into memory[%s]\n", filename);
+		 printf("Issues loading PE file into memory[%s]\n", fname);
 		 return NULL;
 	 }
 
 
-	 ImageBase = CheckImageBase(dll_image->get_image_base_32());
-	 if (strstr(fname, "kernel32")) ImageBase = 0x7B810000;
+	if (Proxy != NULL) {
+		ImageBase = Proxy->LoadDLL(name);
+		printf("Loading DLL at base %X like the proxy [%s]\n", ImageBase, name);
+	}
+	 if (ImageBase == 0) {
+	 	ImageBase = CheckImageBase(dll_image->get_image_base_32());
+	 	if (strstr(fname, "kernel32")) ImageBase = 0x7B810000;
+	 }
 
 	 dll_image->set_image_base(ImageBase);
 	 Entry = ImageBase + dll_image->get_ep();
@@ -332,7 +351,7 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 			 VirtualMemory::Memory_Section *mptr = VMem->Add_Section((VirtualMemory::CodeAddr)s.get_virtual_address(),s.get_size_of_raw_data(),s.get_virtual_size(),s.executable() ? VirtualMemory::SECTION_TYPE_CODE : VirtualMemory::SECTION_TYPE_NONE,s.get_characteristics(),s.get_pointer_to_raw_data(),(char *)s.get_name().c_str(),(unsigned char *) s.raw_data_.data());
 			 mptr->IsDLL = 1;
 			 mptr->ImageBase = dll_image->get_image_base_32();
-			 VMem->Section_SetFilename(mptr, 	filename);
+			 VMem->Section_SetFilename(mptr, fname);
 
 			 // we return the writable section
 			 if (s.executable()) ret = mptr;
@@ -375,9 +394,18 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 }
 
 BinaryLoader::LoadedImages *BinaryLoader::FindLoadedByName(char *filename) {
+	char *name = NULL;
+
+	name = strchr(filename, '\\');
+	if (name != NULL) {
+		name++;
+	} else {
+		name = (char *)filename;
+	}
+
 	for (LoadedImages *lptr = Images_List; lptr != NULL; lptr = lptr->next) {
-		if ((filename && lptr->filename && (strcasecmp(filename, lptr->filename)==0)) ||
-				(!filename && !lptr->filename))
+		if ((name && lptr->filename && (strcasecmp(name, lptr->filename)==0)) ||
+				(!name && !lptr->filename))
 			return lptr;
 	}
 
@@ -386,14 +414,24 @@ BinaryLoader::LoadedImages *BinaryLoader::FindLoadedByName(char *filename) {
 
 BinaryLoader::CodeAddr BinaryLoader::GetProcAddress(char *filename, char *function_name) {
 	CodeAddr FunctionAddr = NULL;
-	LoadedImages *lptr = FindLoadedByName(filename);
+	char *name = NULL;
+
+	name = strchr(filename, '\\');
+	if (name != NULL) {
+		name++;
+	} else {
+		name = (char *)filename;
+	}
+
+	LoadedImages *lptr = FindLoadedByName(name);
+	
 
 	if (lptr == NULL) {
 		return NULL;
 	}
 
 	for (Symbols *sptr = Symbols_List; sptr != NULL; sptr = sptr->next) {
-		if ((strcasecmp(filename, sptr->filename)==0) && strcasecmp(function_name, sptr->function_name)==0) {
+		if ((strcasecmp(name, sptr->filename)==0) && strcasecmp(function_name, sptr->function_name)==0) {
 			return sptr->FunctionPtr;
 		}
 	}
@@ -576,3 +614,19 @@ BinaryLoader::IAT *BinaryLoader::FindIAT(uint32_t Address) {
 	
 	return iptr;
 }
+/*
+exec dump format:
+
+DWORD_PTR thread_count
+- loop of thread_count
+DWORD_PTR Thread ID
+DWORD_PTR fs_base
+CONTEXT thread_context
+-
+DWORD_PTR module_count
+-loop of module_count
+MODULEENTRY32 module_info
+
+rest of size / 
+*/
+

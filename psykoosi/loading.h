@@ -25,6 +25,8 @@ namespace psykoosi {
 		  INPUT_TYPE_ELF,
 		  INPUT_TYPE_MACHO
 	  };
+    
+ 
 
 	  typedef struct _loaded_images {
 		  struct _loaded_images *next;
@@ -90,6 +92,8 @@ namespace psykoosi {
 	  //EmulationQueue *
 #endif
 
+    //int BinaryLoader::LoadExecutionSnapshot(char *filename);
+
 	  DisassembleTask *_DT;
 	  InstructionAnalysis *_IA;
 	  VirtualMemory *_VM;
@@ -101,6 +105,7 @@ namespace psykoosi {
 
 	  char system_dll_dir[1024];
 
+    APIClient *Proxy;
 	  LoadedImages *Images_List;
 	  // this one needs last so its in order!
 #ifdef EMU_QUEUE

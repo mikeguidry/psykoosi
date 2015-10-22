@@ -25,11 +25,11 @@
 #include "virtualmemory.h"
 #include "disassemble.h"
 #include "analysis.h"
+#include "apiproxy_client.h"
 #include "loading.h"
 #include "rebuild.h"
-
-#include "apiproxy_client.h"
 #include "structures.h"
+
 #include "polymorph.h"
 extern "C" {
 #include <unistd.h>

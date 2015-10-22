@@ -66,6 +66,10 @@ namespace psykoosi {
 		int PeekData(uint32_t Address, char *Destination, int Size);
 		int PushSections();
 		
+		uint32_t GetDLLAddress(char *filename);
+		uint32_t LoadDLL(char *filename);
+		char *GetDLLPath(char *filename);
+		
 		int Ping();
 		
 		// create a new thread and return an id

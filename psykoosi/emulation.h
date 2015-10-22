@@ -41,6 +41,62 @@ namespace psykoosi {
   class Emulation {
 
   	  public:
+      
+    
+       typedef struct _CONTEXT32 {
+        uint32_t ContextFlags;
+        uint32_t   Dr0;
+        uint32_t   Dr1;
+        uint32_t   Dr2;
+        uint32_t   Dr3;
+        uint32_t   Dr6;
+        uint32_t   Dr7;
+        struct {
+            uint32_t   ControlWord;
+            uint32_t   StatusWord;
+            uint32_t   TagWord;
+            uint32_t   ErrorOffset;
+            uint32_t   ErrorSelector;
+            uint32_t   DataOffset;
+            uint32_t   DataSelector;
+            char    RegisterArea[80];
+            uint32_t   Cr0NpxState;
+        } FloatSave;
+        uint32_t   SegGs;
+        uint32_t   SegFs;
+        uint32_t   SegEs;
+        uint32_t   SegDs;
+        uint32_t   Edi;
+        uint32_t   Esi;
+        uint32_t   Ebx;
+        uint32_t   Edx;
+        uint32_t   Ecx;
+        uint32_t   Eax;
+        uint32_t   Ebp;
+        uint32_t   Eip;
+        uint32_t   SegCs;
+        uint32_t   EFlags;
+        uint32_t   Esp;
+        uint32_t   SegSs;
+        char    ExtendedRegisters[512];
+    } CONTEXT32, *PCONTEXT32;
+    
+    typedef struct tagMODULEENTRY32
+    {
+        uint32_t   dwSize;
+        uint32_t   th32ModuleID;	// This module
+        uint32_t   th32ProcessID;	// owning process
+        uint32_t   GlblcntUsage;	// Global usage count on the module
+        uint32_t   ProccntUsage;	// Module usage count in th32ProcessID's context
+        uint32_t  modBaseAddr;	// Base address of module in th32ProcessID's context
+        uint32_t   modBaseSize;	// Size in bytes of module starting at modBaseAddr
+        uint32_t hModule;		// The hModule of this module in th32ProcessID's context
+        char    szModule[255];
+        char    szExePath[260];
+    } MODULEENTRY32;
+      
+      
+    
 	  typedef uint32_t CodeAddr;
 
 	  enum OperationInformation {
@@ -482,6 +538,7 @@ namespace psykoosi {
 	  EmulationThread *MasterThread;
     VirtualMachine MasterVM;
 
+    int LoadExecutionSnapshot(char *filename);
 
     int Snapshot_Create(int);
     int Snapshot_Revert(int);
@@ -523,6 +580,7 @@ namespace psykoosi {
     
     int start_ts;
     
+    int from_snapshot;
     EmuSnapshot *SnapshotList;
 
 

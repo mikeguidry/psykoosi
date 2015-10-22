@@ -69,6 +69,8 @@ enum {
 
 	//LASTERROR_MODE, // mode to determine if we need to report backwards GetLastError every call so the client can have it ready
 	PING,
+	GET_DLL_HANDLE,
+	GET_MODULE_FILENAME,
 	CMD_DONE		// just placeholder for the end
 	
 };
@@ -151,6 +153,7 @@ void APIClient::SetVirtualMemory(VirtualMemory *mptr) {
 
 int APIClient::SendPkt(int type, char *data, int size, char **response, int *response_size) {
 	int i = 0;
+	int sret = -1;
 	int final_size = sizeof(ZmqPkt) + sizeof(ZmqHdr) + size;
 	//FILE *fd = fopen("/tmp/pkt.dat","wb");
 /*
@@ -191,7 +194,6 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 		if (errno == ENOTCONN) {
 			close(proxy_socket);
 			connected = 0;
-			return -1;
 		}
 	}
 	/*
@@ -211,59 +213,57 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 			return -1;
 		}
 	}*/
+	
 	if (i > 0 && i < final_size) {
-		//printf("didnt get whole packet over\n");
-		return -1;
-	}
-	
-	int r = read(proxy_socket, final, sizeof(ZmqRet));
-	if (r < sizeof(ZmqRet)) {
-		return -1;
-	}
-	
-	ZmqRet *ret = (ZmqRet *)(final);
-	printf("call type %d extra len %d resp %d\n", type, ret->extra_len, ret->response);
-	if (ret->extra_len && ret->response == 1) {
-		if ((ret->extra_len+sizeof(ZmqRet)) > final_size) {
-			printf("too big. replace\n");
-			char *replace_buf = (char *)realloc(final, ret->extra_len + sizeof(ZmqRet) + 1);
-			if (replace_buf == NULL) {
-				free(final);
-				close(proxy_socket);
-				connected = 0;
-				return -1;
+		int r = read(proxy_socket, final, sizeof(ZmqRet));
+		if (r >= sizeof(ZmqRet)) {
+			ZmqRet *ret = (ZmqRet *)(final);
+			printf("call type %d extra len %d resp %d\n", type, ret->extra_len, ret->response);
+			if (ret->extra_len && ret->response == 1) {
+				if ((ret->extra_len+sizeof(ZmqRet)) > final_size) {
+					printf("too big. replace\n");
+					char *replace_buf = (char *)realloc(final, ret->extra_len + sizeof(ZmqRet) + 1);
+					if (replace_buf == NULL) {
+						free(final);
+						close(proxy_socket);
+						connected = 0;
+						return -1;
+					}
+					final = replace_buf;
+					final_size = ret->extra_len + sizeof(ZmqRet);
+				}
+				int _read = 0;
+				while (_read < ret->extra_len) {
+					r = read(proxy_socket, (char *)((char *)final + sizeof(ZmqRet) + _read), (int)(ret->extra_len - _read));
+					if (r <= 0) {
+						if (errno == ENOTCONN) {
+							close(proxy_socket);
+							connected = 0;
+							break;
+						}
+					}
+					_read += r;
+				}
+			} else if (ret->response == 0) {
+				sret = 0;
 			}
-			final = replace_buf;
-			final_size = ret->extra_len + sizeof(ZmqRet);
-		}
-		int _read = 0;
-		while (_read < ret->extra_len) {
-			r = read(proxy_socket, (char *)((char *)final + sizeof(ZmqRet) + _read), (int)(ret->extra_len - _read));
-			if (r <= 0) {
-				if (errno == ENOTCONN) {
-					close(proxy_socket);
-					connected = 0;
-					return -1;
+			
+			if (response != NULL && ret->extra_len) {
+				char *rbuf = (char *)malloc(ret->extra_len + 1);
+				if (rbuf != NULL) {
+					memcpy(rbuf, (void *)((char *)final + sizeof(ZmqRet)), ret->extra_len);
+					*response_size = ret->extra_len;
+					*response = rbuf;
+					
+					sret = 1;
 				}
 			}
-			_read += r;
-		}
-	} else {
-		return 0;
-	}
-	
-	if (response != NULL && ret->extra_len) {
-		char *rbuf = (char *)malloc(ret->extra_len + 1);
-		if (rbuf != NULL) {
-			memcpy(rbuf, (void *)((char *)final + sizeof(ZmqRet)), ret->extra_len);
-			*response_size = ret->extra_len;
-			*response = rbuf;
 		}
 	}
 	
 	free(final);
 	
-	return 1;
+	return sret;
 }
 
 
@@ -848,7 +848,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 	
 	// process the response of this function call
 	if (resp && resp_size) {//ret->response == 1 && ret->extra_len >= sizeof(uint32_t)) {
-		printf("have response %X size %d [%d]\n", resp, resp_size, resp_size - sizeof(struct _ret_pkt));
+		//printf("have response %X size %d [%d]\n", resp, resp_size, resp_size - sizeof(struct _ret_pkt));
 		RetPkt = (struct _ret_pkt *)(resp);
 		//uint32_t *_eax_ret = (uint32_t *)resp;
 		
@@ -858,12 +858,12 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 		// we need to accomodate ESP using the ret fix
 		*ret_fix = RetPkt->ret_fix;
 		
-		printf("eax %d ret %d\n", RetPkt->eax_ret, RetPkt->ret_fix);
+		//printf("eax %d ret %d\n", RetPkt->eax_ret, RetPkt->ret_fix);
 		
 		// now we may be interested in regions of memory that have changed due to the call
 		int memory_change_count = (resp_size - sizeof(RetPkt)) / (REGION_BLOCK);
 		char *memptr = (char *)(resp + sizeof(RetPkt));
-		printf("memory change %d\n", memory_change_count);
+		//printf("memory change %d\n", memory_change_count);
 		// ignore memory changes for now.. buggy
 		//memory_change_count = 0;
 		for (int a = 0; a < memory_change_count; a++) {
@@ -882,9 +882,8 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 			
 		}   
 	} else {
-		printf("no RESPONSE resp %p resp %d extra %d\n",
-		resp, ret->response, ret->extra_len);
-		//throw;
+		printf("no RESPONSE resp %p resp %d extra %d\n",resp, ret->response, ret->extra_len);
+		throw;
 	}
 	
 	free(resp);
@@ -893,3 +892,83 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 	return 1;
 }
 
+char *APIClient::GetDLLPath(char *dll) {
+	int sret = 0;
+	char *ret = NULL;
+	
+	int pkt_size = strlen(dll) + sizeof(ZmqPkt) + 1;
+	char *pkt = (char *)malloc(pkt_size + 1);
+	if (pkt == NULL) return 0;
+	
+	char *resp = NULL;
+	int resp_size = 0;
+	sret = SendPkt(LOAD_DLL, pkt, pkt_size, &resp, &resp_size);
+	
+	if (sret == 1 && resp != NULL && resp_size) {
+		
+		ret = (char *)malloc(resp_size + 2);
+		if (ret != NULL)
+			memcpy(ret, resp, resp_size);
+
+		free(resp);
+	}
+	
+	free(pkt);
+	
+	printf("Get DLL Path: %d\n", ret);
+
+	return ret;	
+}
+
+
+uint32_t APIClient::LoadDLL(char *dll) {
+	int sret = 0;
+	uint32_t ret = 0;
+	
+	int pkt_size = strlen(dll) + sizeof(ZmqPkt) + 1;
+	char *pkt = (char *)malloc(pkt_size + 1);
+	if (pkt == NULL) return 0;
+	
+	char *resp = NULL;
+	int resp_size = 0;
+	sret = SendPkt(LOAD_DLL, pkt, pkt_size, &resp, &resp_size);
+	
+	if (sret == 1 && resp != NULL && resp_size) {
+		
+		memcpy(&ret, resp, sizeof(uint32_t));
+
+		free(resp);
+	}
+	
+	free(pkt);
+	
+	printf("LoadDLL: %d\n", ret);
+
+	return ret;	
+}
+
+uint32_t APIClient::GetDLLAddress(char *dll) {
+	int sret = 0;
+	uint32_t ret = 0;
+	
+	int pkt_size = strlen(dll) + sizeof(ZmqPkt) + 1;
+	char *pkt = (char *)malloc(pkt_size + 1);
+	if (pkt == NULL) return 0;
+	
+	char *resp = NULL;
+	int resp_size = 0;
+	sret = SendPkt(GET_DLL_HANDLE, pkt, pkt_size, &resp, &resp_size);
+	
+	if (sret == 1 && resp != NULL && resp_size) {
+		
+		memcpy(&ret, resp, sizeof(uint32_t));
+
+		free(resp);
+	}
+	
+	free(pkt);
+	
+	printf("Get DLL Handle: %d\n", ret);
+
+	return ret;	
+}

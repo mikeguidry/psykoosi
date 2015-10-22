@@ -51,6 +51,11 @@ int putdata(char **dst, char *data, size_t len) {
 
 
 
+typedef struct _id_search {
+    struct _id_search *next;
+    int id;
+} ID_Search;
+
 
 
 // Operations are each of the different fuzz tasks.. such as a specific version of Adobe
@@ -174,6 +179,46 @@ typedef struct _exceptions {
 } Exceptions;
 
 
+typedef struct _emu_snapshot {
+    struct _emu_snapshot *next;
+    int id;
+    char application[25];
+    char version[25];
+    int ts;
+    int bytes;
+    unsigned char *data;
+    int operation_id;
+    int parent_id;
+} Snapshot;
+
+typedef struct _protocol_exchange {
+    struct _protocol_exchange *next;
+    int id;
+    int side;
+    int count;
+    char application[25];
+    char version[25];
+    int exec_id;
+    int ts;
+    int bytes;
+    unsigned char *data;
+    int data_size;
+    int operation_id;
+    int parent_id;
+} ProtocolExchange;
+
+typedef struct _protocol_sample {
+    struct _protocol_sample *next;
+    int id;
+    char application[25];
+    char version[25];
+    int ts;
+    int snapshot_id;
+    int operation_id;
+    int parent_id;
+} ProtocolSample;
+
+
 
 
 Operations *operations = NULL;
@@ -182,11 +227,15 @@ Queue *queue = NULL;
 Queue *requeue = NULL;
 Exceptions *exceptions = NULL;
 Samples *samples = NULL;
+Snapshot *snapshots = NULL;
+ProtocolExchange *exchanges = NULL;
+ProtocolSample *protocol_samples = NULL;
 
 
 MYSQL *mysql = NULL;
 
 Queue *GetQueue(Operations *optr);
+
 
 
 
@@ -197,9 +246,28 @@ enum {
     CONTACT_RESP,
     COMPLETE_RESP,
     EXCEPTION_RESP,
+    SNAPSHOT,
+    SNAPSHOT_RESP,
+    PROTOCOL_EXCHANGE,
+    PROTOCOL_EXCHANGE_RESP,
+    PROTOCOL_SAMPLE,
+    PROTOCOL_SAMPLE_RESP,
     NONE
 };
 
+
+
+// since all IDs are the 2nd place in the structure.. lets use a generic structure...
+// just cast it..
+ID_Search *Element_by_ID(ID_Search *list, int id) {
+    ID_Search *sptr = list;
+    
+    for (; sptr != NULL; sptr = sptr->next) {
+        if (sptr->id == id) return sptr;
+    }
+    
+    return NULL;
+}
 
 
 
@@ -533,6 +601,146 @@ end:;
 }
 
 
+void ProtocolSample_Load() {
+    ProtocolSample *optr = NULL;
+    ProtocolSample *parent = NULL;
+    char query[1024];
+    int querylen;
+    MYSQL_RES			*res = NULL;
+    MYSQL_ROW			row;
+    unsigned long *lengths;
+    
+    printf("ProtocolSample_Load();\n");
+    querylen = snprintf(query, sizeof(query) - 1, "SELECT *,unix_timestamp(ts) from protocol_samples;");
+    res = my_sql_query(mysql, query, querylen, 0);
+    
+    samples = NULL;
+    
+    
+    while ((row = mysql_fetch_row(res)) != NULL) {
+	
+        //lengths = mysql_fetch_lengths(res);
+        if ((optr = (ProtocolSample *)malloc(sizeof(ProtocolSample) + 1)) == NULL) goto end;
+        memset(optr, 0, sizeof(ProtocolSample));
+        
+        optr->id = atoi(row[0]);
+        strncpy(optr->application, row[1], 24);
+        strncpy(optr->version, row[2], 24);
+        optr->ts = atoi(row[3]); // should be 4 but using unix_timestamp(ts)
+        optr->snapshot_id = atoi(row[4]);
+        optr->operation_id = atoi(row[5]);
+        optr->parent_id = atoi(row[6]);
+        
+        optr->next = protocol_samples;
+        protocol_samples = optr;
+    }
+    
+end:;
+    
+    if (res != NULL) mysql_free_result(res);
+}
+
+
+
+void ProtocolExchange_Load() {
+    ProtocolExchange *optr = NULL;
+    ProtocolExchange *parent = NULL;
+    char query[1024];
+    int querylen;
+    MYSQL_RES			*res = NULL;
+    MYSQL_ROW			row;
+    unsigned long *lengths;
+    
+    printf("ProtocolExchange_Load();\n");
+    querylen = snprintf(query, sizeof(query) - 1, "SELECT *,unix_timestamp(ts) from protocol_exchanges;");
+    res = my_sql_query(mysql, query, querylen, 0);
+    
+    samples = NULL;
+    
+    
+    while ((row = mysql_fetch_row(res)) != NULL) {
+	
+        lengths = mysql_fetch_lengths(res);
+        if ((optr = (ProtocolExchange *)malloc(sizeof(ProtocolExchange) + 1)) == NULL) goto end;
+        memset(optr, 0, sizeof(ProtocolExchange));
+        
+        optr->id = atoi(row[0]);
+        optr->side = atoi(row[1]);
+        optr->count = atoi(row[2]);
+        strncpy(optr->application, row[3], 24);
+        strncpy(optr->version, row[4], 24);
+        optr->exec_id = atoi(row[5]);
+        optr->ts = atoi(row[6]); // should be 4 but using unix_timestamp(ts)
+        optr->bytes = atoi(row[7]);
+        
+        if (lengths[8]) {
+            optr->data = (unsigned char *)malloc(lengths[8] + 1);
+            if (optr->data) {
+                memcpy(optr->data, row[8], lengths[8]);
+                optr->data_size = lengths[8];
+            }
+        }
+        
+        optr->operation_id = atoi(row[9]);
+        optr->parent_id = atoi(row[10]);
+        
+        optr->next = exchanges;
+        exchanges = optr;
+    }
+    
+end:;
+    
+    if (res != NULL) mysql_free_result(res);
+}
+
+
+
+void Snapshot_Load() {
+    Snapshot *optr = NULL;
+    Snapshot *parent = NULL;
+    char query[1024];
+    int querylen;
+    MYSQL_RES			*res = NULL;
+    MYSQL_ROW			row;
+    unsigned long *lengths;
+    
+    printf("Snapshot_Load();\n");
+    querylen = snprintf(query, sizeof(query) - 1, "SELECT *,unix_timestamp(ts) from snapshot;");
+    res = my_sql_query(mysql, query, querylen, 0);
+    
+    samples = NULL;
+    
+    while ((row = mysql_fetch_row(res)) != NULL) {
+	
+        lengths = mysql_fetch_lengths(res);
+        if ((optr = (Snapshot *)malloc(sizeof(Snapshot) + 1)) == NULL) goto end;
+        memset(optr, 0, sizeof(Snapshot));
+        
+        optr->id = atoi(row[0]);
+        strncpy(optr->application, row[1], 24);
+        strncpy(optr->version, row[2], 24);
+        optr->ts = atoi(row[3]); // should be 4 but using unix_timestamp(ts)
+        optr->bytes = atoi(row[4]);
+        
+        // copy blob data of data variable from sql table
+        if (lengths[5]) {
+            optr->data = (unsigned char *)malloc(lengths[5] + 1);
+            memcpy(optr->data, row[5], lengths[5]);
+        }
+
+        optr->operation_id = atoi(row[6]);
+        optr->parent_id = atoi(row[7]);
+        
+
+        optr->next = snapshots;
+        snapshots = optr;
+    }
+    
+end:;
+    
+    if (res != NULL) mysql_free_result(res);
+}
+
 
 
 
@@ -859,7 +1067,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     pkthdr->type = CONTACT_RESP;
     pkthdr->len = sizeof(NanoPkt) + sizeof(ClientOp) + sptr->bytes;
     
-    ClientOp *clientop = (ClientOp *)(_ret + sizeof(NanoPkt));
+    ClientOp *clientop = (ClientOp *)((char *)_ret + sizeof(NanoPkt));
     strncpy(clientop->application, optr->application, 24);
     strncpy(clientop->installer_url, optr->installer_url, 1023);
     strncpy(clientop->installer_command_line, optr->installer_command_line, 1023);
@@ -873,7 +1081,7 @@ void nginx_contact(unsigned char *pkt, unsigned char **ret, int *ret_len) {
     clientop->sample_id = qptr->sample_id;
     clientop->sample_size = sptr->bytes;
     
-    memcpy(_ret + sizeof(NanoPkt) + sizeof(ClientOp), sptr->data, sptr->bytes);
+    memcpy((void *)((char *)_ret + sizeof(NanoPkt) + sizeof(ClientOp)), sptr->data, sptr->bytes);
 
 
     *ret = (unsigned char *)_ret;

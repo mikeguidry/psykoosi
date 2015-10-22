@@ -19,9 +19,10 @@
 #include "virtualmemory.h"
 #include "disassemble.h"
 #include "analysis.h"
+#include "apiproxy_client.h"
 #include "loading.h"
 #include "rebuild.h"
-#include "apiproxy_client.h"
+
 
 #include "emu_hooks.h"
 #include "emulation.h"
@@ -56,17 +57,25 @@ int main(int argc, char *argv[]) {
 	
 	// Connect to server (so we can figure out what memory area we need)
 	// for relocations/etc for the executable...
-	apicl.Connect("192.168.169.134", 5555);
+	
 	//apicl.Connect("127.0.0.1", 5555);
 
 	
 	
 	if (argc < 2) {
-		printf("usage: %s <PE executable file>\n", argv[0]);
+		printf("usage: %s <PE executable file> <type>\n", argv[0]);
 		exit(-1);
 	}
 
 	Filename_Base(argv[1],(char *) &filename);
+	
+	int snapshot = (argc == 3);
+	printf("Snapshot: %d\n", snapshot);
+	
+	apicl.Connect("192.168.169.134", 5555);
+	if (!snapshot) {
+		
+	}
 	
 	// so my linux laptop can still move while testing/developing
 	// and soon i would like to add multithreading.. will design that shortly!
@@ -108,129 +117,145 @@ int main(int argc, char *argv[]) {
 	uint32_t ImageSize = 0;
 	
 	// open the file (to get the image base)
-	op.pe_image = op.loader->OpenFile(0,0,(char *)argv[1], &ImageBase, &ImageSize );
-	
-	if (op.pe_image == NULL) {
-		printf("Couldnt open file: %s\n", argv[1]);
-		exit(0);
+	if (!snapshot) {
+		op.pe_image = op.loader->OpenFile(0,0,(char *)argv[1], &ImageBase, &ImageSize );
+
+		if (op.pe_image == NULL) {
+			printf("Couldnt open file: %s\n", argv[1]);
+			exit(0);
+		}
+
 	}
+	
 	
 	// initialize the emulator with the image base..
 	// so stack/heap/etc is all linear with this address..
 	// to ensure API proxy has no issues..
-	if (emu.Init(ImageBase) != ImageBase) {
-		printf("Couldnt allocate %X.. trying to get a new (random) one..\n",  ImageBase);
-		ImageBase = emu.Init(0);
-		printf("afer init\n");
-		if (ImageBase == 0) {
-			printf("error allocating memory for operations on the remote side!\n");
+	if (!snapshot) {
+		if (emu.Init(ImageBase) != ImageBase) {
+			printf("Couldnt allocate %X.. trying to get a new (random) one..\n",  ImageBase);
+			ImageBase = emu.Init(0);
+			printf("afer init\n");
+			if (ImageBase == 0) {
+				printf("error allocating memory for operations on the remote side!\n");
+				exit(-1);
+			} else {
+				printf("Obtained emulation base memory address: %p\n", ImageBase);
+				// if allocation was successful.. lets go 1 megabyte into that address for processing the PE
+				// until the new heap allocation is completed (can request sizes in the middle of other allocations)
+				// lets just push it straight to heapalloc... and since its the first aAddress
+				// due to our modification of Init() then it should load properly..
+				// when emulation stops adding sizes to ReqAddr then add this back below *** FIX
+				//ImageBase += (1024 * 1024);
+			}
+		}
+	
+		
+		// lets try to allocate space surrounding the image base...
+		// since our target may not have relocations (fixed:yes in linker)
+		if (ImageBase != 0) {
+			//* (1024 * 16)); add this back whenever we put the change in Init() from above back
+			ImageBase = emu.HeapAlloc(ImageBase, ImageSize );
+		} else {
+			printf("Zero ImageBase!\n");
 			exit(-1);
-		} else {
-			printf("Obtained emulation base memory address: %p\n", ImageBase);
-			// if allocation was successful.. lets go 1 megabyte into that address for processing the PE
-			// until the new heap allocation is completed (can request sizes in the middle of other allocations)
-			// lets just push it straight to heapalloc... and since its the first aAddress
-			// due to our modification of Init() then it should load properly..
-			// when emulation stops adding sizes to ReqAddr then add this back below *** FIX
-			//ImageBase += (1024 * 1024);
 		}
-	}
-	
-	// lets try to allocate space surrounding the image base...
-	// since our target may not have relocations (fixed:yes in linker)
-	if (ImageBase != 0) {
-		//* (1024 * 16)); add this back whenever we put the change in Init() from above back
-		ImageBase = emu.HeapAlloc(ImageBase, ImageSize );
+		
+		// now process the PE file (load into virtual memory, process imports/exports,
+		// analysis and disassembly of instructions)
+		// if we couldnt allocate the real ImageBase .. we can give another one here...
+		op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase );
 	} else {
-		printf("Zero ImageBase!\n");
-		exit(-1);
+		emu.from_snapshot = 1;
+		emu.LoadExecutionSnapshot(argv[1]);
 	}
+
 	
-	// now process the PE file (load into virtual memory, process imports/exports,
-	// analysis and disassembly of instructions)
-	// if we couldnt allocate the real ImageBase .. we can give another one here...
-  	op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase );
-
-	int next_count = 0, inj_count = 0;
-	int from_cache = 0;
-
-	next_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT);
-	inj_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_INJECTED);
-	printf("next count %d inj %d\n", next_count, inj_count);
-	uint32_t highest = op.loader->HighestAddress(1);
-	std::cout << "highest address for binary loader: " << highest << std::endl;
-	op.disasm->SetBinaryLoaderHA(highest);
-	op.disasm->SetPEHandle(op.pe_image);
-
-	printf("Executing assembly analysis\n");
-
-	int start = time(0);
-	op.analysis->Complete_Analysis_Queue(0);
-	int now = time(0);
-	printf("Disassembled first time! [%d seconds]\n", now - start);
-/*
-	// this is a little better.. will do it differently later in another function
-	if (op.disasm->Cache_Load(Cache_Filename(argv[1], "disasm", (char *)&filename)) &&
-			op.analysis->QueueCache_Load(Cache_Filename(argv[1], "analysis", (char *)&filename)) &&
-			op.vmem.Cache_Load(Cache_Filename(argv[1], "vmem", (char *)&filename))) {
-			from_cache = 1;
-			int now = time(0);
-			printf("Loaded cache! [%d seconds]\n", now - start);
-		} else {
-			op.disasm->Clear_Instructions();
-			//printf("Only loaded instructions.. clearing\n");
-		}
-*/
-
-
-/*
-	if (!from_cache) {
-		//op.disasm->Clear_Instructions();
-		//op.analysis->Queue_Clear();
-		start = time(0);
+	// we need to process disassembly of the snapshot instructions later...
+	// caching the files by hash preferably so only once..
+	if (!snapshot) {
+		int next_count = 0, inj_count = 0;
+		int from_cache = 0;
+	
+		next_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT);
+		inj_count = op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_INJECTED);
+		printf("next count %d inj %d\n", next_count, inj_count);
+		uint32_t highest = op.loader->HighestAddress(1);
+		std::cout << "highest address for binary loader: " << highest << std::endl;
+		op.disasm->SetBinaryLoaderHA(highest);
+		op.disasm->SetPEHandle(op.pe_image);
+	
+		printf("Executing assembly analysis\n");
+	
+		int start = time(0);
 		op.analysis->Complete_Analysis_Queue(0);
 		int now = time(0);
 		printf("Disassembled first time! [%d seconds]\n", now - start);
-
-		start = time(0);
-		from_cache = 0;
-
-		op.disasm->Cache_Save(Cache_Filename(argv[1], "disasm", (char *)&filename));
-		op.analysis->QueueCache_Save(Cache_Filename(argv[1], "analysis", (char *)&filename));
-		op.vmem.Cache_Save(Cache_Filename(argv[1], "vmem", (char *)&filename));
-		now = time(0);
-		printf("Saved cache in %d seconds\n", now - start);
+	/*
+		// this is a little better.. will do it differently later in another function
+		if (op.disasm->Cache_Load(Cache_Filename(argv[1], "disasm", (char *)&filename)) &&
+				op.analysis->QueueCache_Load(Cache_Filename(argv[1], "analysis", (char *)&filename)) &&
+				op.vmem.Cache_Load(Cache_Filename(argv[1], "vmem", (char *)&filename))) {
+				from_cache = 1;
+				int now = time(0);
+				printf("Loaded cache! [%d seconds]\n", now - start);
+			} else {
+				op.disasm->Clear_Instructions();
+				//printf("Only loaded instructions.. clearing\n");
+			}
+	*/
+	
+	
+	/*
+		if (!from_cache) {
+			//op.disasm->Clear_Instructions();
+			//op.analysis->Queue_Clear();
+			start = time(0);
+			op.analysis->Complete_Analysis_Queue(0);
+			int now = time(0);
+			printf("Disassembled first time! [%d seconds]\n", now - start);
+	
+			start = time(0);
+			from_cache = 0;
+	
+			op.disasm->Cache_Save(Cache_Filename(argv[1], "disasm", (char *)&filename));
+			op.analysis->QueueCache_Save(Cache_Filename(argv[1], "analysis", (char *)&filename));
+			op.vmem.Cache_Save(Cache_Filename(argv[1], "vmem", (char *)&filename));
+			now = time(0);
+			printf("Saved cache in %d seconds\n", now - start);
+		}
+	*/
+	
+		printf("%d Instructions after loading\n", op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT));
+	
+		std::cout << "Disasm Count " << op.disasm->DCount << std::endl;
+		std::cout << "Call Count " << op.analysis->CallCount << std::endl;
+		std::cout << "Push Count " << op.analysis->PushCount << std::endl;
+		std::cout << "Realign Count " << op.analysis->RealignCount << std::endl;
+	
+		DisassembleTask::CodeAddr InjAddr = op.pe_image->get_image_base_32() + op.pe_image->get_ep();
+		printf("INJ ADDR %X\n", InjAddr);
+		DisassembleTask::InstructionInformation *InjEntry = NULL;
+	
+		
+		//Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, argv[1]);
+		//master.SetBinaryLoader(op.loader);
+		
+	
+		// these are initial register settings after loading.. 
+		//http://stackoverflow.com/questions/6028849/windows-initial-execution-context
+		emu.SetRegister(emu.MasterThread, Emulation::REG_EIP, op.loader->EntryPoint);
+		emu.SetRegister(emu.MasterThread, Emulation::REG_EAX, op.loader->EntryPoint);
+		// PEB needs to be initialized *** FIX...
+		// for local fs:[18h]... and such reads...
+		// for now we can process that memory from remote side if API Proxy
+		emu.SetRegister(emu.MasterThread, Emulation::REG_EBX, emu.MasterVM.PEB);
+		
+			printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	}
-*/
-
-	printf("%d Instructions after loading\n", op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT));
-
-	std::cout << "Disasm Count " << op.disasm->DCount << std::endl;
-	std::cout << "Call Count " << op.analysis->CallCount << std::endl;
-	std::cout << "Push Count " << op.analysis->PushCount << std::endl;
-	std::cout << "Realign Count " << op.analysis->RealignCount << std::endl;
-
-	DisassembleTask::CodeAddr InjAddr = op.pe_image->get_image_base_32() + op.pe_image->get_ep();
-	printf("INJ ADDR %X\n", InjAddr);
-	DisassembleTask::InstructionInformation *InjEntry = NULL;
-
-	
-	//Rebuilder master(op.disasm, op.analysis, &op.vmem, op.pe_image, argv[1]);
-	//master.SetBinaryLoader(op.loader);
-	
-
-	// these are initial register settings after loading.. 
-	//http://stackoverflow.com/questions/6028849/windows-initial-execution-context
-	emu.SetRegister(emu.MasterThread, Emulation::REG_EIP, op.loader->EntryPoint);
-	emu.SetRegister(emu.MasterThread, Emulation::REG_EAX, op.loader->EntryPoint);
-	// PEB needs to be initialized *** FIX...
-	// for local fs:[18h]... and such reads...
-	// for now we can process that memory from remote side if API Proxy
-	emu.SetRegister(emu.MasterThread, Emulation::REG_EBX, emu.MasterVM.PEB);
-	
 	//op.vmem.MemDebug = 1;
 	int calls = 500000000;
-	printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
+	int ccount = 0;
 	printf("Starting emulation.. [static::%d instructions]\n", calls);
 	while (calls-- && !emu.completed) {
 		/*
@@ -264,10 +289,11 @@ int main(int argc, char *argv[]) {
 			printf("ERROR executing that instruction...\n");
 		} */
 		emu.StepCycle(emu.VMList);
+		ccount++;
 	}
 	
 	
-	printf("Emulation Completed...\n");
+	printf("Emulation Completed...[ %d instructions ]\n", ccount);
 	
 	printf("Printing resulting logs:\n");
 	
@@ -276,13 +302,14 @@ int main(int argc, char *argv[]) {
 	sprintf(save_file, "%s_proto.dat", filename);
 	emu.APIHooks.Save(save_file);
 	
-	sprintf(save_file, "%s_snapshot.dat", filename);
-	emu.Snapshot_Create(1);
-	emu.Snapshot_Dump(1, save_file);
-
+	if (!snapshot) {
+		sprintf(save_file, "%s_snapshot.dat", filename);
+		emu.Snapshot_Create(1);
+		emu.Snapshot_Dump(1, save_file);
+	} 
 	// save snapshot to a file
 	Emulation::EmulationLog *logptr = emu.MasterThread->LogList;
-	exit(0);
+//	exit(0);
 	while (logptr != NULL) {
 		printf("LogID: %d EIP Address: %X NextEIP %X ChangeLog Count %d\n",
 			logptr->LogID, logptr->Address, logptr->NextEIP, logptr->VMChangeLog_Count);
