@@ -47,6 +47,7 @@ Emulation *EmuPtr[MAX_VMS];
 Emulation::EmulationThread *EmuThread[MAX_VMS];
 BinaryLoader *_BL[MAX_VMS];
 
+
 typedef struct _emuthread_handle {
 	struct _emuthread_handle *next;
 	uint32_t ID;
@@ -88,6 +89,7 @@ int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle, Emulation *ptr, Vi
 	handle_list = hptr;
 	return 1;
 }
+
 
 static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
@@ -516,7 +518,7 @@ uint32_t Emulation::Init(uint32_t ReqAddr) {
 	// add section so a new DLL wont overwrite it...
 	VM->Add_Section(MasterVM.RegionLow, 1, MasterVM.RegionHigh - MasterVM.RegionLow, (VirtualMemory::SectionType)0, 0, 0, "REGION", (unsigned char *)"\x00");
 	
-	MasterThread = NewThread(&MasterVM);
+	MasterThread = NewThread(0,&MasterVM);
 	if (MasterThread == NULL) {
 		printf("couldnt start thread\n");
 		exit(-1);
@@ -553,7 +555,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	}
 
 	// we start as a simulation until we are connected to the server
-	VMList = &MasterVM;
+	
 	simulation = 1;
 	verbose = 1;
 	Proxy = NULL;
@@ -564,6 +566,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	completed = 0;
 	SnapshotList = NULL;
 	std::memset((void *)&MasterVM, 0, sizeof(VirtualMachine));
+	VMList = &MasterVM;
 	//MasterVM.LogList = NULL;
 	// count of virtual machines and incremental ID
 	Current_VM_ID = 0;
@@ -587,13 +590,17 @@ Emulation::Emulation(VirtualMemory *_VM) {
 
 }
 
-Emulation::EmulationThread *Emulation::NewThread(Emulation::VirtualMachine *VM) {
+Emulation::EmulationThread *Emulation::NewThread(uint32_t thread_id, Emulation::VirtualMachine *VM) {
 	EmulationThread *tptr = new EmulationThread;
 	if (tptr == NULL) return NULL;
 	
 	std::memset(tptr, 0, sizeof(EmulationThread));
 	
-	tptr->thread_ctx.ID = tptr->ID = VM->thread_id++;
+	if (!thread_id)
+		tptr->thread_ctx.ID = tptr->ID = VM->thread_id++;
+	else
+		tptr->thread_ctx.ID = tptr->ID = thread_id;
+		 
 	tptr->thread_ctx.emulation_ctx.addr_size = 32;
 	tptr->thread_ctx.emulation_ctx.sp_size = 32;
 	tptr->thread_ctx.emulation_ctx.regs = &tptr->registers;
@@ -610,6 +617,8 @@ Emulation::EmulationThread *Emulation::NewThread(Emulation::VirtualMachine *VM) 
 	
 	tptr->next = VM->Threads;
 	VM->Threads = tptr;
+	
+	EmuAddID((uint32_t)thread_id, (EmulationThread *)tptr, (Emulation *)this, (VirtualMemory *)VM->Memory, (BinaryLoader *)Loader);
 	
 	EmuPtr[tptr->ID] = this;
 	_VM2[tptr->ID] = tptr->EmuVMEM;
@@ -970,6 +979,7 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 	// this isnt as efficient as a real task scheduler...
 	// for now it wont matter :)
 	for (; tptr != NULL; tptr = tptr->next) {
+		printf("processing thread\n");
 		if (tptr->completed) {
 			if (!tptr->dumped) {
 				DumpStack(tptr);
@@ -1100,7 +1110,19 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	VirtualMachine *_VM = (VirtualMachine *)(thread->VM);
 	EmulationThread *tptr = thread;
 emu:
-	
+			char blah[1024];
+		VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
+		uint32_t blahI=0xDEADDEAD;
+		uint32_t *_blah = (uint32_t *)blah;
+		if (*_blah == blahI) {
+			printf("DONE\n");
+			exit(0);
+		}
+		for (int i = 0; i < 13; i++) {
+			printf("%02X", (unsigned char)blah[i]);
+		}
+		printf("\n%X\n", *_blah);
+
 	// print registers before execution of the next instruction
 			printf("1 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
 			tptr->ID,
@@ -1129,7 +1151,15 @@ emu:
 	
 	if (r == X86EMUL_OKAY) {
 		thread->last_successful = 1;
+		
 		printf("emu ok\n");
+		
+		
+	} else if (r == X86EMUL_UNHANDLEABLE) {
+		//printf("UNHANDLEABLE\n");
+		// see why things are returning this!! maybe ops are responding
+		// incorrectly!
+		thread->last_successful = 1;
 		char blah[1024];
 		VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
 		uint32_t blahI=0xDEADDEAD;
@@ -1142,11 +1172,6 @@ emu:
 			printf("%02X", (unsigned char)blah[i]);
 		}
 		printf("\n%X\n", *_blah);
-	} else if (r == X86EMUL_UNHANDLEABLE) {
-		//printf("UNHANDLEABLE\n");
-		// see why things are returning this!! maybe ops are responding
-		// incorrectly!
-		thread->last_successful = 1;
 	} else if (r == X86EMUL_EXCEPTION) {
 		printf("Exception\n");
 	} else if (r == X86EMUL_RETRY) {
@@ -1246,7 +1271,7 @@ uint32_t Emulation::CreateThread(EmulationThread *tptr, uint32_t *esp) {
 	printf("CreateThread ID %X flags %X param %X start addr %X stack size %d thread attr %d\n",
 	lpThreadID, dwCreationFlags, lpParameter, lpStartAddress, dwStackSize, lpThreadAttributes); 
 
-	EmulationThread *thread = NewThread(&MasterVM);
+	EmulationThread *thread = NewThread(0,&MasterVM);
 	if (thread == NULL) {
 		printf("Couldnt start new thread\n");
 		throw;
@@ -1270,6 +1295,7 @@ uint32_t Emulation::CreateThread(EmulationThread *tptr, uint32_t *esp) {
 	
 	printf("New Thread %X\n", thread);
 	EmuThread[thread->ID] = thread;
+	
 	if (lpThreadID != NULL) {
 		thread->EmuVMEM->MemDataWrite(lpThreadID, (unsigned char *)&thread->ID, sizeof(uint32_t));
 	} 
@@ -1434,7 +1460,7 @@ Emulation::EmulationThread *Emulation::ExecuteLoop(
 	CodeAddr EIP = StartAddr;
 
 	if (new_thread) {
-		thread = NewThread(&MasterVM);//, EIP, registers);
+		thread = NewThread(0,&MasterVM);//, EIP, registers);
 		if (thread == NULL) {
 			return NULL;
 		}
@@ -2016,7 +2042,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		thread_id, fs_base, stacklow, stackhigh, peb, tls);
 		
 		// create threads in emulator..
-		EmulationThread *newthread = NewThread(&MasterVM);
+		EmulationThread *newthread = NewThread(thread_id,&MasterVM);
 		if (newthread == NULL) {
 			printf("couldnt allocate new thread!\n");
 			throw;
@@ -2026,7 +2052,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		newthread->thread_ctx.ID = thread_id;
 		//int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle,
 		 //Emulation *ptr, VirtualMemory *mem, BinaryLoader *loader);
-		 EmuAddID(thread_id, newthread, this, VM, Loader);
+		 
 		newthread->ID = thread_id;
 		newthread->EmuVMEM = VM;
 		newthread->TIB = fs_base;
@@ -2034,7 +2060,12 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		newthread->StackLow = stacklow;
 		newthread->StackHigh = stackhigh;
 		MasterVM.PEB = peb;
-		
+		printf("EIP %X ESP %X EBP %X EAX %X EBX %X ECX %X EDX %X\n",
+		ctx.Eip, ctx.Esp, ctx.Ebp, ctx.Eax, ctx.Ebx, ctx.Ecx,
+		ctx.Edx);
+		printf("ESI %X EDI %X FS %X GS %X ES %X DS %X CS %X EFLAGS %X\n", 
+		ctx.Esi, ctx.Edi, ctx.SegFs, ctx.SegGs, ctx.SegEs, ctx.SegDs,
+		ctx.SegCs, ctx.EFlags);
 		SetRegister(newthread, REG_EAX, ctx.Eax);
 		SetRegister(newthread, REG_EBX, ctx.Ebx);
 		SetRegister(newthread, REG_ECX, ctx.Ecx);
@@ -2076,6 +2107,8 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		fread((void *)&addr, 1, sizeof(uint32_t), fd);
 		// read the data from the file..
 		fread((void *)&page_data, 1, 0x1000, fd);
+		
+		//printf("MEMORY %X\n", addr);
 		// write into virtual memory..
 		 VM->MemDataWrite(addr, (unsigned char *)&page_data, 0x1000);
 	}

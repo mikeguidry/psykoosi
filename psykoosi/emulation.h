@@ -523,7 +523,7 @@ namespace psykoosi {
     int HeapFree(uint32_t Address);
     
     // incomplete functions
-    EmulationThread *NewThread(VirtualMachine *);
+    EmulationThread *NewThread(uint32_t thread_id, VirtualMachine *);
     void DestroyThread(VirtualMachine *, EmulationThread *);
     EmulationThread *NewVirtualMachineChild(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
     void DestroyVirtualMachineChild(Emulation::EmulationThread *Thread);
