@@ -1,56 +1,60 @@
+* DO NOT PUBLISH WITH GIT HISTORY AND REMOVE NOTES/TODO *
+
 TODO FOR PSY/MESZEK 10/15/15
 
 This software is meant to test your own software, or network.  I take no responsbility for any damages caused by other uses from users with more malicious intent.
 
 HIGH PRIORITY:
 
+
+* integrate with real XEN so we can fuzz operating systems easily
+  since real XEN uses x86_emulate() we can just create a secondary
+  context for each VM with a copy of all the memory purely for fuzzing
+  kernel.. or CoW.. check into drakvuf to get information on setting
+  breakpoints in particular areas of the OS to dump instructions for
+  the farm
+  
+* API proxy manager.. which will accept a snapshot and load it into memory
+  and allow us to call API on the very context that the snapshots were created under
+  
 * fuzz x86_emulate() with x86_emulate() ;) 
   i didn't realize this WAS the actual XEN emulator...
   i really thought it was a full blown hypervisor rather than most instructions
   just being encapsulated... im executing this without entering into a hypervisor whatsoever
   which is sort of scary, and all implementations should be of interest
   
-* for people without xeon PHIs.. create a docker version so everyone can begin fuzzing ASAP
-
 * detail documentation for open sourcing and explaining the direction so others can help build if they have ideas
-
-* merge unicorn but try to sync directly to qemu virtual memory
-
-* keep distribution separated from the fuzz app...
-  use an outside server via zeromq/nanomsg which will log to MySQL or grab information as needed
-  make it simple for compiling for the XEON Phi cards...
-  find some way to compare iterations of 'fuzz' on machines so it can be used for determining
-  functions/loops/data that will take longer or shorter.. the shorter ones can go on to browsers using asm.js
-  the PHI farm can handle the longer tasks..
   
-* implement multithreading support, and finish on API Proxy Server
-  multithreading is purely for emulation..
-  we will run 1 instruction per thread per CPU 'cycle...'
-  this will allow us to also analyze malware and fake antu debugging
-  (such as RDTSC, etc, etc)
-  it can look exactly as a real machine would look because we contorl all variables
-  we can defeat polymorphism by creating hashes of log data... or
-  use to create our polymorphism as well
-  new emu thread, and similar to ROP use to find code and make
-  a database of what code does so it can be reused later (see frankstein)
+* Finish API Proxy Multithreaded support.. should be done local side
+  finish *ops* functions for x86_emulate().. or move to unnicorn
 
-* like we have CRC verify on the API Proxy Server side..
-  there needs to be a solution so that we sync heap data which may
-  be modified on this side.. we can be stupid about it and push
-  the entire region for now if necessary.. but it'd be smart to
-  checksum after we return from the Proxy Server, and then
-  before the next call.. and update anything remotely
+* coordinate log ID with the next API proxy call so any changed data
+  get synchronized
+
+* finish integrating dfuzz
+
+* finish snapshot diff'ing so we can extend from a parent for quickly fuzzing
+  deeper into applications
   
-* finish PostExecute (ret_fix/ret_eax) for writing the protocol exchange data AddProtocolExchange()
+* create profiles using 'operations table' where we pass FILE I/O fuzzing
+  tasks to an app with all the correct triggers (breakpoints) to dump fuzzing instructions
 
-* test on fake vulnerabilities, and some real apps: adobe flash, adobe reader, IE,FF, IE, CHr
+* create linear assembly code for 'native binary fuzzing' similar to the packets of information to distributed fuzz
+  however these are 'binary rewrote' into normal C code that can output executables, asm.js webpages, etc
+  
+LOWER PRIORITY:
 
-* managing distribution: queueing , queue error checking
+* for people without xeon PHIs.. create a docker version so everyone can begin fuzzing ASAP
+  it should be pretty easy to get started.. moved to low priority
 
-* creating 'packets' or structures of information that contain all memory/instructions/information that allows
-  a process to take part in distributed fuzzing of application(s) 
+* use autohotkey, autoit, or create a new app which can control the top applications to perform various tasks..
+  possibly monitor real executions of an app by injection, and monitor its window events
+  replaying these events later to perform the same actions on other versions...
 
-* generate a DLL to inject into an app which creates and uploads these packets
+* integrate unicorn once we are finished versoin 1 and its finding bugs and released..
+
+* this is moved to low since we attach using a debugger..
+  generate a DLL to inject into an app which creates and uploads these packets
   for fuzzing that app with all memory, instructions, etc required to fuzz that software
   - verify speed of different hashing algorithms when enumerating memory allocated
     for dumping and spotting changes in between instructions/calls, or
@@ -61,7 +65,6 @@ HIGH PRIORITY:
     maybe buffer those to emulate it still working properly and just dump to a temp file
     where it is only available during that execution
     
-
   DLL Notes:
   This is a DLL which is to be injected into a program that is going to be fuzzed...
   It's goals are to instrument every thread, and log all information once a FILE IO/NETWORK IO happens...
@@ -83,19 +86,6 @@ HIGH PRIORITY:
   to handle some state machines... while ((c = *ptr++))  { we want to be able to determine if an entire function has read
   our data and wrote to another location.. a more 'higher level' appraoch than a single instruction reading/writing 
 
-
-    
-* use autohotkey, autoit, or create a new app which can control the top applications to perform various tasks..
-  possibly monitor real executions of an app by injection, and monitor its window events
-  replaying these events later to perform the same actions on other versions...
-
-* find a way to auto test applications such as passing filenames as arguments
-  and see if we can spot the application attempting to load the file to auto fuzz apps which do this..
-  also try a URL
-  
-  
-LOWER PRIORITY:
-
 * rebuild relocation (or even just modify in memory) for PEs that do not have
   relocation table.. for a lot of programs this isnt an issue anymore due to
   ASLR enabled apps
@@ -105,9 +95,6 @@ LOWER PRIORITY:
   freed but bigger, then we can spit it up.. if its not taken then we can allocate it and then
   future allocations should go around it 
   
-* create linear assembly code for 'native binary fuzzing' similar to the packets of information to distributed fuzz
-  however these are 'binary rewrote' into normal C code that can output executables, asm.js webpages, etc
-
 * integrate unicorn for multiple architecture support
   replace capstone using emulation (to get size of instruction) and 
   automatically swap endian-ness and detect absolute and immediate addressing
