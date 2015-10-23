@@ -6,7 +6,10 @@ This software is meant to test your own software, or network.  I take no respons
 
 HIGH PRIORITY:
 
-
+*** the virtual memory system is extremely slow
+    we need to build a memory manager which will use real memory addresses
+    with a lookup table to convert the addresses...
+    
 * integrate with real XEN so we can fuzz operating systems easily
   since real XEN uses x86_emulate() we can just create a secondary
   context for each VM with a copy of all the memory purely for fuzzing

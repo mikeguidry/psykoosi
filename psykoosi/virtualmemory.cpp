@@ -16,7 +16,8 @@ using namespace pe_win;
 
 VirtualMemory::VirtualMemory()
 {
-  Memory_Pages = NULL;
+	for (int i = 0; i < VMEM_JTABLE; i++)
+  Memory_Pages[i] = NULL;
   Section_List = Section_Last = NULL;
   LogList = LogLast = NULL;
   VMParent = NULL;
@@ -33,11 +34,12 @@ VirtualMemory::VirtualMemory()
 
 VirtualMemory::~VirtualMemory()
 {
-  if (Memory_Pages != NULL) {
-    MemPage *mptr = (MemPage *)Memory_Pages, *mptr2;
-    
+	for (int i = 0; i < VMEM_JTABLE; i++)
+  if (Memory_Pages[i] != NULL) {
+    MemPage *mptr = (MemPage *)Memory_Pages[i], *mptr2;
+
     // delete all memory pages we have information at...
-    for (mptr = Memory_Pages; mptr; ) {
+    for (mptr = Memory_Pages[i]; mptr; ) {
       mptr2 = mptr->next;
       if (mptr->data)
     	  delete mptr->data;
@@ -84,8 +86,10 @@ unsigned long VirtualMemory::roundupto(unsigned long n, unsigned long block){
 }
 
 VirtualMemory::MemPage *VirtualMemory::MemPagePtrIfExists(unsigned long addr) {
-    MemPage *mptr = (MemPage *)Memory_Pages;
-    unsigned long round = roundupto(addr, Settings[SETTINGS_PAGE_SIZE]); // round up to 64k pages
+	unsigned long round = roundupto(addr, Settings[SETTINGS_PAGE_SIZE]); // round up to 64k pages
+	int jtable = jtable_algo(round);
+    MemPage *mptr = (MemPage *)Memory_Pages[jtable];
+
     if (mptr != NULL) {
       for (; mptr != NULL; mptr = mptr->next) {
 	  if ((unsigned long)round == mptr->round)
@@ -118,19 +122,28 @@ int VirtualMemory::IsMyPage(MemPage *mptr) {
 	return (mptr->ClassPtr == this);
 }
 
+// hell yes!
+int VirtualMemory::jtable_algo(int round) {
+	int hmm = round & 0x00f00000;
+	int jtable = round + (round ^ (round % (VMEM_JTABLE / 3))); 
+	
+	return jtable % VMEM_JTABLE;
+}
+
 VirtualMemory::MemPage *VirtualMemory::NewPage(unsigned long round, int size) {
     MemPage *mptr = new MemPage;
 
     std::memset(mptr, 0, sizeof(MemPage));
 
+	int jtable = jtable_algo(round);
    // push old back..
-   mptr->next = (MemPage *)Memory_Pages;
+   mptr->next = (MemPage *)Memory_Pages[jtable];
    // insert in the beginning
-   Memory_Pages = mptr;
+   Memory_Pages[jtable] = mptr;
 
    // what page range is this for
    mptr->round = round;
-   
+
    mptr->addr = round;
    // size of this page
    mptr->size = Settings[SETTINGS_PAGE_SIZE];
@@ -158,7 +171,7 @@ VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
 
     // couldnt find so allocate..
     mptr = NewPage(round, Settings[SETTINGS_PAGE_SIZE]);
-    
+
     return mptr;
 }
 
@@ -202,7 +215,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 	// maybe optimize this later so it knows when it crosses a page..
 	// if speed becomes an issue ***
 	// we could calculate how many bytes before the end of the current
-	// page    
+	// page
     for (i = 0; i < len; i++) {
         if ((mptr = MemPagePtr(addr+i)) == 0) return 0;
 
@@ -224,7 +237,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			}
 			//if ((addr < 0x60000000))
 			if (MemDebug)
-			printf("(w) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i])); 
+			printf("(w) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i]));
 			mptr->data[pageaddr] = data[i];
 			break;
 		  default:
@@ -400,8 +413,9 @@ int VirtualMemory::Cache_Load(char *filename) {
 int VirtualMemory::Configure(SettingType type, int Setting) {
 	int Old_Setting = Settings[type];
 
+	int jtable = 0;
 	// cannot change page size after there is already data
-	if (type == SettingType::SETTINGS_PAGE_SIZE && Memory_Pages != NULL && Memory_Pages->Original_Parent != this)
+	if (type == SettingType::SETTINGS_PAGE_SIZE && Memory_Pages[jtable] != NULL && Memory_Pages[jtable]->Original_Parent != this)
 		return Old_Setting;
 
 	Settings[type] = Setting;
@@ -412,8 +426,9 @@ int VirtualMemory::Configure(SettingType type, int Setting) {
 int VirtualMemory::Configure(SettingType type, unsigned long Setting) {
 	int Old_Setting = Settings[type];
 
+	int jtable = 0;
 	// cannot change page size after there is already data
-	if (type == SettingType::SETTINGS_PAGE_SIZE && Memory_Pages != NULL && Memory_Pages->Original_Parent != this)
+	if (type == SettingType::SETTINGS_PAGE_SIZE && Memory_Pages[jtable] != NULL && Memory_Pages[jtable]->Original_Parent != this)
 		return Old_Setting;
 
 	Settings[type] = Setting;

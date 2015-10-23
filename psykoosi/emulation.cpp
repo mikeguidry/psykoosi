@@ -95,7 +95,7 @@ int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle, Emulation *ptr, Vi
 }
 
 
-static int address_from_seg_offset_realmode(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
+static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
 	
 	EmuThread_Handle *hptr = EmuByID(thread->ID);
@@ -116,6 +116,8 @@ static int address_from_seg_offset_realmode(enum x86_segment seg, unsigned long 
  */
  
  // this is not for protected flat model (win32/linux)
+ // we will continue to use this.. and just convert it for the imported
+ // applications
 	switch (seg) {
 		case x86_seg_cs:
 			_seg = emuthread->registers.cs;
@@ -139,6 +141,7 @@ static int address_from_seg_offset_realmode(enum x86_segment seg, unsigned long 
 			break;
 	}
 	result = _seg + offset;
+	printf("result %x\n", result);
 
 	return result;
 }
@@ -1802,15 +1805,18 @@ void Emulation::PrintLog(EmulationLog *logptr) {
 int Emulation::Snapshot_Create(int id) {
 	int i = 0;
 	// count the amount of memory pages...
-	VirtualMemory::MemPage *mptr = VM->Memory_Pages;
+	VirtualMemory::MemPage *mptr= NULL;
 	int mem_pages_count = 0;
 	int mem_pages_size = 0;
+	for (i = 0; i < VMEM_JTABLE; i++) {
+	mptr = VM->Memory_Pages[i];
+	
 	while (mptr != NULL) {
 		mem_pages_count++;
 		mem_pages_size += mptr->size;
 		mptr = mptr->next;
 	}
-	
+	}
 	EmulationThread *tptr = MasterVM.Threads;
 	int thread_count = 0;
 	int stack_size = 0;
@@ -1861,9 +1867,9 @@ int Emulation::Snapshot_Create(int id) {
 		ptr += sizeof(SnapshotThread);
 		tptr = tptr->next;
 	}
+	for (int a = 0; a < VMEM_JTABLE; a++) {
+		mptr = VM->Memory_Pages[a];
 	
-	mptr = VM->Memory_Pages;
-	for (i = 0; i < mem_pages_count; i++) {
 		SnapshotMemPage *snappageptr = (SnapshotMemPage *)ptr;
 		
 		snappageptr->Address = mptr->round;
@@ -2016,6 +2022,8 @@ Emulation::EmulationThread *Emulation::FindThread(int id) {
 
 
 int Emulation::LoadExecutionSnapshot(char *filename) {
+	int start_ts = time(0);
+	
 	Sculpture *op = (Sculpture *)_op;
 	
 	printf("Load Snapshot: %s\n", filename);
@@ -2026,6 +2034,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		return -1;
 	}
 	fstat(fileno(fd), &stv);
+	int total_file_size = stv.st_size;
 	uint32_t count;
 	int i = 0;
 	CONTEXT32 ctx;
@@ -2179,10 +2188,15 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		// create modules in emulator..
 	}
 	
+	printf("--\n\n\nat byte: %d\n", ftell(fd));
+	printf("Loading memory from snapshot!\n");
 	// the rest of the file is for memory mappings...
 	int mem_data_len = sizeof(uint32_t) + 0x1000;
-	int data_left_in_file = stv.st_size - ftell(fd);
+	int data_left_in_file = total_file_size - ftell(fd);
 	int mem_pages_to_process = data_left_in_file / mem_data_len;
+	printf("mem block len: %d data left: %d mem_pages_to_process %d\n",
+	mem_data_len, data_left_in_file, mem_pages_to_process);
+	int mem_start = time(0);
 	for (i = 0; i < mem_pages_to_process; i++) {
 		uint32_t addr = 0;
 		char page_data[0x1000];
@@ -2194,12 +2208,32 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		//printf("MEMORY %X\n", addr);
 		// write into virtual memory..
 		 VM->MemDataWrite(addr, (unsigned char *)&page_data, 0x1000);
+		 //printf("Writing page at %X\n", addr);
+		 //uint32_t spot = 0x31cfc28;
+		 
+		/*if ((spot >= addr) && (spot < (addr + 0x1000))) {
+			//printf("FOUND page %X\n", spot);
+		}*/
+		
+		if (i && !(i % 5)) {
+			int elapsed = time(0) - mem_start;
+			if (elapsed) {
+				printf("\r%d pages loaded. %d pages a second. \t\t\t", i, i / elapsed );
+				fflush(stdout);
+			}
+		}
 	}
+	printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
 	fclose(fd);
 	
 
 	printf("Loaded execution snapshot %s into memory..\n", filename);
 	printf("Analyzing..\n");
 	op->analysis->Complete_Analysis_Queue(0);
+	
+	int stop_ts = time(0);
+	int time_spent = stop_ts - start_ts;
+	printf("It took %d seconds to load the snapshot! OPTIMIZE!\n", time_spent);
+	
 	printf("FUZZING TIME!!\n");
 }

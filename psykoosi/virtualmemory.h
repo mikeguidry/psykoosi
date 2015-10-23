@@ -1,3 +1,4 @@
+
 namespace psykoosi {
 
   class VirtualMemory {
@@ -9,6 +10,8 @@ namespace psykoosi {
       VMEM_VERIFY
     };
   public:
+  
+  #define VMEM_JTABLE 8192
     
     /*
     // This is when we want to add in ability to keep history of every change...
@@ -155,6 +158,7 @@ namespace psykoosi {
       MemPage *ClonePage(MemPage *ParentOriginal);
       int IsMyPage(MemPage *mptr);
 
+		int jtable_algo(int round);
 
       void SetParent(VirtualMemory *Parent);
       void ReleaseParent();
@@ -176,7 +180,7 @@ namespace psykoosi {
 
 	  int MemDebug;
 	  
-	  MemPage *Memory_Pages;
+	  MemPage *Memory_Pages[VMEM_JTABLE];
     private:
       int MemDataIO(int operation, unsigned long addr, unsigned char *result, int len);
       
