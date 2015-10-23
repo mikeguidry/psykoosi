@@ -63,7 +63,7 @@ typedef struct _emuthread_handle {
 EmuThread_Handle *handle_list = NULL;
 
 EmuThread_Handle *EmuByID(uint32_t ID) {
-	printf("EmuByID: %d\n", ID);
+	//printf("EmuByID: %d\n", ID);
 	EmuThread_Handle *hptr = handle_list;
 	
 	while (hptr != NULL) {
@@ -141,7 +141,7 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
 			break;
 	}
 	result = _seg + offset;
-	printf("result %x\n", result);
+	//printf("result %x\n", result);
 
 	return result;
 }

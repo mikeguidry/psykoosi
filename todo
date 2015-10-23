@@ -6,6 +6,20 @@ This software is meant to test your own software, or network.  I take no respons
 
 HIGH PRIORITY:
 
+* keep track of all memory/functions used by our 'fuzzing' data
+  so we know when its time to stop, or quit queueing into the
+  dfuzz server.. overall its working great from a loaded snapshot!
+  right now its loading 1 thread (the one handling the data)
+  but it could easily support loading other threads..
+  its all about the PID Dump stepping them until they exit out of
+  kernel/ntdll calls and then dump for us to load.. multithreading
+  is working great..
+  
+  the system is practically finished and ready for PoC release :)
+  lets try on some real applications over the weekend and release
+  sunday/monday
+  
+  
 *** the virtual memory system is extremely slow
     we need to build a memory manager which will use real memory addresses
     with a lookup table to convert the addresses...

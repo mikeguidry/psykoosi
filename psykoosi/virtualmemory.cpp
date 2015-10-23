@@ -123,6 +123,12 @@ int VirtualMemory::IsMyPage(MemPage *mptr) {
 }
 
 // hell yes!
+// ive never done any algorithms like this before.. but
+// i knew it'd work somehow :)
+// the addresses around the mask are the main ones changing...
+// so after some trial and error.. i thought it'd mix things up quite a bit with the array
+// before due to the round and all the addresses being similar.. they all kept going to the same
+// tables.. essentially not helping whatsoever.. this evens it out more..
 int VirtualMemory::jtable_algo(int round) {
 	int hmm = round & 0x00f00000;
 	int jtable = round + (round ^ (round % (VMEM_JTABLE / 3))); 
