@@ -16,6 +16,7 @@ extern "C" {
 
 #include "disassemble.h"
 #include "analysis.h"
+#include "utilities.h"
 #include "loading.h"
 
 
@@ -100,7 +101,7 @@ uint32_t *ImageSize) {
 }
 
 
-pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase) {
+pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase, int skip_proxy) {
 	DisassembleTask::CodeAddr Last_Section_Addr = 0;
 	LoadedImages *main_image = NULL;
 	VirtualMemory::Memory_Section *mptr = NULL;
@@ -193,7 +194,7 @@ pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase) {
 
 		 if (load_for_emulation) {
 			 if (image->has_imports())
-				LoadImports(image, _VM, ImageBase);
+				LoadImports(image, _VM, ImageBase, skip_proxy);
 				
 			if (image->has_exports()) {
 				// FIX *** for fuzzing we wanna cache the exports..
@@ -201,7 +202,7 @@ pe_base *BinaryLoader::ProcessFile(pe_base *image, uint32_t ImageBase) {
 				// for API proxy its fine for now
 			}
 
-			if (main_image) {
+			if (main_image && !skip_proxy) {
 #ifdef EMU_QUEUE
 				EmulationQueue *qptr = EmulationQueueAdd(main_image, mptr->ImageBase + main_image->PEimage->get_ep(), 0);
 #endif
@@ -295,10 +296,14 @@ BinaryLoader::LoadedImages *BinaryLoader::AddLoadedImage(char *filename, pe_blis
 	return lptr;
 }
 
-VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze) {
+VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(
+	
+	char *filename, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, 
+int analyze, uint32_t ImageBase, int skip_proxy) {
+	
 	VirtualMemory::Memory_Section *ret = NULL;
 	BinaryLoader::LoadedImages *lptr = NULL;
-	CodeAddr Entry=0, ImageBase = 0;
+	CodeAddr Entry=0;
 	char fname[1024];
 	char *name = NULL;
 
@@ -331,7 +336,7 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 	 }
 
 
-	if (Proxy != NULL) {
+	if (!skip_proxy && Proxy != NULL) {
 		ImageBase = Proxy->LoadDLL(name);
 		printf("Loading DLL at base %X like the proxy [%s]\n", ImageBase, name);
 	}
@@ -381,7 +386,7 @@ VirtualMemory::Memory_Section *BinaryLoader::LoadDLL(char *filename, pe_bliss::p
 		 // *** FIX build symbol table for export so we increase the speed of GetProcAddress
 		 
 		 if (dll_image->has_imports()) {
-			 //LoadImports(dll_image, VMem, ImageBase);
+			 //LoadImports(dll_image, VMem, ImageBase, skip_proxy);
 		 }
 
 		 // put in queue for emulation since each DLL will have to be executed before we can run the
@@ -524,7 +529,7 @@ int BinaryLoader::ProcessRelocations(pe_bliss::pe_base *imp_image, VirtualMemory
 }
 
 // will try to locate and load all dependencies for a binary into virtual memory
-int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem, CodeAddr ImageBase) {
+int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem, CodeAddr ImageBase, int skip_proxy) {
 
 	printf("LoadImpports ImageBase %X\n", ImageBase);
 	
@@ -537,12 +542,12 @@ int BinaryLoader::LoadImports(pe_bliss::pe_base *imp_image, VirtualMemory *VMem,
 
     for(imported_functions_list::const_iterator it = imports.begin(); it != imports.end(); ++it) {
 		const import_library& lib = *it;
-		/*VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0);
+		VirtualMemory::Memory_Section *DLL_code_sect = LoadDLL((char *)lib.get_name().c_str(), imp_image, VMem, 0, 0, 0);
 		if (DLL_code_sect) {
-			//printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
+			printf("Loaded DLL fine.. code section %p\n", DLL_code_sect->Address + DLL_code_sect->ImageBase);
 		} else {
 			printf("Couldn't load DLL %s\n", (char *)lib.get_name().c_str());
-		}*/
+		}
 		uint32_t iat_rva = (*it).get_rva_to_iat();
 		section iat_section = imp_image->section_from_rva(iat_rva);
 		if (iat_section.empty()) {

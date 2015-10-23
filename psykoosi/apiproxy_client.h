@@ -70,6 +70,10 @@ namespace psykoosi {
 		uint32_t LoadDLL(char *filename);
 		char *GetDLLPath(char *filename);
 		
+		char *FileDownload(char *filepath, int *);
+		int FileUpload(char *filepath, char *data, int size);
+		int FileDelete(char *);
+		
 		int Ping();
 		
 		// create a new thread and return an id

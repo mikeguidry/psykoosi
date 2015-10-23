@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
 		// now process the PE file (load into virtual memory, process imports/exports,
 		// analysis and disassembly of instructions)
 		// if we couldnt allocate the real ImageBase .. we can give another one here...
-		op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase );
+		op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase, 0);
 	} else {
 		emu.from_snapshot = 1;
 		emu.LoadExecutionSnapshot(argv[1]);

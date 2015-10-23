@@ -17,6 +17,7 @@
 #include <cstring>
 #include <stdio.h>
 #include <fstream>
+#include <stdio.h>
 #include <string>
 #include <inttypes.h>
 #include <udis86.h>
@@ -34,6 +35,7 @@ extern "C" {
 #include "loading.h"
 #include "emu_hooks.h"
 #include "structures.h"
+#include "utilities.h"
 #include "loading.h"
 #include "emulation.h"
 
@@ -42,11 +44,12 @@ using namespace pe_bliss;
 using namespace pe_win;
 
 
+/*
 VirtualMemory *_VM2[MAX_VMS];
 Emulation *EmuPtr[MAX_VMS];
 Emulation::EmulationThread *EmuThread[MAX_VMS];
 BinaryLoader *_BL[MAX_VMS];
-
+*/
 
 typedef struct _emuthread_handle {
 	struct _emuthread_handle *next;
@@ -60,6 +63,7 @@ typedef struct _emuthread_handle {
 EmuThread_Handle *handle_list = NULL;
 
 EmuThread_Handle *EmuByID(uint32_t ID) {
+	printf("EmuByID: %d\n", ID);
 	EmuThread_Handle *hptr = handle_list;
 	
 	while (hptr != NULL) {
@@ -91,7 +95,7 @@ int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle, Emulation *ptr, Vi
 }
 
 
-static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
+static int address_from_seg_offset_realmode(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
 	
 	EmuThread_Handle *hptr = EmuByID(thread->ID);
@@ -110,6 +114,8 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
     x86_seg_gs,
 
  */
+ 
+ // this is not for protected flat model (win32/linux)
 	switch (seg) {
 		case x86_seg_cs:
 			_seg = emuthread->registers.cs;
@@ -147,7 +153,7 @@ static int emulated_rep_movs(enum x86_segment src_seg,unsigned long src_offset,e
 	unsigned long bytes_to_copy = *reps * bytes_per_rep;
 
     printf("!!! vm %p rep movs src seg %d offset %x dst seg %d offset %x bytes per %d reps %d ctxt %p\n",
-	 _VM2[0],src_seg, src_offset, dst_seg, dst_offset, bytes_per_rep, *reps, ctxt);
+	 pVM,src_seg, src_offset, dst_seg, dst_offset, bytes_per_rep, *reps, ctxt);
 
     unsigned char *data = new unsigned char [bytes_to_copy];
 
@@ -178,7 +184,7 @@ static int emulated_write(enum x86_segment seg, unsigned long offset, void *p_da
 	
 	off = address_from_seg_offset(seg,offset,ctxt);
 
-	printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt);
+	printf("vm %p write seg %d offset %X data %p bytes %d ctxt %p\n", pVM, seg, offset, p_data, bytes, ctxt);
 
 	if (seg == x86_seg_fs) {
 		off = emuthread->TIB + offset;
@@ -214,7 +220,7 @@ static int emulated_cmpxchg(enum x86_segment seg,unsigned long offset,void *p_ol
 
 static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void *p_data, unsigned int bytes, struct _x86_emulate_ctxt *ctxt, int fetch_insn) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
-		EmuThread_Handle *hptr = EmuByID(thread->ID);
+	EmuThread_Handle *hptr = EmuByID(thread->ID);
 	Emulation *VirtPtr = hptr->EmuPtr;
 	VirtualMemory *pVM = hptr->VMem;
 	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
@@ -247,7 +253,7 @@ static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void
 	} //else {
 		
 	int done = 0;
-	printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", _VM2[0], seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
+	printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", pVM, seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
 	// if we cannot find the memory page in our memory..
 	// we have to read it from the remote API Proxy..
 	if (VirtPtr->Proxy != NULL && pVM->MemPagePtr(off) == NULL) {
@@ -523,7 +529,7 @@ uint32_t Emulation::Init(uint32_t ReqAddr) {
 		printf("couldnt start thread\n");
 		exit(-1);
 	}
-	EmuThread[0] = MasterThread;
+	//EmuThread[0] = MasterThread;
 	
 	MasterThread->thread_ctx.ID = 0;
 	MasterThread->thread_ctx.emulation_ctx.addr_size = 32;
@@ -540,6 +546,7 @@ uint32_t Emulation::Init(uint32_t ReqAddr) {
 	
 	VMList = &MasterVM;
 	
+	EmuAddID((uint32_t)0, (EmulationThread *)MasterThread, (Emulation *)this, (VirtualMemory *)VM, (BinaryLoader *)Loader);
 	printf("end init()\n");
 	//SetupThreadStack(MasterThread);
 	return RemAddr;
@@ -548,19 +555,19 @@ uint32_t Emulation::Init(uint32_t ReqAddr) {
 
 
 Emulation::Emulation(VirtualMemory *_VM) {
-	for (int i = 0; i < MAX_VMS; i++) {
+/*	for (int i = 0; i < MAX_VMS; i++) {
 		_VM2[i] = NULL;
 		EmuPtr[i] = NULL;
 		EmuThread[i] = NULL;
 	}
-
+*/
 	// we start as a simulation until we are connected to the server
-	
 	simulation = 1;
 	verbose = 1;
 	Proxy = NULL;
-	VM = _VM2[0] = _VM;
-	EmuPtr[0] = this;
+	VM = _VM;
+	//VM = _VM2[0] = _VM;
+	//EmuPtr[0] = this;
 	from_snapshot = 0;
 	SnapshotList = NULL;
 	completed = 0;
@@ -573,6 +580,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	// current VM being executed...
 	VM_Exec_ID = 0;
 
+	
 	// default settings for virtual memory logging
 	Global_ChangeLog_Read = 0;
 	Global_ChangeLog_Write = 0;
@@ -618,12 +626,12 @@ Emulation::EmulationThread *Emulation::NewThread(uint32_t thread_id, Emulation::
 	tptr->next = VM->Threads;
 	VM->Threads = tptr;
 	
-	EmuAddID((uint32_t)thread_id, (EmulationThread *)tptr, (Emulation *)this, (VirtualMemory *)VM->Memory, (BinaryLoader *)Loader);
+	EmuAddID((uint32_t)tptr->ID, (EmulationThread *)tptr, (Emulation *)this, (VirtualMemory *)VM->Memory, (BinaryLoader *)Loader);
 	
-	EmuPtr[tptr->ID] = this;
+/*	EmuPtr[tptr->ID] = this;
 	_VM2[tptr->ID] = tptr->EmuVMEM;
 	EmuThread[tptr->ID] = tptr;
-	
+*/	
 	if (!from_snapshot)
 		SetupThreadStack(tptr);
 	
@@ -1012,6 +1020,15 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 		}
 
 		
+		if (!tptr->EmuVMEM->MemPagePtrIfExists(tptr->registers.eip)) {
+			printf("Emulation over..  EIP doesnt exist! %X\n MAYBE BUG!\n", tptr->registers.eip);
+			tptr->completed = 1;
+			throw;
+			//continue;
+			return 0;
+			
+		}
+		
 		if (verbose) {
 			Sculpture *op = (Sculpture *)_op;
 			// get the 'instruction information' structure for this particular instruction
@@ -1090,7 +1107,7 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	EmulationThread *thread = NULL;
 	int r = 0, retry_count = 0;
 	if (_thread == NULL) thread = MasterThread; else thread = _thread;
-	_BL[0] = Loader;
+	//_BL[0] = Loader;
 	EmulationLog *ret = NULL;
 
 	// If we are specifically saying to hit a target address... if not use registers
@@ -1112,16 +1129,11 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 emu:
 			char blah[1024];
 		VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
-		uint32_t blahI=0xDEADDEAD;
-		uint32_t *_blah = (uint32_t *)blah;
-		if (*_blah == blahI) {
-			printf("DONE\n");
-			exit(0);
-		}
+		printf("EIP HEX: ");
 		for (int i = 0; i < 13; i++) {
 			printf("%02X", (unsigned char)blah[i]);
 		}
-		printf("\n%X\n", *_blah);
+		printf("\n");
 
 	// print registers before execution of the next instruction
 			printf("1 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
@@ -1294,7 +1306,7 @@ uint32_t Emulation::CreateThread(EmulationThread *tptr, uint32_t *esp) {
 	SetRegister(thread, REG_EIP, lpStartAddress);
 	
 	printf("New Thread %X\n", thread);
-	EmuThread[thread->ID] = thread;
+	//EmuThread[thread->ID] = thread;
 	
 	if (lpThreadID != NULL) {
 		thread->EmuVMEM->MemDataWrite(lpThreadID, (unsigned char *)&thread->ID, sizeof(uint32_t));
@@ -2004,6 +2016,8 @@ Emulation::EmulationThread *Emulation::FindThread(int id) {
 
 
 int Emulation::LoadExecutionSnapshot(char *filename) {
+	Sculpture *op = (Sculpture *)_op;
+	
 	printf("Load Snapshot: %s\n", filename);
 	FILE *fd = NULL;
 	struct stat stv;
@@ -2091,8 +2105,77 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	
 	// read each module entry to pair it with the memory we will load later...
 	fread((void *)&count, 1, sizeof(uint32_t), fd);
+	int point = ftell(fd);
 	for (i = 0; i < count; i++) {
 		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
+		unsigned int hash = cdb_hash(modentry.szExePath, strlen(modentry.szExePath));
+		char *name = NULL;
+
+		name = strrchr((char *)modentry.szExePath, '\\');
+		if (name != NULL) {
+			name++;
+		} else {
+			name = (char *)modentry.szModule;
+		}
+		for (int i = 0; i < strlen(name); i++) name[i] = tolower(name[i]);
+		char fname[1024];
+		sprintf(fname, "/Users/mike/dlls/%s", name);
+		
+		printf("EXE \"%s\" \"%s\"\n", (char *)((char *)modentry.szExePath+1), name);
+		//sprintf(fname, "images/%u.dat", hash);
+		FILE *fd = fopen(fname, "rb");
+		if (fd == NULL) {
+			int image_size = 0;
+			
+			char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
+			if (image_data != NULL && image_size) {
+				if ((fd = fopen(fname, "wb")) != NULL) {
+					fwrite(image_data, 1, image_size, fd);
+					fclose(fd);
+				}
+			}
+		} else {
+			fclose(fd);
+		}
+	}
+	
+	// re-process them now...
+	fseek(fd, point, SEEK_SET);
+	for (i = 0; i < count; i++) {
+		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
+		unsigned int hash = cdb_hash((char *)((char *)modentry.szExePath+1), strlen(modentry.szExePath)-1);
+		char *name = NULL;
+
+		name = strrchr((char *)((char *)((char *)modentry.szExePath+1)), '\\');
+		if (name != NULL) {
+			name++;
+		} else {
+			name = (char *)modentry.szModule;
+		}
+		for (int i = 0; i < strlen(name); i++) name[i] = tolower(name[i]);
+		printf("name: %s\n", name);
+		char fname[1024];
+		
+		sprintf(fname, "/Users/mike/dlls/%s", name);
+		if (stat(fname, &stv) == 0) {
+			// now we must really load it (and analyze, etc)
+			if (strcasestr(modentry.szModule, ".exe") != NULL) {
+				// its the main module...
+				uint32_t needed_base = modentry.modBaseAddr;
+				uint32_t ImageSize = 0;
+				if ((op->pe_image = op->loader->OpenFile(0,0,(char *)fname, &needed_base, &ImageSize)) == NULL) {
+					printf("couldnt load file %s\n", modentry.szExePath);
+					exit(0);
+				}
+				
+				op->pe_image = op->loader->ProcessFile(op->pe_image, needed_base, 1);
+				
+			} else {
+				// its a DLL module
+				op->loader->LoadDLL(name, NULL, VM, 1, modentry.modBaseAddr, 1);
+			}
+		}
+		
 		// create modules in emulator..
 	}
 	
@@ -2116,5 +2199,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	
 
 	printf("Loaded execution snapshot %s into memory..\n", filename);
+	printf("Analyzing..\n");
+	op->analysis->Complete_Analysis_Queue(0);
 	printf("FUZZING TIME!!\n");
 }

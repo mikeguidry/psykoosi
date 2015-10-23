@@ -72,15 +72,15 @@ namespace psykoosi {
   	  BinaryLoader(DisassembleTask *, InstructionAnalysis *, VirtualMemory *);
 
 	  char *GetInputRaw(int *Size);
-	  pe_bliss::pe_base *ProcessFile(pe_bliss::pe_base *, uint32_t ImageBase);
+	  pe_bliss::pe_base *ProcessFile(pe_bliss::pe_base *, uint32_t ImageBase, int);
     pe_bliss::pe_base *OpenFile(int Arch, int FileFormat, char *FileName, uint32_t *ImageBase, uint32_t *ImageSize);
 	  int WriteFile(int Arch, int FileFormat, char *FileName);
 
 	  uint32_t HighestAddress(int raw);
 
-	  int LoadImports(pe_bliss::pe_base *imp_image,  VirtualMemory *VMem, CodeAddr ImageBase);
+	  int LoadImports(pe_bliss::pe_base *imp_image,  VirtualMemory *VMem, CodeAddr ImageBase, int);
     int ProcessRelocations(pe_bliss::pe_base *imp_image,  VirtualMemory *VMem, CodeAddr ImageBase);
-	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze);
+	  VirtualMemory::Memory_Section *LoadDLL(char *, pe_bliss::pe_base *imp_image, VirtualMemory *VMem, int analyze, uint32_t, int);
 
     BinaryLoader::IAT *FindIAT(uint32_t Address);
 	  BinaryLoader::LoadedImages *AddLoadedImage(char  *filename, pe_bliss::pe_base *PEimage, CodeAddr ImageBase, char *Reference);

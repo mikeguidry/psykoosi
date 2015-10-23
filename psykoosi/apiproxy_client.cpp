@@ -83,6 +83,13 @@ typedef struct _zero_pkt {
     int32_t len;
 } ZmqHdr;
 
+typedef struct _file_info {
+	int32_t cmd;
+	int32_t name_len;
+	int32_t data_len;
+	int32_t overwrite;
+	int32_t perms;
+} FileInfo;
 
 typedef struct _zmq_pkt {
 	uint32_t crc;
@@ -189,9 +196,9 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 	//fwrite(final, final_size, 1, fd);
 	//fclose(fd);
 	i = write(proxy_socket, final, final_size);
-
 	if (i <= 0) {
 		if (errno == ENOTCONN) {
+			printf("not conn\n");
 			close(proxy_socket);
 			connected = 0;
 		}
@@ -213,8 +220,7 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 			return -1;
 		}
 	}*/
-	
-	if (i > 0 && i < final_size) {
+	if (i == final_size) {
 		int r = read(proxy_socket, final, sizeof(ZmqRet));
 		if (r >= sizeof(ZmqRet)) {
 			ZmqRet *ret = (ZmqRet *)(final);
@@ -224,6 +230,7 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 					printf("too big. replace\n");
 					char *replace_buf = (char *)realloc(final, ret->extra_len + sizeof(ZmqRet) + 1);
 					if (replace_buf == NULL) {
+						printf("couldnt allocate replace buf\n");
 						free(final);
 						close(proxy_socket);
 						connected = 0;
@@ -236,6 +243,7 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 				while (_read < ret->extra_len) {
 					r = read(proxy_socket, (char *)((char *)final + sizeof(ZmqRet) + _read), (int)(ret->extra_len - _read));
 					if (r <= 0) {
+						printf("couldnt read socket\n");
 						if (errno == ENOTCONN) {
 							close(proxy_socket);
 							connected = 0;
@@ -245,6 +253,7 @@ int APIClient::SendPkt(int type, char *data, int size, char **response, int *res
 					_read += r;
 				}
 			} else if (ret->response == 0) {
+				printf("bad response\n");
 				sret = 0;
 			}
 			
@@ -971,4 +980,101 @@ uint32_t APIClient::GetDLLAddress(char *dll) {
 	printf("Get DLL Handle: %d\n", ret);
 
 	return ret;	
+}
+
+
+char *APIClient::FileDownload(char *filepath, int *size) {
+	int sret = 0;
+	char *ret = NULL;
+	
+	int pkt_size = sizeof(FileInfo) + strlen(filepath) + 1;
+	char *pkt = (char *)malloc(pkt_size + 1);
+	if (pkt == NULL) return 0;
+	
+	FileInfo *finfo = (FileInfo *)pkt;
+	finfo->cmd = FILE_READ;
+	finfo->name_len = strlen(filepath) + 1;
+	
+	char *fname = (char *)(pkt + sizeof(FileInfo));
+	strcpy(fname, filepath);
+	
+	char *resp = NULL;
+	int resp_size = 0;
+	sret = SendPkt(FILE_READ, pkt, pkt_size, &resp, &resp_size);
+	
+	if (sret == 1 && resp != NULL && resp_size) {
+		ret = resp;
+		*size = resp_size;
+	}
+	
+	free(pkt);
+	
+	printf("FileDownload: %s ret addr %X / %d bytes\n", filepath, ret, resp_size);
+
+	return ret;		
+}
+
+
+int APIClient::FileUpload(char *filepath, char *data, int size) {
+	int sret = 0;
+	int ret = 0;
+	
+	int pkt_size = sizeof(FileInfo) + (strlen(filepath) + 1) + size;
+	char *pkt = (char *)malloc(pkt_size + 1);
+	if (pkt == NULL) return 0;
+	
+	FileInfo *finfo = (FileInfo *)pkt;
+	finfo->cmd = FILE_WRITE;
+	finfo->name_len = strlen(filepath) + 1;
+	
+	char *fname = (char *)(pkt + sizeof(FileInfo));
+	memcpy(fname, filepath, strlen(filepath));
+		
+	char *data_ptr = (char *)(pkt + sizeof(FileInfo) + finfo->name_len);
+	memcpy(data_ptr, data, size);
+	
+
+	char *resp = NULL;
+	int resp_size = 0;
+	sret = SendPkt(FILE_WRITE, pkt, pkt_size, &resp, &resp_size);
+	
+	if (sret == 1) {
+		ret = 1;
+	}
+	
+	free(pkt);
+	
+	printf("FileUpload: %s wrote? %d\n", filepath, ret);
+
+	return ret;			
+}
+
+int APIClient::FileDelete(char *filepath) {
+	int sret = 0;
+	int ret = 0;
+	
+	int pkt_size = sizeof(FileInfo) + (strlen(filepath) + 1);
+	char *pkt = (char *)malloc(pkt_size + 1);
+	if (pkt == NULL) return 0;
+	
+	FileInfo *finfo = (FileInfo *)pkt;
+	finfo->cmd = FILE_DELETE;
+	finfo->name_len = strlen(filepath) + 1;
+	
+	char *fname = (char *)(pkt + sizeof(FileInfo));
+	memcpy(fname, filepath, strlen(filepath));
+	
+	char *resp = NULL;
+	int resp_size = 0;
+	sret = SendPkt(FILE_DELETE, pkt, pkt_size, &resp, &resp_size);
+	
+	if (sret == 1) {
+		ret = 1;
+	}
+	
+	free(pkt);
+	
+	printf("FileDelete: %s deleted? %d\n", filepath, ret);
+
+	return ret;			
 }
