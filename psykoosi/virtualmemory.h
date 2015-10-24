@@ -11,7 +11,8 @@ namespace psykoosi {
     };
   public:
   
-  #define VMEM_JTABLE 8192
+  // how many diff buckets of mempages do we have? (for the algorithm to choose from)
+  #define VMEM_JTABLE 1000
     
     /*
     // This is when we want to add in ability to keep history of every change...
@@ -79,7 +80,11 @@ namespace psykoosi {
 		struct _memory_page *prev;
 		unsigned long addr;
 		unsigned long high_addr;
+		unsigned long blah;
+		unsigned long blah3;
 		unsigned long round;
+		unsigned long blah2;
+		unsigned long blah4;
 		int size;
 		//MemoryAddr **blocklist;
 		unsigned char *data;

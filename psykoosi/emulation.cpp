@@ -118,6 +118,9 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
  // this is not for protected flat model (win32/linux)
  // we will continue to use this.. and just convert it for the imported
  // applications
+ 
+ // the segment dumper is a temporary fix to turn protected mode (segmented) into real mode (flat)
+ // we have to test this again with a normal windows file
 	switch (seg) {
 		case x86_seg_cs:
 			_seg = emuthread->registers.cs;
@@ -229,6 +232,7 @@ static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void
 	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
 	BinaryLoader *Loader = hptr->loader;
 
+printf("seg %d offset %X bytes %d\n", seg, offset, bytes);
 	if (Loader->Imports != NULL) {
 		BinaryLoader::IAT *iatptr = Loader->Imports;
 		while (iatptr != NULL) {
@@ -1026,7 +1030,7 @@ int Emulation::StepCycle(VirtualMachine *VirtPtr) {
 		if (!tptr->EmuVMEM->MemPagePtrIfExists(tptr->registers.eip)) {
 			printf("Emulation over..  EIP doesnt exist! %X\n MAYBE BUG!\n", tptr->registers.eip);
 			tptr->completed = 1;
-			throw;
+			//throw;
 			//continue;
 			return 0;
 			
@@ -1177,16 +1181,10 @@ emu:
 		thread->last_successful = 1;
 		char blah[1024];
 		VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
-		uint32_t blahI=0xDEADDEAD;
-		uint32_t *_blah = (uint32_t *)blah;
-		if (*_blah == blahI) {
-			printf("DONE\n");
-			exit(0);
-		}
 		for (int i = 0; i < 13; i++) {
 			printf("%02X", (unsigned char)blah[i]);
 		}
-		printf("\n%X\n", *_blah);
+		//printf("\n%X\n", *_blah);
 	} else if (r == X86EMUL_EXCEPTION) {
 		printf("Exception\n");
 	} else if (r == X86EMUL_RETRY) {
@@ -2029,6 +2027,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	printf("Load Snapshot: %s\n", filename);
 	FILE *fd = NULL;
 	struct stat stv;
+	FuzzSnapshotInfo fuzzinfo;
 	if ((fd = fopen(filename, "rb")) == NULL) {
 		printf("Couldnt open snapshot file %s\n", filename);
 		return -1;
@@ -2037,74 +2036,71 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	int total_file_size = stv.st_size;
 	uint32_t count;
 	int i = 0;
-	CONTEXT32 ctx;
+	
 	MODULEENTRY32 modentry;
 	
+	fread((void *)&fuzzinfo, 1, sizeof(FuzzSnapshotInfo), fd);
 	
+	int thread_count = fuzzinfo.thread_data_size / sizeof(ThreadInfo);
+	int _thread_count = fuzzinfo.thread_count;
+	int module_count = fuzzinfo.module_data_size / sizeof(MODULEENTRY32);
+	int _module_count = fuzzinfo.module_count;
+	int pages_count = fuzzinfo.memory_data_size / (sizeof(uint32_t) + 0x1000);
+	int _page_count = fuzzinfo.page_count;
+	
+	printf("Thread Count: %d [%d] Module Count: %d [%d] Pages Count: %d [%d]\n",
+	thread_count,_thread_count, module_count, _module_count, pages_count, _page_count);
 	
 	// read each thread and its context, and duplicate for emulation..
-	fread((void *)&count, 1, sizeof(uint32_t), fd);
-	printf("Thread count: %d\n", count);
-	for (i = 0; i < count; i++) {
-		uint32_t thread_id = 0;
-		uint32_t fs_base = 0;
-		uint32_t stacklow = 0;
-		uint32_t stackhigh = 0;
-		uint32_t peb = 0;
-		uint32_t tls = 0;
-		
-		fread((void *)&thread_id, 1, sizeof(uint32_t), fd);
-		fread((void *)&fs_base, 1, sizeof(uint32_t), fd);
-		fread((void *)&stacklow, 1, sizeof(uint32_t), fd);
-		fread((void *)&stackhigh, 1, sizeof(uint32_t), fd);
-		fread((void *)&peb, 1, sizeof(uint32_t), fd);
-		fread((void *)&tls, 1, sizeof(uint32_t), fd);
-		fread((void *)&ctx, 1, sizeof(CONTEXT32), fd);
+	for (i = 0; i < thread_count; i++) {
+		ThreadInfo tinfo;
+		fread((void *)&tinfo, 1, sizeof(ThreadInfo), fd);
 
 		printf("TID %X FS %X StackLow %X StackHigh %X PEB %X TLS %X\n",
-		thread_id, fs_base, stacklow, stackhigh, peb, tls);
+		tinfo.ThreadID, tinfo.TIB, tinfo.StackLow,tinfo.StackHigh,
+		tinfo.PEB, tinfo.TLS);
 		
 		// create threads in emulator..
-		EmulationThread *newthread = NewThread(thread_id,&MasterVM);
+		EmulationThread *newthread = NewThread(tinfo.ThreadID,&MasterVM);
 		if (newthread == NULL) {
 			printf("couldnt allocate new thread!\n");
 			throw;
 			return -1;
 		}
 		
-		newthread->thread_ctx.ID = thread_id;
+		newthread->thread_ctx.ID = tinfo.ThreadID;
 		//int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle,
 		 //Emulation *ptr, VirtualMemory *mem, BinaryLoader *loader);
 		 
-		newthread->ID = thread_id;
+		newthread->ID = tinfo.ThreadID;
 		newthread->EmuVMEM = VM;
-		newthread->TIB = fs_base;
+		newthread->TIB = tinfo.TIB;
 		newthread->VM = &MasterVM;
-		newthread->StackLow = stacklow;
-		newthread->StackHigh = stackhigh;
-		MasterVM.PEB = peb;
+		newthread->StackLow = tinfo.StackLow;
+		newthread->StackHigh = tinfo.StackHigh;
+		MasterVM.PEB = tinfo.PEB;
 		printf("EIP %X ESP %X EBP %X EAX %X EBX %X ECX %X EDX %X\n",
-		ctx.Eip, ctx.Esp, ctx.Ebp, ctx.Eax, ctx.Ebx, ctx.Ecx,
-		ctx.Edx);
+		tinfo.ctx.Eip, tinfo.ctx.Esp, tinfo.ctx.Ebp, tinfo.ctx.Eax, tinfo.ctx.Ebx, tinfo.ctx.Ecx,
+		tinfo.ctx.Edx);
 		printf("ESI %X EDI %X FS %X GS %X ES %X DS %X CS %X EFLAGS %X\n", 
-		ctx.Esi, ctx.Edi, ctx.SegFs, ctx.SegGs, ctx.SegEs, ctx.SegDs,
-		ctx.SegCs, ctx.EFlags);
-		SetRegister(newthread, REG_EAX, ctx.Eax);
-		SetRegister(newthread, REG_EBX, ctx.Ebx);
-		SetRegister(newthread, REG_ECX, ctx.Ecx);
-		SetRegister(newthread, REG_EDX, ctx.Edx);
-		SetRegister(newthread, REG_ESI, ctx.Esi);
-		SetRegister(newthread, REG_EDI, ctx.Edi);
-		SetRegister(newthread, REG_ESP, ctx.Esp);
-		SetRegister(newthread, REG_EBP, ctx.Ebp);
-		SetRegister(newthread, REG_EIP, ctx.Eip);
-		SetRegister(newthread, REG_EAX, ctx.Eax);
-		SetRegister(newthread, REG_EFLAGS, ctx.EFlags);
-		SetRegister(newthread, REG_FS, ctx.SegFs);
-		SetRegister(newthread, REG_GS, ctx.SegGs);
-		SetRegister(newthread, REG_ES, ctx.SegEs);
-		SetRegister(newthread, REG_DS, ctx.SegDs);
-		SetRegister(newthread, REG_CS, ctx.SegCs);
+		tinfo.ctx.Esi, tinfo.ctx.Edi, tinfo.ctx.SegFs, tinfo.ctx.SegGs, tinfo.ctx.SegEs, tinfo.ctx.SegDs,
+		tinfo.ctx.SegCs, tinfo.ctx.EFlags);
+		SetRegister(newthread, REG_EAX, tinfo.ctx.Eax);
+		SetRegister(newthread, REG_EBX, tinfo.ctx.Ebx);
+		SetRegister(newthread, REG_ECX, tinfo.ctx.Ecx);
+		SetRegister(newthread, REG_EDX, tinfo.ctx.Edx);
+		SetRegister(newthread, REG_ESI, tinfo.ctx.Esi);
+		SetRegister(newthread, REG_EDI, tinfo.ctx.Edi);
+		SetRegister(newthread, REG_ESP, tinfo.ctx.Esp);
+		SetRegister(newthread, REG_EBP, tinfo.ctx.Ebp);
+		SetRegister(newthread, REG_EIP, tinfo.ctx.Eip);
+		SetRegister(newthread, REG_EAX, tinfo.ctx.Eax);
+		SetRegister(newthread, REG_EFLAGS, tinfo.ctx.EFlags);
+		SetRegister(newthread, REG_FS, tinfo.ctx.SegFs);
+		SetRegister(newthread, REG_GS, tinfo.ctx.SegGs);
+		SetRegister(newthread, REG_ES, tinfo.ctx.SegEs);
+		SetRegister(newthread, REG_DS, tinfo.ctx.SegDs);
+		SetRegister(newthread, REG_CS, tinfo.ctx.SegCs);
 		
 		CopyRegistersToShadow(newthread);
 		
@@ -2113,9 +2109,9 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	}
 	
 	// read each module entry to pair it with the memory we will load later...
-	fread((void *)&count, 1, sizeof(uint32_t), fd);
+	
 	int point = ftell(fd);
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < module_count; i++) {
 		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
 		unsigned int hash = cdb_hash(modentry.szExePath, strlen(modentry.szExePath));
 		char *name = NULL;
@@ -2132,27 +2128,40 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		
 		printf("EXE \"%s\" \"%s\"\n", (char *)((char *)modentry.szExePath+1), name);
 		//sprintf(fname, "images/%u.dat", hash);
-		FILE *fd = fopen(fname, "rb");
-		if (fd == NULL) {
+		if (stat(fname, &stv) != 0) {
+			FILE *fd2;
+			int image_size = 0;
+			char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
+			if (image_data != NULL && image_size) {
+				if ((fd2 = fopen(fname, "wb")) != NULL) {
+					fwrite(image_data, 1, image_size, fd2);
+					fclose(fd2);
+				}
+			}	
+		}
+		/*FILE *fd2 = fopen(fname, "rb");
+		if (fd2 == NULL) {
 			int image_size = 0;
 			
 			char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
 			if (image_data != NULL && image_size) {
-				if ((fd = fopen(fname, "wb")) != NULL) {
-					fwrite(image_data, 1, image_size, fd);
-					fclose(fd);
+				if ((fd2 = fopen(fname, "wb")) != NULL) {
+					fwrite(image_data, 1, image_size, fd2);
+					fclose(fd2);
 				}
 			}
 		} else {
-			fclose(fd);
-		}
+			fclose(fd2);
+		}*/
 	}
 	
+	//fclose(fd);
+	//fd = fopen(filename, "rb");
 	// re-process them now...
 	fseek(fd, point, SEEK_SET);
-	for (i = 0; i < count; i++) {
+	for (i = 0; i < module_count; i++) {
 		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
-		unsigned int hash = cdb_hash((char *)((char *)modentry.szExePath+1), strlen(modentry.szExePath)-1);
+		unsigned int hash = cdb_hash((char *)((char *)modentry.szExePath), strlen(modentry.szExePath));
 		char *name = NULL;
 
 		name = strrchr((char *)((char *)((char *)modentry.szExePath+1)), '\\');
@@ -2191,13 +2200,16 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	printf("--\n\n\nat byte: %d\n", ftell(fd));
 	printf("Loading memory from snapshot!\n");
 	// the rest of the file is for memory mappings...
+	/*
 	int mem_data_len = sizeof(uint32_t) + 0x1000;
 	int data_left_in_file = total_file_size - ftell(fd);
 	int mem_pages_to_process = data_left_in_file / mem_data_len;
 	printf("mem block len: %d data left: %d mem_pages_to_process %d\n",
 	mem_data_len, data_left_in_file, mem_pages_to_process);
+	*/
+	
 	int mem_start = time(0);
-	for (i = 0; i < mem_pages_to_process; i++) {
+	for (i = 0; i < pages_count; i++) {
 		uint32_t addr = 0;
 		char page_data[0x1000];
 		// read the address of this page..
@@ -2205,7 +2217,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		// read the data from the file..
 		fread((void *)&page_data, 1, 0x1000, fd);
 		
-		//printf("MEMORY %X\n", addr);
+///		printf("MEMORY %X\n", addr);
 		// write into virtual memory..
 		 VM->MemDataWrite(addr, (unsigned char *)&page_data, 0x1000);
 		 //printf("Writing page at %X\n", addr);
@@ -2215,10 +2227,10 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 			//printf("FOUND page %X\n", spot);
 		}*/
 		
-		if (i && !(i % 5)) {
+		if (i) {//&& !(i % 5)) {
 			int elapsed = time(0) - mem_start;
 			if (elapsed) {
-				printf("\r%d pages loaded. %d pages a second. \t\t\t", i, i / elapsed );
+				printf("\r%d pages loaded. %d pages a second. Current %d\t\t\t", i, i / elapsed , addr);
 				fflush(stdout);
 			}
 		}

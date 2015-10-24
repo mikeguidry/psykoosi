@@ -95,7 +95,39 @@ namespace psykoosi {
         char    szExePath[260];
     } MODULEENTRY32;
       
-      
+    
+     typedef struct _thread_info {
+        uint32_t next;
+          uint32_t ThreadID;
+          uint32_t StackLow;
+          uint32_t StackHigh;
+          uint32_t TIB;
+          uint32_t PEB;
+          uint32_t TLS;
+          
+          CONTEXT32 ctx;
+          CONTEXT32 ctx_segments;
+        
+          // is this the thread to fuzz? (calling a function we wanna fuzz data)
+          uint32_t fuzz;
+        
+          // which function caused this BP?
+          char module_name[32];
+          char function_name[32];
+     } ThreadInfo;
+    
+
+
+      typedef struct _fuzz_instruction_snapshot {
+        uint32_t hdr;
+        uint32_t version;
+        uint32_t thread_data_size;
+        uint32_t thread_count;
+        uint32_t module_data_size;
+        uint32_t module_count;
+        uint32_t memory_data_size;
+        uint32_t page_count;
+      } FuzzSnapshotInfo; 
     
 	  typedef uint32_t CodeAddr;
 
@@ -566,6 +598,7 @@ namespace psykoosi {
     int simulation;
     Hooks APIHooks;
     APIClient *Proxy;
+    
     
     VirtualMachine *VMList;
     

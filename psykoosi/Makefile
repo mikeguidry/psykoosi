@@ -455,33 +455,6 @@ modules.cpp.s:
 	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/modules.cpp.s
 .PHONY : modules.cpp.s
 
-polymorph.o: polymorph.cpp.o
-
-.PHONY : polymorph.o
-
-# target to build an object file
-polymorph.cpp.o:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.o
-.PHONY : polymorph.cpp.o
-
-polymorph.i: polymorph.cpp.i
-
-.PHONY : polymorph.i
-
-# target to preprocess a source file
-polymorph.cpp.i:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.i
-.PHONY : polymorph.cpp.i
-
-polymorph.s: polymorph.cpp.s
-
-.PHONY : polymorph.s
-
-# target to generate assembly for a file
-polymorph.cpp.s:
-	cd /Users/mike/psykoosi && $(MAKE) -f psykoosi/CMakeFiles/fuzz.dir/build.make psykoosi/CMakeFiles/fuzz.dir/polymorph.cpp.s
-.PHONY : polymorph.cpp.s
-
 rebuild.o: rebuild.cpp.o
 
 .PHONY : rebuild.o
@@ -635,9 +608,6 @@ help:
 	@echo "... modules.o"
 	@echo "... modules.i"
 	@echo "... modules.s"
-	@echo "... polymorph.o"
-	@echo "... polymorph.i"
-	@echo "... polymorph.s"
 	@echo "... rebuild.o"
 	@echo "... rebuild.i"
 	@echo "... rebuild.s"

@@ -16,14 +16,15 @@ using namespace pe_win;
 
 VirtualMemory::VirtualMemory()
 {
-	for (int i = 0; i < VMEM_JTABLE; i++)
-  Memory_Pages[i] = NULL;
+	int i = 0;
+	for (i = 0; i < VMEM_JTABLE; i++)
+  		Memory_Pages[i] = NULL;
   Section_List = Section_Last = NULL;
   LogList = LogLast = NULL;
   VMParent = NULL;
 
   MemDebug = 0;
-  for (int i = 0; i < SettingType::SETTINGS_MAX; i++) {
+  for (i = 0; i < SettingType::SETTINGS_MAX; i++) {
 	  Settings[i] = 0;
   }
 
@@ -122,18 +123,17 @@ int VirtualMemory::IsMyPage(MemPage *mptr) {
 	return (mptr->ClassPtr == this);
 }
 
-// hell yes!
-// ive never done any algorithms like this before.. but
-// i knew it'd work somehow :)
-// the addresses around the mask are the main ones changing...
-// so after some trial and error.. i thought it'd mix things up quite a bit with the array
-// before due to the round and all the addresses being similar.. they all kept going to the same
-// tables.. essentially not helping whatsoever.. this evens it out more..
+// it loads at 9 seconds.. maybe brute force and find a better timing later
 int VirtualMemory::jtable_algo(int round) {
-	int hmm = round & 0x00f00000;
-	int jtable = round + (round ^ (round % (VMEM_JTABLE / 3))); 
+	int hmm = (round & (0xf0f0f00));
+	int jtable = hmm + ((round/2) + ((round/6) % (VMEM_JTABLE / 8))); 
 	
-	return jtable % VMEM_JTABLE;
+	int ret = (jtable % VMEM_JTABLE);
+	
+	if (ret >= VMEM_JTABLE || ret < 0)
+		ret = (hmm + ~ret) % VMEM_JTABLE;
+	
+	return (ret > 0) ? ret : 0;
 }
 
 VirtualMemory::MemPage *VirtualMemory::NewPage(unsigned long round, int size) {

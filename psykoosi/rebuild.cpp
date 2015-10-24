@@ -22,7 +22,6 @@ extern "C" {
 #include "structures.h"
 #include "emu_hooks.h"
 #include "emulation.h"
-#include "polymorph.h"
 
 using namespace psykoosi;
 using namespace pe_bliss;
@@ -114,34 +113,8 @@ int Rebuilder::RebuildInstructionsSetsModifications() {
 		 DisassembleTask::InstructionInformation *In = _DT->Instructions[DisassembleTask::LIST_TYPE_NEXT];
 		 while (In && 1==0) {
 
-			 // lets see if we can polymorph this instruction
-
-			 Polymorph temp;
-			 DisassembleTask::InstructionInformation *temp2 = temp.InstructionReplace(In);
-		 	 DisassembleTask::InstructionInformation *PolyIns = temp2;//(DisassembleTask::InstructionInformation *)Polymorph::InstructionReplace(In);
-			 if (PolyIns != NULL) {
-				 // we have successfully generated a new instruction to replace this current one
-				 In->InjectedInstructions = PolyIns;
-				 // since the new instruction essentially does the same thing as the original.. we want to remove the
-				 // original whenever we build the final application
-				 In->Removed = 1;
-				 printf("POLYMORPH INSTRUCTION AT %X\n", PolyIns->Address);
-				 int diff = In->Size - PolyIns->Size;
-				 warp += diff;
-				 printf("Warped by %d bytes [Original %d New %d]\n", diff, In->Size, PolyIns->Size);
-			 }
-
-			 /* add junk instructions at semi random locations
-			 if (1==1 && !(count++ % 250)) {
-				 //int size = 3+(rand()%2);
-				 DisassembleTask::InstructionInformation *InjIt = Inj_Junk();//Inj_Stream((unsigned char *)"\x90\x90\x90", size);
-				 if (InjIt != NULL) {
-				 //std::memset((void *)InjIt->RawData, 0x90, size);
-				 In->InjectedInstructions = InjIt;
-				 warp += InjIt->Size;
-				 }
-			 } */
-
+			// removed *p* for pub release..
+		
 
 			 // this 128 byte constant should be modified later whenever sections are being rewrote correctly..
 			 // it must be ensured that all data addresses (for the usual suspects) within the following

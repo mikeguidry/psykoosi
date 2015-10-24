@@ -37,8 +37,8 @@ namespace psykoosi {
       BUF_DEREF=524288,
 		};
 		
-		typedef int (Hooks::*tHookRead)(int hook_id, char *dst, int size);
-		typedef int (Hooks::*tHookWrite)(int, char *src, int size);
+		typedef int (Hooks::*tHookRead)(int hook_id, char *dst, int size, uint32_t *);
+		typedef int (Hooks::*tHookWrite)(int, char *src, int size, uint32_t *);
 
 		typedef struct _protocol_exchanges {
 			struct _protocol_exchanges *next;
@@ -153,8 +153,8 @@ namespace psykoosi {
 	  APIHook *HookFunction(void *func, char *module, char *function, int side, int id, int logging);
 	  APIHook *HookFind(char *module, char *function);
 	  int HookFree(APIHook *);
-	  int HookRead(int, char *dst, int size);
-	  int HookWrite(int, char *src, int size);
+	  int HookRead(int, char *dst, int size, uint32_t *rw_count);
+	  int HookWrite(int, char *src, int size, uint32_t *rw_count);
 	  
 	  ProtocolExchange *AddProtocolExchange(int hook_id, char *module, char *function, int side, char *data, int size);
 	  ProtocolExchange *NextProtocolExchange(int hook_id, int side);

@@ -253,6 +253,8 @@ int main(int argc, char *argv[]) {
 		
 			printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	}
+	
+	exit(-1);
 	//op.vmem.MemDebug = 1;
 	int calls = 500000000;
 	int ccount = 0;

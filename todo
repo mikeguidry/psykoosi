@@ -1,10 +1,20 @@
 * DO NOT PUBLISH WITH GIT HISTORY AND REMOVE NOTES/TODO *
 
-TODO FOR PSY/MESZEK 10/15/15
+TODO FOR PSY/MESZEK 10/23/15
 
 This software is meant to test your own software, or network.  I take no responsbility for any damages caused by other uses from users with more malicious intent.
 
 HIGH PRIORITY:
+
+* emulate before we queue instructions so we only give the clients the memory that is
+  being used during the fuzzing
+  
+* piddump and memory loading.. read more than a page at a time
+  preferably as much as possible in a linear order
+  
+* allow ordinals usage in GetProcAddress
+
+* investigate x86_emulate() errors for exploiting VMs
 
 * keep track of all memory/functions used by our 'fuzzing' data
   so we know when its time to stop, or quit queueing into the
@@ -18,29 +28,17 @@ HIGH PRIORITY:
   the system is practically finished and ready for PoC release :)
   lets try on some real applications over the weekend and release
   sunday/monday
-  
-  
-*** the virtual memory system is extremely slow
-    we need to build a memory manager which will use real memory addresses
-    with a lookup table to convert the addresses...
-    
-* integrate with real XEN so we can fuzz operating systems easily
+      
+** integrate with real XEN so we can fuzz operating systems easily
   since real XEN uses x86_emulate() we can just create a secondary
   context for each VM with a copy of all the memory purely for fuzzing
   kernel.. or CoW.. check into drakvuf to get information on setting
   breakpoints in particular areas of the OS to dump instructions for
   the farm
   
-* API proxy manager.. which will accept a snapshot and load it into memory
+** API proxy manager.. which will accept a snapshot and load it into memory
   and allow us to call API on the very context that the snapshots were created under
   
-* fuzz x86_emulate() with x86_emulate() ;) 
-  i didn't realize this WAS the actual XEN emulator...
-  i really thought it was a full blown hypervisor rather than most instructions
-  just being encapsulated... im executing this without entering into a hypervisor whatsoever
-  which is sort of scary, and all implementations should be of interest
-  
-* detail documentation for open sourcing and explaining the direction so others can help build if they have ideas
   
 * Finish API Proxy Multithreaded support.. should be done local side
   finish *ops* functions for x86_emulate().. or move to unnicorn
@@ -60,6 +58,17 @@ HIGH PRIORITY:
   however these are 'binary rewrote' into normal C code that can output executables, asm.js webpages, etc
   
 LOWER PRIORITY:
+
+* detect VM by LDT/GDT access checks (see xen/xen/arch/x86/hvm/hvm.c @ line 3628)
+
+* detail documentation for open sourcing and explaining the direction so others can help build if they have ideas
+
+* fuzz x86_emulate() with x86_emulate() ;) 
+  i didn't realize this WAS the actual XEN emulator...
+  i really thought it was a full blown hypervisor rather than most instructions
+  just being encapsulated... im executing this without entering into a hypervisor whatsoever
+  which is sort of scary, and all implementations should be of interest
+
 
 * for people without xeon PHIs.. create a docker version so everyone can begin fuzzing ASAP
   it should be pretty easy to get started.. moved to low priority
@@ -125,23 +134,7 @@ LOWER PRIORITY:
   same as shlelcode but without the main technology.. use static inside once it drops to disk
   grab 1 compiled copy of the destination OS
   
-  systematically determine if a crash will kill the process (port listening) or if it
-  threads or safely exits if a crash happens so it prioritizes things that dont hurt the
-  process/thread/system higher than things that do for worm infection
-  
-NEXT PROJECT AFTER THIS (WORM):
-* Automatically generate exploits.. (for another branch to be merged later)
-* Pick targets (targets listening/communicating over local network/internet)
-   a. monitor to find addresses/memory/snapshots/etc after IO calls
-* build <1k shellcode to be used as backdoor, spreading, etc for worm
-* create a pub/privkey infrastructure to authenticate c&c commands
-* create module for adding the infected machine to the global network of
-  fuzzing, and exploit generation
-* libpcap works on windows 10, find a signed version of libnet or alternative
-  to use in the worm..maybe hook/hijack process exporer, and other programs
-  which have drivers to do low level maintainence or analysis for use in the software
-  to pick executables, and code that listen on ports etc
-* launch 
+   
  --------------
  NOTES
  --------------

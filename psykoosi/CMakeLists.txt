@@ -2,7 +2,6 @@
 add_executable (fuzz
                         analysis.cpp
                         disassemble.cpp
-                        polymorph.cpp
                         fileformats.cpp
                         emu_hooks.cpp
                         loading.cpp

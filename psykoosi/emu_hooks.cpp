@@ -139,7 +139,12 @@ int Hooks::HookFree(Hooks::APIHook *aptr) {
 	return 1;	
 }
 
-int Hooks::HookRead(int hook_id, char *dst, int size) {
+
+/*
+this is a general function for reading/writing data.. it can be used for any protocol
+rw_count is good for ReadFile/WriteFile (where it wants a DWORD value of bytes wrote)
+*/
+int Hooks::HookRead(int hook_id, char *dst, int size, uint32_t *rw_count) {
 	Hooks::ProtocolExchange *eptr = NULL;
 	if (simulation) {
 		eptr = NextProtocolExchange(hook_id, 0);
@@ -150,13 +155,16 @@ int Hooks::HookRead(int hook_id, char *dst, int size) {
 			return -1;
 		}
 		memcpy(dst, eptr->buf, eptr->size);
+		if (rw_count != NULL)
+			*rw_count = eptr->size;
 	} else {
 		eptr = AddProtocolExchange(hook_id, NULL, NULL, 0, dst, size);
 	}
 	return (eptr != NULL);
 }
 
-int Hooks::HookWrite(int hook_id, char *src, int size) {
+
+int Hooks::HookWrite(int hook_id, char *src, int size, uint32_t *rw_count) {
 	Hooks::ProtocolExchange *eptr = NULL;
 	if (simulation) {
 		eptr = NextProtocolExchange(hook_id, 1);
@@ -166,8 +174,14 @@ int Hooks::HookWrite(int hook_id, char *src, int size) {
 			throw;
 			return -1;
 		}
+		// *** FIX
+		// we really arent wanting to write to src.. this could be used later
+		// for more advanced logic involving software.. fuzzing IPC/sockets communications
+		// inside of the same app, etc...
 		memcpy(src, eptr->buf, eptr->size);
 		
+		if (rw_count != NULL)
+			*rw_count = eptr->size;
 	} else {
 		eptr = AddProtocolExchange(hook_id, NULL, NULL, 1, src, size);
 	}
