@@ -2106,6 +2106,19 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		
 		printf("Thread ID %X added\n", newthread->ID);
 		
+		// lets try to see if this is a function we're using to fuzz...
+		Hooks::APIHook *hptr = APIHooks.HookFind(tinfo.module_name, tinfo.function_name);
+		if (hptr != NULL) {
+			// Add into our IAT database (until we process exports
+			// from DLLs we load into memory)
+			BinaryLoader::IAT *iatptr = new BinaryLoader::IAT;
+			iatptr->module = strdup(tinfo.module_name);
+			iatptr->function = strdup(tinfo.function_name);
+			iatptr->Address = tinfo.ctx.Eip;
+			iatptr->next = Loader->Imports;
+			Loader->Imports = iatptr;			
+		}
+		
 	}
 	
 	// read each module entry to pair it with the memory we will load later...
