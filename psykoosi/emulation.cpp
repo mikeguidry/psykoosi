@@ -143,8 +143,9 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
 		default:
 			break;
 	}
+	if (seg == 0 || seg == 2) _seg = 0;
 	result = _seg + offset;
-	//printf("result %x\n", result);
+	printf("result %x\n", result);
 
 	return result;
 }
@@ -232,7 +233,7 @@ static int emulated_read_helper(enum x86_segment seg, unsigned long offset, void
 	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
 	BinaryLoader *Loader = hptr->loader;
 
-printf("seg %d offset %X bytes %d\n", seg, offset, bytes);
+printf("seg %d offset %X bytes %d [VM %X]\n", seg, offset, bytes, pVM);
 	if (Loader->Imports != NULL) {
 		BinaryLoader::IAT *iatptr = Loader->Imports;
 		while (iatptr != NULL) {
@@ -264,6 +265,8 @@ printf("seg %d offset %X bytes %d\n", seg, offset, bytes);
 	// if we cannot find the memory page in our memory..
 	// we have to read it from the remote API Proxy..
 	if (VirtPtr->Proxy != NULL && pVM->MemPagePtr(off) == NULL) {
+		printf("Read of data at an address we do not have locally...Will load from PROXY Server [%X]\n", off);
+		
 		// lets read from remote side, and then copy into local sides memory
 		char *remote_data = (char *)new char[bytes];
 		if (remote_data == NULL) throw;
@@ -280,8 +283,19 @@ printf("seg %d offset %X bytes %d\n", seg, offset, bytes);
 		return X86EMUL_OKAY;
 	} 
 	pVM->MemDataRead(off,(unsigned char *) p_data, bytes);
+	
+	if (pVM->MemDebug) {
+		printf("vm read: ");
+		for (int a = 0; a < bytes; a++) {
+			unsigned char *ptr = (unsigned char *)p_data;
+			
+			
+			printf("%02X", (unsigned char)ptr[a]);
+		}
+		printf("\n");
+	}
 		
-	VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 131072, off, NULL, (unsigned char *)p_data, bytes);
+	//VirtPtr->CreateChangeLogData(&VirtPtr->temp_changes, 131072, off, NULL, (unsigned char *)p_data, bytes);
 
 	return X86EMUL_OKAY;
 }
@@ -856,6 +870,15 @@ int Emulation::PreExecute(EmulationThread *thread) {
 	
 				VirtualMachine *_VM = (VirtualMachine *)thread->VM;
 				
+				printf("Will print out stack for 10 DWORDS:\n");
+				uint32_t stptr = (uint32_t)thread->thread_ctx.emulation_ctx.regs->esp; 
+				for (int j = 0; j < 10; j++) {
+					char stptr_data[4];
+					uint32_t *_stptr_data = (uint32_t *)(&stptr_data);
+					thread->EmuVMEM->MemDataRead(stptr, (unsigned char *)&stptr_data, sizeof(uint32_t));
+					printf("Stack @ [%X]: %X\n", stptr, *_stptr_data);
+					stptr+=sizeof(uint32_t);
+				}
 				if (!simulation || hptr == NULL) {
 					// call the function on the proxy server...
 					int call_ret = Proxy->CallFunction(iatptr->module, 
@@ -864,13 +887,17 @@ int Emulation::PreExecute(EmulationThread *thread) {
 						thread->thread_ctx.emulation_ctx.regs->ebp,
 						MasterVM.RegionLow,
 						 (MasterVM.RegionHigh - MasterVM.RegionLow),
-						  &eax_ret, _VM->StackHigh, &ret_fix);
+						  &eax_ret, _VM->StackHigh, &ret_fix,
+						  thread->ID);
 		
 					// *** FIX
 					if (call_ret != 1) {	
 						printf("ERROR Making call.. fix logic later! (reconnect, etc, etc, local emu)\n");
 						exit(-1);
 					}
+					
+					// we want to debug the next instruction...
+					//thread->EmuVMEM->MemDebug = 1;
 					
 					// lets see if this is a hooked function..if so lets log it.
 					Hooks::APIHook *hptr = NULL;
@@ -973,6 +1000,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 			
 			//printf("ESP after ret %X\n",thread->thread_ctx.emulation_ctx.regs->esp );
 			
+			//thread->EmuVMEM->MemDebug = 1;
 			
 			return 1;
 		}
@@ -1135,7 +1163,7 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	EmulationThread *tptr = thread;
 emu:
 			char blah[1024];
-		VM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
+		thread->EmuVMEM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
 		printf("EIP HEX: ");
 		for (int i = 0; i < 13; i++) {
 			printf("%02X", (unsigned char)blah[i]);
@@ -2021,6 +2049,7 @@ Emulation::EmulationThread *Emulation::FindThread(int id) {
 
 int Emulation::LoadExecutionSnapshot(char *filename) {
 	int start_ts = time(0);
+	int pid = 0;
 	
 	Sculpture *op = (Sculpture *)_op;
 	
@@ -2032,6 +2061,9 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		printf("Couldnt open snapshot file %s\n", filename);
 		return -1;
 	}
+	// read PID.. (for debugging so we dont have to keep figureing this bullshit out!)
+	//fread((void *)&pid, 1, sizeof(int), fd);
+	
 	fstat(fileno(fd), &stv);
 	int total_file_size = stv.st_size;
 	uint32_t count;
@@ -2064,7 +2096,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		EmulationThread *newthread = NewThread(tinfo.ThreadID,&MasterVM);
 		if (newthread == NULL) {
 			printf("couldnt allocate new thread!\n");
-			throw;
+			//throw;
 			return -1;
 		}
 		
@@ -2121,6 +2153,8 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		
 	}
 	
+	
+
 	// read each module entry to pair it with the memory we will load later...
 	
 	int point = ftell(fd);
@@ -2210,7 +2244,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		// create modules in emulator..
 	}
 	
-	printf("--\n\n\nat byte: %d\n", ftell(fd));
+
 	printf("Loading memory from snapshot!\n");
 	// the rest of the file is for memory mappings...
 	/*
@@ -2243,12 +2277,16 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		if (i) {//&& !(i % 5)) {
 			int elapsed = time(0) - mem_start;
 			if (elapsed) {
-				printf("\r%d pages loaded. %d pages a second. Current %d\t\t\t", i, i / elapsed , addr);
+				printf("\r%d pages loaded. %d pages a second. Current %X\t\t\t", i, i / elapsed , addr);
 				fflush(stdout);
 			}
 		}
 	}
+	printf("Virtual Memory pointer: %X\n", VM);
 	printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
+	
+
+
 	fclose(fd);
 	
 
@@ -2261,4 +2299,6 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	printf("It took %d seconds to load the snapshot! OPTIMIZE!\n", time_spent);
 	
 	printf("FUZZING TIME!!\n");
+	
+	return 1;
 }

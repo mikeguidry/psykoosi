@@ -217,6 +217,8 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
     int i = 0;
     unsigned long pageaddr = 0;
     int count=0;
+	unsigned long addy = 0;
+	//int z = 0;
 
 	// maybe optimize this later so it knows when it crosses a page..
 	// if speed becomes an issue ***
@@ -225,6 +227,12 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
     for (i = 0; i < len; i++) {
         if ((mptr = MemPagePtr(addr+i)) == 0) return 0;
 
+		addy = (unsigned long)(addr + i);
+/*		if (addy == 0x30EFC28) {
+			printf("FOund! 30EFC28\n");
+			z = 4;
+		}
+*/		
         // determine location on page
         pageaddr = (addr+i) - (mptr->round - Settings[SETTINGS_PAGE_SIZE]);
         // read byte
@@ -232,8 +240,12 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 		  case VMEM_READ:
 			data[i] = mptr->data[pageaddr];
 			//if ((addr < 0x60000000))
-			if (MemDebug)
-			printf("(r) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i]));
+			addy = (unsigned long)(addr + i);
+			if (MemDebug && (addy < 0x3000)) {
+				//__asm("int3");
+				printf("(r) %X [%X] = %02X\n", addy, mptr->round, (unsigned char)(data[i]));
+			}
+		//if (z) { z--; printf("\rz: addy %X:%d %02X\n", addy, z,  (unsigned char)data[i]); }
 			break;
 		  case VMEM_WRITE:
 			// clone on write.... from parent
@@ -243,8 +255,9 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			}
 			//if ((addr < 0x60000000))
 			if (MemDebug)
-			printf("(w) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i]));
+				printf("(w) %X [%X] = %02X\n", addr + i, mptr->round, (unsigned char)(data[i]));
 			mptr->data[pageaddr] = data[i];
+			//if (z) { z--; printf("\rz: addy %X:%d %02X\n", addy, z,  (unsigned char)data[i]); }
 			break;
 		  default:
 			  throw;

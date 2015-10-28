@@ -82,7 +82,7 @@ namespace psykoosi {
 		int DestroyThread(int id);
 		
 		int CallFunction(char *module, char *function, CodeAddr Address, CodeAddr ESP, CodeAddr EBP,
-			CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uint32_t *ret_fix);
+			CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High, uint32_t *ret_fix, uint32_t ThreadID);
 			
 		void SetVirtualMemory(VirtualMemory *);
 		
@@ -95,6 +95,7 @@ namespace psykoosi {
 		
 		VirtualMemory *VM;
 		
+		int snapshot;
 		// flag we turn on to make the next write or peek access the tib
 		bool for_tib;
 	private:
@@ -112,6 +113,7 @@ namespace psykoosi {
 		
 		int thread_id;
 		
+
 		//virtual memory we are using for this execution...
 		
 		

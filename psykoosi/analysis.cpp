@@ -470,10 +470,10 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 		AnalysisQueue *qptr = Analysis_Queue_List;
 
 		while (qptr != NULL) {
-			std::cout << "Analysis on: " << static_cast<uint32_t>(qptr->Address) << " Max Bytes: " << qptr->Max_Bytes << " " << std::endl;
+			//std::cout << "Analysis on: " << static_cast<uint32_t>(qptr->Address) << " Max Bytes: " << qptr->Max_Bytes << " " << std::endl;
 			if (redo || !qptr->Already_Analyzed) {
 				if (qptr->Count++ > 5) break;
-				std::cout << "Analyse first time: " << qptr->Address << " Priority " << qptr->Priority << std::endl;
+				//std::cout << "Analyse first time: " << qptr->Address << " Priority " << qptr->Priority << std::endl;
 
 				// run a disassembler task on this address with a max of 20 instructions...
 				int CountToAnalyze = Disassembler_Handle->RunDisassembleTask(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);

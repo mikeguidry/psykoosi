@@ -346,7 +346,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 			//std::cout << "\r" << CurAddr;
 
 		if (HighestCode > 0 && (CurAddr&0xffffffff) >= (HighestCode&0xffffffff)) {
-			std::cout << "\rhigh break: " << CurAddr << " highest " << HighestCode << std::endl;
+			//std::cout << "\rhigh break: " << CurAddr << " highest " << HighestCode << std::endl;
 			break;
 		}
 
@@ -400,7 +400,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 			TaskComplete = 1;
 	} while (!TaskComplete);
 
-	std::cout << "\rFinished Disassemble Task" << std::endl;
+	//std::cout << "\rFinished Disassemble Task" << std::endl;
 
 
 	return DisassembledInstructionCount;

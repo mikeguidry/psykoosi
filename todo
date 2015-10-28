@@ -6,6 +6,28 @@ This software is meant to test your own software, or network.  I take no respons
 
 HIGH PRIORITY:
 
+* now that the emulator is working.. strategy has to change a bit...
+  API Proxy client (win32 side) has to be injected with the takeover code...
+  It needs to log all win32 API commands in correct order.. and then
+  for each 'fuzzed function' (fuzzing the calling function) it will
+  need to drop a new memory snapshot (for now drop.. but we need a binary diff
+  system)
+  the current system is great for taking a linux cloud/standalone server and
+  running backdoor code on real windows clients executing from a linux environment
+  and proxying the code so the footprint on the backdoored machines is near 0
+  and no evidence will be found.. it allows using real windows machines for some win32 api 
+  (maybe processing strings, converting unicode, etc) and then proxying the others over a connection
+  but for fuzzing.. we mainly want win32 api proxying to be there JUST IN CASE.. and the majority
+  of the tasks is having the snapshot and where to return our fuzz input for every single
+  call of these particular 'fuzzy functions'
+  - I will commit a note here for this point, and create a new branch... and worry about this
+  branch later...
+  I'll include the piddump and apiproxy used for this particular version..
+  it executes correctly however LIDT/GIDT isnt 100% fully emulated..
+  right now I just resolve them and it SHOULD allow fuzzing, however
+  i need to implement the gidt/lidt.. im going to explore unicorn now and maybe swap over...
+  we'll see in 12-24hrs
+  
 * emulate before we queue instructions so we only give the clients the memory that is
   being used during the fuzzing
   

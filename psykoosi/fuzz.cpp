@@ -69,10 +69,12 @@ int main(int argc, char *argv[]) {
 
 	Filename_Base(argv[1],(char *) &filename);
 	
-	int snapshot = (argc == 3);
+	int snapshot = (argc >= 3);
 	printf("Snapshot: %d\n", snapshot);
 	
-	apicl.Connect("192.168.169.134", 5555);
+//	apicl.Connect("192.168.169.134", 5555);
+	apicl.Connect("10.0.0.14", 5555);
+
 	if (!snapshot) {
 		
 	}
@@ -167,7 +169,13 @@ int main(int argc, char *argv[]) {
 		op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase, 0);
 	} else {
 		emu.from_snapshot = 1;
-		emu.LoadExecutionSnapshot(argv[1]);
+		if (emu.LoadExecutionSnapshot(argv[1]) <= 0) {
+			printf("Couldnt load emulatin snapshot! [%s]\n", argv[1]);
+			exit(-1);
+		}
+
+		//emu.LoadExecutionSnapshot(argv[1]);
+		apicl.snapshot = 1;
 	}
 
 	
@@ -254,9 +262,22 @@ int main(int argc, char *argv[]) {
 			printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	}
 	
+	if (argv[2][0] == '0') {
+		printf("Exiting.. just wanted to load the snapshot.. but not emulating\n");
+               printf("%d Instructions after loading\n", op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT));
+
+                std::cout << "Disasm Count " << op.disasm->DCount << std::endl;
+                std::cout << "Call Count " << op.analysis->CallCount << std::endl;
+                std::cout << "Push Count " << op.analysis->PushCount << std::endl;
+                std::cout << "Realign Count " << op.analysis->RealignCount << std::endl;
+				emu.simulation = 1;
+				printf("simulating.. so we have same context for later\n");
+
+	}
+	//emu.simulation = 1;
 	//exit(-1);
 	//op.vmem.MemDebug = 1;
-	int calls = 500000000;
+	int calls = 500000000000;
 	int ccount = 0;
 	printf("Starting emulation.. [static::%d instructions]\n", calls);
 	while (calls-- && !emu.completed) {
@@ -301,17 +322,18 @@ int main(int argc, char *argv[]) {
 	
 	// save protocol communications to a file...
 	char save_file[1024];
-	sprintf(save_file, "%s_proto.dat", filename);
-	emu.APIHooks.Save(save_file);
+	//sprintf(save_file, "%s_proto.dat", filename);
+	//emu.APIHooks.Save(save_file);
 	
 	if (!snapshot) {
 		sprintf(save_file, "%s_snapshot.dat", filename);
 		emu.Snapshot_Create(1);
 		emu.Snapshot_Dump(1, save_file);
-	} 
+	}
+	exit(0); 
 	// save snapshot to a file
 	Emulation::EmulationLog *logptr = emu.MasterThread->LogList;
-//	exit(0);
+
 	while (logptr != NULL) {
 		printf("LogID: %d EIP Address: %X NextEIP %X ChangeLog Count %d\n",
 			logptr->LogID, logptr->Address, logptr->NextEIP, logptr->VMChangeLog_Count);
