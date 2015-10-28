@@ -21,6 +21,7 @@
 #include <string>
 #include <inttypes.h>
 #include <udis86.h>
+#include <unicorn/unicorn.h>
 #include <pe_lib/pe_bliss.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -38,7 +39,7 @@ extern "C" {
 #include "utilities.h"
 #include "loading.h"
 #include "emulation.h"
-#include <unicorn/unicorn.h>
+
 
 using namespace psykoosi;
 using namespace pe_bliss;
@@ -144,7 +145,8 @@ static bool hook_mem_invalid(uc_engine *uc, uc_mem_type type,
 			//printf("what\n");
 			
 		fflush(stdout);
-			struct _x86_thread *thread = (struct _x86_thread *)user_data;
+		Emulation::VirtualMachine *VMachine = (Emulation::VirtualMachine *)user_data;
+			struct _x86_thread *thread = (struct _x86_thread *)VMachine->CurrentThread;
 	EmuThread_Handle *hptr = EmuByID(thread->ID);
 	Emulation *VirtPtr = hptr->EmuPtr;
 	VirtualMemory *pVM = hptr->VMem;
@@ -192,7 +194,8 @@ uint32_t addr_32 = (uint32_t) address;
 static void hook_mem64(uc_engine *uc, uc_mem_type type,
         uint64_t address, int size, int64_t value, void *user_data)
 {
-	struct _x86_thread *thread = (struct _x86_thread *)user_data;
+		Emulation::VirtualMachine *VMachine = (Emulation::VirtualMachine *)user_data;
+			struct _x86_thread *thread = (struct _x86_thread *)VMachine->CurrentThread;
 						 	EmuThread_Handle *hptr = EmuByID(thread->ID);
 	Emulation *VirtPtr = hptr->EmuPtr;
 	VirtualMemory *pVM = hptr->VMem;
@@ -796,6 +799,29 @@ Emulation::Emulation(VirtualMemory *_VM) {
 
 	MasterVM.Memory = _VM;
 	
+	uc_err err = uc_open(UC_ARCH_X86, UC_MODE_32, &MasterVM.uc);
+	if (err) {
+		printf("Failed on uc_open() with error returned: %u [%s]\n", err, uc_strerror(err));
+		exit(-1);
+	}
+	
+    // tracing all basic blocks with customized callback
+    uc_hook_add(MasterVM.uc, &MasterVM.trace1, UC_HOOK_BLOCK, (void *) hook_block, (void *)&MasterVM, (uint64_t)1, (uint64_t)0);
+
+    // tracing all instruction by having @begin > @end
+    uc_hook_add(MasterVM.uc, &MasterVM.trace2, UC_HOOK_CODE, (void *)hook_code, (void *)&MasterVM, (uint64_t)1, (uint64_t)0);
+
+    // intercept invalid memory events
+    uc_hook_add(MasterVM.uc, &MasterVM.trace3, UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED|UC_HOOK_MEM_FETCH_UNMAPPED, 
+		(void *)hook_mem_invalid, (void *)&MasterVM);
+
+    // tracing all memory WRITE access (with @begin > @end)
+    uc_hook_add(MasterVM.uc, &MasterVM.trace4, UC_HOOK_MEM_WRITE, (void *)hook_mem64, (void *)&MasterVM, (uint64_t)1, (uint64_t)0);
+
+    // tracing all memory READ access (with @begin > @end)
+    uc_hook_add(MasterVM.uc, &MasterVM.trace5, UC_HOOK_MEM_READ, (void *)hook_mem64, (void *)&MasterVM, (uint64_t)1, (uint64_t)0);
+
+	
 	std::memset((void *)&MasterVM.emulate_ops, 0, sizeof(struct hack_x86_emulate_ops));
 	
 	MasterVM.emulate_ops.read = (void *)&emulated_read;
@@ -848,6 +874,8 @@ Emulation::EmulationThread *Emulation::NewThread(uint32_t thread_id, Emulation::
 
 
 Emulation::~Emulation() {
+	
+	uc_close(MasterVM.uc);
 	
 	for (int i = Current_VM_ID; i > 0; i++) {
 		//destroy vm one at a time
@@ -1332,31 +1360,14 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	if (_thread == NULL) thread = MasterThread; else thread = _thread;
 	//_BL[0] = Loader;
 	EmulationLog *ret = NULL;
-    uc_engine *uc;
-    uc_err err;
-    uc_hook trace1, trace2, trace3, trace4, trace5;
-
-	err = uc_open(UC_ARCH_X86, UC_MODE_32, &uc);
-    if (err) {
-        printf("Failed on uc_open() with error returned: %u\n", err);
-		exit(-1);
-	}
-//uc_hook_add(uc, &trace1, UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED | UC_HOOK_MEM_FETCH_UNMAPPED, (void *)hook_mem_invalid, (void *)thread);
     
-    // tracing all basic blocks with customized callback
-    uc_hook_add(uc, &trace1, UC_HOOK_BLOCK,(void *) hook_block, (void *)thread, (uint64_t)1, (uint64_t)0);
+    uc_err err;
+    
 
-    // tracing all instruction by having @begin > @end
-    uc_hook_add(uc, &trace2, UC_HOOK_CODE, (void *)hook_code, (void *)thread, (uint64_t)1, (uint64_t)0);
-
-    // intercept invalid memory events
-    uc_hook_add(uc, &trace3, UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED|UC_HOOK_MEM_FETCH_UNMAPPED, 
-	(void *)hook_mem_invalid, (void *)thread);
-    // tracing all memory WRITE access (with @begin > @end)
-    uc_hook_add(uc, &trace4, UC_HOOK_MEM_WRITE, (void *)hook_mem64, (void *)thread, (uint64_t)1, (uint64_t)0);
-
-    // tracing all memory READ access (with @begin > @end)
-    uc_hook_add(uc, &trace5, UC_HOOK_MEM_READ, (void *)hook_mem64, (void *)thread, (uint64_t)1, (uint64_t)0);
+	
+	VirtualMachine *_Machine = (VirtualMachine *)thread->VM;
+	//uc_hook_add(uc, &trace1, UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED | UC_HOOK_MEM_FETCH_UNMAPPED, (void *)hook_mem_invalid, (void *)thread);
+    
 
 
 	// If we are specifically saying to hit a target address... if not use registers
@@ -1396,20 +1407,20 @@ emu:
 
 // set registers in unicorn...
 			
-uc_reg_write(uc, UC_X86_REG_EAX, &tptr->registers.eax);
-uc_reg_write(uc, UC_X86_REG_EBX, &tptr->registers.ebx);
-uc_reg_write(uc, UC_X86_REG_ECX, &tptr->registers.ecx);
-uc_reg_write(uc, UC_X86_REG_EDX, &tptr->registers.edx);
-uc_reg_write(uc, UC_X86_REG_ESI, &tptr->registers.esi);
-uc_reg_write(uc, UC_X86_REG_EDI, &tptr->registers.edi);
-uc_reg_write(uc, UC_X86_REG_EIP, &tptr->registers.eip);
-uc_reg_write(uc, UC_X86_REG_ESP, &tptr->registers.esp);
-uc_reg_write(uc, UC_X86_REG_EBP, &tptr->registers.ebp);
-uc_reg_write(uc, UC_X86_REG_EFLAGS, &tptr->registers.eflags);
+uc_reg_write(_Machine->uc, UC_X86_REG_EAX, &tptr->registers.eax);
+uc_reg_write(_Machine->uc, UC_X86_REG_EBX, &tptr->registers.ebx);
+uc_reg_write(_Machine->uc, UC_X86_REG_ECX, &tptr->registers.ecx);
+uc_reg_write(_Machine->uc, UC_X86_REG_EDX, &tptr->registers.edx);
+uc_reg_write(_Machine->uc, UC_X86_REG_ESI, &tptr->registers.esi);
+uc_reg_write(_Machine->uc, UC_X86_REG_EDI, &tptr->registers.edi);
+uc_reg_write(_Machine->uc, UC_X86_REG_EIP, &tptr->registers.eip);
+uc_reg_write(_Machine->uc, UC_X86_REG_ESP, &tptr->registers.esp);
+uc_reg_write(_Machine->uc, UC_X86_REG_EBP, &tptr->registers.ebp);
+uc_reg_write(_Machine->uc, UC_X86_REG_EFLAGS, &tptr->registers.eflags);
 
-tptr->_uc_emu = (void *)uc;
+tptr->_uc_emu = (void *)_Machine->uc;
 uint64_t addrr = tptr->registers.eip;
-err =uc_mem_map(uc, round_down(4096,addrr), 4096, UC_PROT_ALL);
+err =uc_mem_map(_Machine->uc, round_down(4096,addrr), 4096, UC_PROT_ALL);
 if (err)
 	printf("couldnt map: %s [%X]\n", uc_strerror(err), addrr);
 
@@ -1417,11 +1428,13 @@ if (err)
 if (err)
 	printf("couldnt map: %s [%X]\n", uc_strerror(err), addrr);
 */
-if (!uc_mem_write(uc, addrr, (void *)&blah, 1024)) {
+if (!uc_mem_write(_Machine->uc, addrr, (void *)&blah, 1024)) {
 	printf("couldnt write!~\n");
 }
+
+_Machine->CurrentThread = tptr;
 //	r = x86_emulate((struct x86_emulate_ctxt *)&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&_VM->emulate_ops) == X86EMUL_OKAY;
-err = uc_emu_start(uc, addrr, addrr + 1023, 0, 1);
+err = uc_emu_start(_Machine->uc, addrr, addrr + 1023, 0, 1);
 
     if (err) {
         printf("Failed [%X] on uc_emu_start() with error returned %u: %s\n",
@@ -1434,18 +1447,18 @@ err = uc_emu_start(uc, addrr, addrr + 1023, 0, 1);
 
 
 			
-uc_reg_read(uc, UC_X86_REG_EAX, &tptr->registers.eax);
-uc_reg_read(uc, UC_X86_REG_EBX, &tptr->registers.ebx);
-uc_reg_read(uc, UC_X86_REG_ECX, &tptr->registers.ecx);
-uc_reg_read(uc, UC_X86_REG_EDX, &tptr->registers.edx);
-uc_reg_read(uc, UC_X86_REG_ESI, &tptr->registers.esi);
-uc_reg_read(uc, UC_X86_REG_EDI, &tptr->registers.edi);
-uc_reg_read(uc, UC_X86_REG_ESP, &tptr->registers.esp);
-uc_reg_read(uc, UC_X86_REG_EBP, &tptr->registers.ebp); 
-uc_reg_read(uc, UC_X86_REG_EIP, &tptr->registers.eip); 
-uc_reg_read(uc, UC_X86_REG_EFLAGS, &tptr->registers.eflags);
+uc_reg_read(_Machine->uc, UC_X86_REG_EAX, &tptr->registers.eax);
+uc_reg_read(_Machine->uc, UC_X86_REG_EBX, &tptr->registers.ebx);
+uc_reg_read(_Machine->uc, UC_X86_REG_ECX, &tptr->registers.ecx);
+uc_reg_read(_Machine->uc, UC_X86_REG_EDX, &tptr->registers.edx);
+uc_reg_read(_Machine->uc, UC_X86_REG_ESI, &tptr->registers.esi);
+uc_reg_read(_Machine->uc, UC_X86_REG_EDI, &tptr->registers.edi);
+uc_reg_read(_Machine->uc, UC_X86_REG_ESP, &tptr->registers.esp);
+uc_reg_read(_Machine->uc, UC_X86_REG_EBP, &tptr->registers.ebp); 
+uc_reg_read(_Machine->uc, UC_X86_REG_EIP, &tptr->registers.eip); 
+uc_reg_read(_Machine->uc, UC_X86_REG_EFLAGS, &tptr->registers.eflags);
 
-uc_close(uc);
+
 		// print registers before execution of the next instruction
 			printf("2 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
 			tptr->ID,

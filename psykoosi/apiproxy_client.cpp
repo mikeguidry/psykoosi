@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <unicorn/unicorn.h>
 #include "virtualmemory.h"
 #include "apiproxy_client.h"
 extern "C" {

@@ -436,6 +436,7 @@ namespace psykoosi {
       int state;
       
       int dumped;
+      
       void *_uc_emu;
 	  } EmulationThread;
 
@@ -473,6 +474,10 @@ namespace psykoosi {
       uint32_t StackLow, StackHigh;
       uint32_t PEB;
       
+      uc_engine *uc;
+      uc_hook trace1, trace2, trace3, trace4, trace5;
+      
+      EmulationThread *CurrentThread;
 		  // this is the structure that contains the functions (specialty) that we redirect from the XEN emulator
 		  struct hack_x86_emulate_ops emulate_ops;
     } VirtualMachine;

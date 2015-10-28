@@ -22,6 +22,18 @@ run bunch of i/o interpreters / network activity apps and start fuzzing
 change “dfuzz”, remove python.. test new tables and start fuzzing the fuzzy function dumps (right now start with only the amount of data the fuzzy function returns.. so we want to capture simulations..) so we get the context before AND after the fuzzy function…
 log all win32 API on the process being fuzzed beginning with the first fuzzy function..  so the fuzzer can simulate the win32 API without needing the API proxy and only use it as backup
 
+use a fuzzing strategy that doesnt do things in a straight linear order.. 
+start by 'sparsing' or 'sharding' the distribution of the fuzzing.. this might by luck decrease the time
+it takes to find viable vulnerabilities...it could also be a bit smarter by taking the first X traces and 
+finding the logic relating to the variables..
+so you can start at the high and low of the space for the variable.. and then you can determine exactly where the
+logic controlling the software to ignore or continue with the variable.. then some general approaches can be made
+for each type of logic verification to increase the speed/bypass the checks.. this should be very trivial afterwards
+but overall with the PHIs itll be nice to start off just getting things distributed and fuzzing 
+
+
+start by fuzzing the sizes.. do the entire uint32_t space and determine the count of instructions afterwards and if anything goes into bad memory within the current function, inside of the children, or 2 generations of parents (backwards from below).. should be very fast if we limit the instructions being fuzzed.. so use the analysis from the disassembler engine to generate a code path and verify if its within it… anything that falls outside (via normal software routines) ignore, and anything thats strange log into the database for ‘recreate’
+
 after we fuzz the bytes (size actually being returned) of the fuzzy functions.. then we can manipulate the sizes…
 also.. we can start off by manipulating the size ALONE and counting the amount of instructions afterwards before it goes up to parent.. or look for some heuristics like returning -1.. etc 
 seeing if we get past logic which is usually immediately after the return…
