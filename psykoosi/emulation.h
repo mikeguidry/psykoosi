@@ -436,6 +436,7 @@ namespace psykoosi {
       int state;
       
       int dumped;
+      void *_uc_emu;
 	  } EmulationThread;
 
 	 

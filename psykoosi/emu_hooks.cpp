@@ -26,6 +26,7 @@ fasted way to fuzz file I/O (buffer sizes) is to increase the size and keep trac
 #include <inttypes.h>
 #include <udis86.h>
 #include <zlib.h>
+#include <unicorn/unicorn.h>
 #include <pe_lib/pe_bliss.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>

@@ -6,6 +6,30 @@ This software is meant to test your own software, or network.  I take no respons
 
 HIGH PRIORITY:
 
+move uc_emu to virtual machine entry.. set user_data before execute but keep memory
+check if read/write mem does it before or after…
+see about a pre/post hook
+
+see about LDT/GDT
+ test multithreading 
+
+change injected DLL to snapshot and binary diff against the original (keep in memory, but monitor the location so we don’t dump it.. as well as any other snapshots in memory.. but since it’ll be heap.. we should get its own pages using virtualloc so its not sharing pages with other heap data)
+
+dump context before every call going to fuzzy functions and continue the software
+
+run bunch of i/o interpreters / network activity apps and start fuzzing
+
+change “dfuzz”, remove python.. test new tables and start fuzzing the fuzzy function dumps (right now start with only the amount of data the fuzzy function returns.. so we want to capture simulations..) so we get the context before AND after the fuzzy function…
+log all win32 API on the process being fuzzed beginning with the first fuzzy function..  so the fuzzer can simulate the win32 API without needing the API proxy and only use it as backup
+
+after we fuzz the bytes (size actually being returned) of the fuzzy functions.. then we can manipulate the sizes…
+also.. we can start off by manipulating the size ALONE and counting the amount of instructions afterwards before it goes up to parent.. or look for some heuristics like returning -1.. etc 
+seeing if we get past logic which is usually immediately after the return…
+if the logic allows us to get through the majority of the function, then that size was allowed
+this will allow us to start using this type of approach to brute force apps without even fuzzing every byte… the size alone means it’ll still do a memcpy like a backwards men leak (if u think about heart bleed, but backwards) and can be tested thoroughly on every call very quickly and then you can brute force the address space afterwards to control the memory to look for execution
+
+keep the range from the end of the returned data to the increase of the size and determine whether any instructions are reading/writing to these locations and focus on these context settings for exploitation
+
 * now that the emulator is working.. strategy has to change a bit...
   API Proxy client (win32 side) has to be injected with the takeover code...
   It needs to log all win32 API commands in correct order.. and then

@@ -769,7 +769,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 	
 	printf("API Proxy: Call %s[%s]\n", function, module);
 	
-	int arg_len = 0;
+	int arg_len = 64;
 	// adding 2 for each 00 after the strings..
 	int pkt_len = sizeof(CallInfo) + module_len + function_len + arg_len;
 	char *ptr = (char *)malloc(pkt_len + 1);
@@ -800,7 +800,7 @@ CodeAddr Region, CodeAddr Region_Size, uint32_t *eax_ret, CodeAddr ESP_High,
 	
 	// i dont think the remote side is expecting ESP to be setup for the call
 	//ESP += (sizeof(uint32_t) * 2);
-	uint32_t StartESP = ESP;// + sizeof(uint32_t);
+	uint32_t StartESP = ESP + sizeof(uint32_t);
 	
 	//ESP += (sizeof(uint32_t) * 2);
 

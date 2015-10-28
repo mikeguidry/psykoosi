@@ -7,3 +7,6 @@
 [submodule "depends/nanomsg"]
 	path = depends/nanomsg
 	url = https://github.com/nanomsg/nanomsg.git
+[submodule "depends/unicorn"]
+	path = depends/unicorn
+	url = https://github.com/unicorn-engine/unicorn.git

@@ -13,6 +13,7 @@
 #include <cstring>
 #include <stdio.h>
 #include <inttypes.h>
+#include <unicorn/unicorn.h>
 #include <capstone/capstone.h>
 #include <pe_lib/pe_bliss.h>
 #include <fstream>
@@ -262,7 +263,7 @@ int main(int argc, char *argv[]) {
 			printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	}
 	
-	if (argv[2][0] == '0') {
+	if (argc == 3 && argv[2][0] == '0') {
 		printf("Exiting.. just wanted to load the snapshot.. but not emulating\n");
                printf("%d Instructions after loading\n", op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT));
 

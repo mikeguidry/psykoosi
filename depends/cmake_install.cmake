@@ -32,6 +32,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("/Users/mike/psykoosi/depends/capstone/cmake_install.cmake")
   include("/Users/mike/psykoosi/depends/pe_bliss/cmake_install.cmake")
   include("/Users/mike/psykoosi/depends/udis86/cmake_install.cmake")
+  include("/Users/mike/psykoosi/depends/unicorn/cmake_install.cmake")
 
 endif()
 

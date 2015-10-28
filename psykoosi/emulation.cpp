@@ -38,10 +38,16 @@ extern "C" {
 #include "utilities.h"
 #include "loading.h"
 #include "emulation.h"
+#include <unicorn/unicorn.h>
 
 using namespace psykoosi;
 using namespace pe_bliss;
 using namespace pe_win;
+
+
+#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+#define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+#define round_down(x, y) ((x) & ~__round_mask(x, y))
 
 
 /*
@@ -93,6 +99,187 @@ int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle, Emulation *ptr, Vi
 	handle_list = hptr;
 	return 1;
 }
+
+/* UNICORN RELATED CODE COMING HERE... 
+   Starting with copy/paste of samples...
+
+*/
+// callback for tracing basic blocks
+static void hook_block(uc_engine *uc, uint64_t address, uint32_t size, void *user_data)
+{
+    printf(">>> Tracing basic block at 0x%X, block size = 0x%x\n", address, size);
+}
+
+// callback for tracing instruction
+static void hook_code(uc_engine *uc, uint64_t address, uint32_t size, void *user_data)
+{
+    int eflags;
+    printf(">>> Tracing instruction at 0x%X, instruction size = 0x%x\n", address, size);
+
+    uc_reg_read(uc, UC_X86_REG_EFLAGS, &eflags);
+    printf(">>> --- EFLAGS is 0x%x\n", eflags);
+
+    // Uncomment below code to stop the emulation using uc_emu_stop()
+    // if (address == 0x1000009)
+    //    uc_emu_stop(uc);
+}
+// callback for tracing instruction
+static void hook_code64(uc_engine *uc, uint64_t address, uint32_t size, void *user_data)
+{
+    uint64_t rip;
+
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+    //printf(">>> Tracing instruction at 0x%"PRIx64 ", instruction size = 0x%x\n", address, size);
+    //©printf(">>> RIP is 0x%"PRIx64 "\n", rip);
+
+    // Uncomment below code to stop the emulation using uc_emu_stop()
+    // if (address == 0x1000009)
+    //    uc_emu_stop(uc);
+}
+
+// callback for tracing memory access (READ or WRITE)
+#define ALIGN_UC 8*1024
+static bool hook_mem_invalid(uc_engine *uc, uc_mem_type type,
+        uint64_t address, int size, int64_t value, void *user_data) {
+			//printf("what\n");
+			
+		fflush(stdout);
+			struct _x86_thread *thread = (struct _x86_thread *)user_data;
+	EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
+	//uc_engine *uc = (uc_engine *)emuthread->_uc_emu;
+//uint32_t down = round_down(4096, address);
+unsigned long down = (unsigned long)address & ((0UL - 1UL) ^ (ALIGN_UC - 1));
+printf("want %d INVALID %d [%d] address [%X] round %X\n",size, type, UC_MEM_WRITE_UNMAPPED, address, down);
+uint32_t addr_32 = (uint32_t) address;
+    switch(type) {
+		case 19:
+		case UC_HOOK_MEM_FETCH_UNMAPPED:
+		case 21:
+        case UC_MEM_WRITE_UNMAPPED:
+			printf("Unicorn wants some memory it isnt using.. [%X]\n", address);
+			if (pVM->MemPagePtr(address) == NULL) {
+				printf("we dont have that memory! bad...\n");
+				return false;
+			} else {
+			printf("loading the memory from our virtual memory...\n");
+			int asize = ALIGN_UC;
+			char *data = new char[asize];
+			pVM->MemDataRead(down, (unsigned char *)data, asize);
+			
+			uc_err a = uc_mem_map(uc, down,asize, UC_PROT_ALL);
+			printf("err: %s\n", uc_strerror(a));
+			printf("a: %d [%d]\n", a, size);	
+			uc_err b = uc_mem_write(uc, down, data, asize);
+			printf("b: %d\n", b);
+			printf("err: %s\n", uc_strerror(b));
+			delete data;
+			return true;
+			}
+		break;
+	default:
+	return false;
+	break;
+//	default:
+            // return false to indicate we want to stop emulation
+  //          return false;
+
+	}
+}
+
+static void hook_mem64(uc_engine *uc, uc_mem_type type,
+        uint64_t address, int size, int64_t value, void *user_data)
+{
+	struct _x86_thread *thread = (struct _x86_thread *)user_data;
+						 	EmuThread_Handle *hptr = EmuByID(thread->ID);
+	Emulation *VirtPtr = hptr->EmuPtr;
+	VirtualMemory *pVM = hptr->VMem;
+	Emulation::EmulationThread *emuthread = hptr->ThreadHandle;
+    switch(type) {
+        default: break;
+        case UC_MEM_READ:
+                 printf(">>> Memory is being READ at 0x%X, data size = %u\n",
+                         address, size);
+                 break;
+        case UC_MEM_WRITE:
+                 printf(">>> Memory is being WRITE at 0x%X, data size = %u, data value = 0x%X\n",
+                         address, size, value);
+						 
+	emuthread->EmuVMEM->MemDataWrite(address, (unsigned char *)&value, size);
+                 break;
+    }
+}
+
+// callback for IN instruction (X86).
+// this returns the data read from the port
+static uint32_t hook_in(uc_engine *uc, uint32_t port, int size, void *user_data)
+{
+    uint32_t eip;
+
+    uc_reg_read(uc, UC_X86_REG_EIP, &eip);
+
+    printf("--- reading from port 0x%x, size: %u, address: 0x%x\n", port, size, eip);
+
+    switch(size) {
+        default:
+            return 0;   // should never reach this
+        case 1:
+            // read 1 byte to AL
+            return 0xf1;
+        case 2:
+            // read 2 byte to AX
+            return 0xf2;
+            break;
+        case 4:
+            // read 4 byte to EAX
+            return 0xf4;
+    }
+}
+
+// callback for OUT instruction (X86).
+static void hook_out(uc_engine *uc, uint32_t port, int size, uint32_t value, void *user_data)
+{
+    uint32_t tmp;
+    uint32_t eip;
+
+    uc_reg_read(uc, UC_X86_REG_EIP, &eip);
+
+    printf("--- writing to port 0x%x, size: %u, value: 0x%x, address: 0x%x\n", port, size, value, eip);
+
+    // confirm that value is indeed the value of AL/AX/EAX
+    switch(size) {
+        default:
+            return;   // should never reach this
+        case 1:
+            uc_reg_read(uc, UC_X86_REG_AL, &tmp);
+            break;
+        case 2:
+            uc_reg_read(uc, UC_X86_REG_AX, &tmp);
+            break;
+        case 4:
+            uc_reg_read(uc, UC_X86_REG_EAX, &tmp);
+            break;
+    }
+
+    printf("--- register value = 0x%x\n", tmp);
+}
+
+// callback for SYSCALL instruction (X86).
+static void hook_syscall(uc_engine *uc, void *user_data)
+{
+    uint32_t eax;
+
+    uc_reg_read(uc, UC_X86_REG_EAX, &eax);
+    if (eax == 0x100) {
+        eax = 0x200;
+        uc_reg_write(uc, UC_X86_REG_EAX, &eax);
+    } else
+        printf("ERROR: was not expecting rax=0x%X in syscall\n", eax);
+}
+
+/* END UNICORN */
 
 
 static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
@@ -661,7 +848,7 @@ Emulation::EmulationThread *Emulation::NewThread(uint32_t thread_id, Emulation::
 
 
 Emulation::~Emulation() {
-
+	
 	for (int i = Current_VM_ID; i > 0; i++) {
 		//destroy vm one at a time
 	}
@@ -1138,12 +1325,39 @@ void Emulation::DumpStack(EmulationThread *thread) {
 	return;	
 }
 
+
 Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, CodeAddr Address) {
 	EmulationThread *thread = NULL;
 	int r = 0, retry_count = 0;
 	if (_thread == NULL) thread = MasterThread; else thread = _thread;
 	//_BL[0] = Loader;
 	EmulationLog *ret = NULL;
+    uc_engine *uc;
+    uc_err err;
+    uc_hook trace1, trace2, trace3, trace4, trace5;
+
+	err = uc_open(UC_ARCH_X86, UC_MODE_32, &uc);
+    if (err) {
+        printf("Failed on uc_open() with error returned: %u\n", err);
+		exit(-1);
+	}
+//uc_hook_add(uc, &trace1, UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED | UC_HOOK_MEM_FETCH_UNMAPPED, (void *)hook_mem_invalid, (void *)thread);
+    
+    // tracing all basic blocks with customized callback
+    uc_hook_add(uc, &trace1, UC_HOOK_BLOCK,(void *) hook_block, (void *)thread, (uint64_t)1, (uint64_t)0);
+
+    // tracing all instruction by having @begin > @end
+    uc_hook_add(uc, &trace2, UC_HOOK_CODE, (void *)hook_code, (void *)thread, (uint64_t)1, (uint64_t)0);
+
+    // intercept invalid memory events
+    uc_hook_add(uc, &trace3, UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED|UC_HOOK_MEM_FETCH_UNMAPPED, 
+	(void *)hook_mem_invalid, (void *)thread);
+    // tracing all memory WRITE access (with @begin > @end)
+    uc_hook_add(uc, &trace4, UC_HOOK_MEM_WRITE, (void *)hook_mem64, (void *)thread, (uint64_t)1, (uint64_t)0);
+
+    // tracing all memory READ access (with @begin > @end)
+    uc_hook_add(uc, &trace5, UC_HOOK_MEM_READ, (void *)hook_mem64, (void *)thread, (uint64_t)1, (uint64_t)0);
+
 
 	// If we are specifically saying to hit a target address... if not use registers
 	if (Address != 0)
@@ -1163,9 +1377,9 @@ Emulation::EmulationLog *Emulation::StepInstruction(EmulationThread *_thread, Co
 	EmulationThread *tptr = thread;
 emu:
 			char blah[1024];
-		thread->EmuVMEM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 13);
-		printf("EIP HEX: ");
-		for (int i = 0; i < 13; i++) {
+		thread->EmuVMEM->MemDataRead(thread->thread_ctx.emulation_ctx.regs->eip, (unsigned char *)&blah, 1024);
+		printf("EIP HEX[%X]: ", thread->thread_ctx.emulation_ctx.regs->eip);
+		for (int i = 0; i < 15; i++) {
 			printf("%02X", (unsigned char)blah[i]);
 		}
 		printf("\n");
@@ -1179,9 +1393,59 @@ emu:
 			(uint32_t)tptr->registers.ebx, (uint32_t)tptr->registers.ecx,
 			(uint32_t)tptr->registers.edx,(uint32_t) tptr->registers.esi,
 			(uint32_t)tptr->registers.edi);
-			
-	r = x86_emulate((struct x86_emulate_ctxt *)&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&_VM->emulate_ops) == X86EMUL_OKAY;
 
+// set registers in unicorn...
+			
+uc_reg_write(uc, UC_X86_REG_EAX, &tptr->registers.eax);
+uc_reg_write(uc, UC_X86_REG_EBX, &tptr->registers.ebx);
+uc_reg_write(uc, UC_X86_REG_ECX, &tptr->registers.ecx);
+uc_reg_write(uc, UC_X86_REG_EDX, &tptr->registers.edx);
+uc_reg_write(uc, UC_X86_REG_ESI, &tptr->registers.esi);
+uc_reg_write(uc, UC_X86_REG_EDI, &tptr->registers.edi);
+uc_reg_write(uc, UC_X86_REG_EIP, &tptr->registers.eip);
+uc_reg_write(uc, UC_X86_REG_ESP, &tptr->registers.esp);
+uc_reg_write(uc, UC_X86_REG_EBP, &tptr->registers.ebp);
+uc_reg_write(uc, UC_X86_REG_EFLAGS, &tptr->registers.eflags);
+
+tptr->_uc_emu = (void *)uc;
+uint64_t addrr = tptr->registers.eip;
+err =uc_mem_map(uc, round_down(4096,addrr), 4096, UC_PROT_ALL);
+if (err)
+	printf("couldnt map: %s [%X]\n", uc_strerror(err), addrr);
+
+/*err = uc_mem_map(uc, addrr, 1024 * 1024 * 2, UC_PROT_ALL);
+if (err)
+	printf("couldnt map: %s [%X]\n", uc_strerror(err), addrr);
+*/
+if (!uc_mem_write(uc, addrr, (void *)&blah, 1024)) {
+	printf("couldnt write!~\n");
+}
+//	r = x86_emulate((struct x86_emulate_ctxt *)&thread->thread_ctx.emulation_ctx, (const x86_emulate_ops *)&_VM->emulate_ops) == X86EMUL_OKAY;
+err = uc_emu_start(uc, addrr, addrr + 1023, 0, 1);
+
+    if (err) {
+        printf("Failed [%X] on uc_emu_start() with error returned %u: %s\n",
+		addrr,
+                err, uc_strerror(err));
+				exit(-1);
+    }
+
+    printf(">>> Emulation done. Below is the CPU context\n");
+
+
+			
+uc_reg_read(uc, UC_X86_REG_EAX, &tptr->registers.eax);
+uc_reg_read(uc, UC_X86_REG_EBX, &tptr->registers.ebx);
+uc_reg_read(uc, UC_X86_REG_ECX, &tptr->registers.ecx);
+uc_reg_read(uc, UC_X86_REG_EDX, &tptr->registers.edx);
+uc_reg_read(uc, UC_X86_REG_ESI, &tptr->registers.esi);
+uc_reg_read(uc, UC_X86_REG_EDI, &tptr->registers.edi);
+uc_reg_read(uc, UC_X86_REG_ESP, &tptr->registers.esp);
+uc_reg_read(uc, UC_X86_REG_EBP, &tptr->registers.ebp); 
+uc_reg_read(uc, UC_X86_REG_EIP, &tptr->registers.eip); 
+uc_reg_read(uc, UC_X86_REG_EFLAGS, &tptr->registers.eflags);
+
+uc_close(uc);
 		// print registers before execution of the next instruction
 			printf("2 TH %D EIP %x ESP %x EBP %x EAX %x EBX %x ECX %x EDX %x ESI %x EDI %x\n",
 			tptr->ID,

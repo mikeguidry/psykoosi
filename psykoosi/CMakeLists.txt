@@ -17,4 +17,4 @@ add_executable (fuzz
 			distribution.cpp
                         )
 
-target_link_libraries(fuzz pe_bliss capstone-static udis86 z iconv)
+target_link_libraries(fuzz pe_bliss capstone-static udis86 z iconv unicorn)

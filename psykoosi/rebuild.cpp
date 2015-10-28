@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <fstream>
 #include <udis86.h>
+#include <unicorn/unicorn.h>
 #include <pe_lib/pe_bliss.h>
 extern "C" {
 #include <capstone/capstone.h>
