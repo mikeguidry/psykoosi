@@ -1,3 +1,12 @@
+* need stack tracing/walking and building a tree of functions and their parents/children
+so we can create 'fences' for fuzzing
+
+also stack trace has to be used to determine whether or not we are inside of WinNt->DbgBreak().. we have to swap frames
+during initial loading before emulating to get rid of the debugging context...
+
+in some prior versions I was resuming and then dumping after the debug event.. however for allowing continous logging
+and child snapshots.. i opted to make it simple
+
 
 Unicorn:check if read/write mem does it before or after…
 see about a pre/post hook

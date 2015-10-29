@@ -2191,141 +2191,140 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 	
 	
 	if (full == 1) {
-		printf("Full: %d Loading modules %s\n", full, fn);
-	// read each module entry to pair it with the memory we will load later...
-	int point = ftell(fd);
-	for (i = 0; i < module_count; i++) {
-		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
-		unsigned int hash = cdb_hash(modentry.szExePath, strlen(modentry.szExePath));
-		char *name = NULL;
-
-		name = strrchr((char *)modentry.szExePath, '\\');
-		if (name != NULL) {
-			name++;
-		} else {
-			name = (char *)modentry.szModule;
-		}
-		for (int i = 0; i < strlen(name); i++) name[i] = tolower(name[i]);
-		char fname[1024];
-		sprintf(fname, "/Users/mike/dlls/%s", name);
-		
-		printf("EXE \"%s\" \"%s\"\n", (char *)((char *)modentry.szExePath+1), name);
-		//sprintf(fname, "images/%u.dat", hash);
-		if (stat(fname, &stv) != 0) {
-			FILE *fd2;
-			int image_size = 0;
-			char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
-			if (image_data != NULL && image_size) {
-				if ((fd2 = fopen(fname, "wb")) != NULL) {
-					fwrite(image_data, 1, image_size, fd2);
-					fclose(fd2);
-				}
-			}	
-		}
-		/*FILE *fd2 = fopen(fname, "rb");
-		if (fd2 == NULL) {
-			int image_size = 0;
-			
-			char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
-			if (image_data != NULL && image_size) {
-				if ((fd2 = fopen(fname, "wb")) != NULL) {
-					fwrite(image_data, 1, image_size, fd2);
-					fclose(fd2);
-				}
-			}
-		} else {
-			fclose(fd2);
-		}*/
-	}
+		// read each module entry to pair it with the memory we will load later...
+		int point = ftell(fd);
+		for (i = 0; i < module_count; i++) {
+			fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
+			unsigned int hash = cdb_hash(modentry.szExePath, strlen(modentry.szExePath));
+			char *name = NULL;
 	
-	//fclose(fd);
-	//fd = fopen(filename, "rb");
-	// re-process them now...
-	fseek(fd, point, SEEK_SET);
-	for (i = 0; i < module_count; i++) {
-		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
-		unsigned int hash = cdb_hash((char *)((char *)modentry.szExePath), strlen(modentry.szExePath));
-		char *name = NULL;
-
-		name = strrchr((char *)((char *)((char *)modentry.szExePath+1)), '\\');
-		if (name != NULL) {
-			name++;
-		} else {
-			name = (char *)modentry.szModule;
-		}
-		for (int i = 0; i < strlen(name); i++) name[i] = tolower(name[i]);
-		printf("name: %s\n", name);
-		char fname[1024];
-		
-		sprintf(fname, "/Users/mike/dlls/%s", name);
-		if (stat(fname, &stv) == 0) {
-			// now we must really load it (and analyze, etc)
-			if (strcasestr(modentry.szModule, ".exe") != NULL) {
-				// its the main module...
-				uint32_t needed_base = modentry.modBaseAddr;
-				uint32_t ImageSize = 0;
-				if ((op->pe_image = op->loader->OpenFile(0,0,(char *)fname, &needed_base, &ImageSize)) == NULL) {
-					printf("couldnt load file %s\n", modentry.szExePath);
-					exit(0);
-				}
-				
-				op->pe_image = op->loader->ProcessFile(op->pe_image, needed_base, 1);
-				
+			name = strrchr((char *)modentry.szExePath, '\\');
+			if (name != NULL) {
+				name++;
 			} else {
-				// its a DLL module
-				op->loader->LoadDLL(name, NULL, VM, 1, modentry.modBaseAddr, 1);
+				name = (char *)modentry.szModule;
 			}
+			for (int i = 0; i < strlen(name); i++) name[i] = tolower(name[i]);
+			char fname[1024];
+			sprintf(fname, "/Users/mike/dlls/%s", name);
+			
+			printf("EXE \"%s\" \"%s\"\n", (char *)((char *)modentry.szExePath+1), name);
+			//sprintf(fname, "images/%u.dat", hash);
+			if (stat(fname, &stv) != 0) {
+				FILE *fd2;
+				int image_size = 0;
+				char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
+				if (image_data != NULL && image_size) {
+					if ((fd2 = fopen(fname, "wb")) != NULL) {
+						fwrite(image_data, 1, image_size, fd2);
+						fclose(fd2);
+					}
+				}	
+			}
+			/*FILE *fd2 = fopen(fname, "rb");
+			if (fd2 == NULL) {
+				int image_size = 0;
+				
+				char *image_data = Proxy->FileDownload((char *)((char *)modentry.szExePath+1), &image_size);
+				if (image_data != NULL && image_size) {
+					if ((fd2 = fopen(fname, "wb")) != NULL) {
+						fwrite(image_data, 1, image_size, fd2);
+						fclose(fd2);
+					}
+				}
+			} else {
+				fclose(fd2);
+			}*/
 		}
 		
-		// create modules in emulator..
-	}
+		//fclose(fd);
+		//fd = fopen(filename, "rb");
+		// re-process them now...
+		fseek(fd, point, SEEK_SET);
+		for (i = 0; i < module_count; i++) {
+			fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
+			unsigned int hash = cdb_hash((char *)((char *)modentry.szExePath), strlen(modentry.szExePath));
+			char *name = NULL;
 	
-
-	printf("Loading memory from snapshot!\n");
-	// the rest of the file is for memory mappings...
-	/*
-	int mem_data_len = sizeof(uint32_t) + 0x1000;
-	int data_left_in_file = total_file_size - ftell(fd);
-	int mem_pages_to_process = data_left_in_file / mem_data_len;
-	printf("mem block len: %d data left: %d mem_pages_to_process %d\n",
-	mem_data_len, data_left_in_file, mem_pages_to_process);
-	*/
+			name = strrchr((char *)((char *)((char *)modentry.szExePath+1)), '\\');
+			if (name != NULL) {
+				name++;
+			} else {
+				name = (char *)modentry.szModule;
+			}
+			for (int i = 0; i < strlen(name); i++) name[i] = tolower(name[i]);
+			printf("name: %s\n", name);
+			char fname[1024];
+			
+			sprintf(fname, "/Users/mike/dlls/%s", name);
+			if (stat(fname, &stv) == 0) {
+				// now we must really load it (and analyze, etc)
+				if (strcasestr(modentry.szModule, ".exe") != NULL) {
+					// its the main module...
+					uint32_t needed_base = modentry.modBaseAddr;
+					uint32_t ImageSize = 0;
+					if ((op->pe_image = op->loader->OpenFile(0,0,(char *)fname, &needed_base, &ImageSize)) == NULL) {
+						printf("couldnt load file %s\n", modentry.szExePath);
+						exit(0);
+					}
+					
+					op->pe_image = op->loader->ProcessFile(op->pe_image, needed_base, 1);
+					
+				} else {
+					// its a DLL module
+					op->loader->LoadDLL(name, NULL, VM, 1, modentry.modBaseAddr, 1);
+				}
+			}
+			
+			// create modules in emulator..
+		}
+		
 	
-	int mem_start = time(0);
-	for (i = 0; i < pages_count; i++) {
-		uint32_t addr = 0;
-		char page_data[0x1000];
-		unsigned char type;
+		printf("Loading memory from snapshot!\n");
+		// the rest of the file is for memory mappings...
+		/*
+		int mem_data_len = sizeof(uint32_t) + 0x1000;
+		int data_left_in_file = total_file_size - ftell(fd);
+		int mem_pages_to_process = data_left_in_file / mem_data_len;
+		printf("mem block len: %d data left: %d mem_pages_to_process %d\n",
+		mem_data_len, data_left_in_file, mem_pages_to_process);
+		*/
 		
-		// read the type of memory (1 = full page, 2 = modification from source snapshot)
-		fread((void *)&type, 1, 1, fd);
-		
-		// read the address of this page..
-		fread((void *)&addr, 1, sizeof(uint32_t), fd);
-		
-		// read the data from the file..
-		fread((void *)&page_data, 1, 0x1000, fd);
-		
-///		printf("MEMORY %X\n", addr);
-		// write into virtual memory..
-		 VM->MemDataWrite(addr, (unsigned char *)&page_data, 0x1000);
-		 //printf("Writing page at %X\n", addr);
-		 //uint32_t spot = 0x31cfc28;
-		 
-		/*if ((spot >= addr) && (spot < (addr + 0x1000))) {
-			//printf("FOUND page %X\n", spot);
-		}*/
-		
-		if (i) {//&& !(i % 5)) {
-			int elapsed = time(0) - mem_start;
-			if (elapsed) {
-				printf("\r%d pages loaded. %d pages a second. Current %X\t\t\t", i, i / elapsed , addr);
-				fflush(stdout);
+		int mem_start = time(0);
+		for (i = 0; i < pages_count; i++) {
+			uint32_t addr = 0;
+			char page_data[0x1000];
+			unsigned char type;
+			
+			// read the type of memory (1 = full page, 2 = modification from source snapshot)
+			fread((void *)&type, 1, 1, fd);
+			
+			// read the address of this page..
+			fread((void *)&addr, 1, sizeof(uint32_t), fd);
+			
+			// read the data from the file..
+			fread((void *)&page_data, 1, 0x1000, fd);
+			
+	///		printf("MEMORY %X\n", addr);
+			// write into virtual memory..
+			VM->MemDataWrite(addr, (unsigned char *)&page_data, 0x1000);
+			//printf("Writing page at %X\n", addr);
+			//uint32_t spot = 0x31cfc28;
+			
+			/*if ((spot >= addr) && (spot < (addr + 0x1000))) {
+				//printf("FOUND page %X\n", spot);
+			}*/
+			
+			if (i) {//&& !(i % 5)) {
+				int elapsed = time(0) - mem_start;
+				if (elapsed) {
+					printf("\r%d pages loaded. %d pages a second. Current %X\t\t\t", i, i / elapsed , addr);
+					fflush(stdout);
+				}
 			}
 		}
-	}
-	printf("Virtual Memory pointer: %X\n", VM);
-	printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
+		printf("Virtual Memory pointer: %X\n", VM);
+		printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
 	}
 
 
