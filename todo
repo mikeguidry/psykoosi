@@ -6,6 +6,13 @@ This software is meant to test your own software, or network.  I take no respons
 
 HIGH PRIORITY:
 
+* disassemble task is slow.. more than likely because of the linked list for the instructions...
+use the same concept as virtual memory (jalgo) on the analysis/disassemble engine
+also make a 'light' flag where it disassembles on need... put a pre/post check
+and it can disassemble X frames up and X children in.. so it can work on the fly very fast
+with multiple snapshots and possibility of memory/addresses getting modified
+
+
 * now that the emulator is working.. strategy has to change a bit...
   API Proxy client (win32 side) has to be injected with the takeover code...
   It needs to log all win32 API commands in correct order.. and then

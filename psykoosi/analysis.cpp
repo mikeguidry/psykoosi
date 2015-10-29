@@ -96,6 +96,7 @@ long InstructionAnalysis::AddressDistance(DisassembleTask::CodeAddr first, int S
 
 int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priority, int Max_Instructions, int Max_Bytes, int Redo) {
 	AnalysisQueue *qptr = Analysis_Queue_List;
+	
 	while (qptr != NULL) {
 		if (qptr->Address == Address) break;
 		qptr = qptr->next;
@@ -107,6 +108,7 @@ int InstructionAnalysis::QueueAddressForDisassembly(CodeAddr Address, int Priori
 	}
 
 	qptr = new AnalysisQueue;
+	memset(qptr, 0, sizeof(AnalysisQueue));
 	std::memset(qptr, 0, sizeof(AnalysisQueue));
 	qptr->Address = Address;
 	qptr->Priority = Priority;
@@ -465,19 +467,23 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 	int AnalyzedCount = 0;
 	do {
 
-		//printf("Complete analysis\n");
+//		printf("Complete analysis Queue()\n");
 		AnalyzedCount = 0;
 		AnalysisQueue *qptr = Analysis_Queue_List;
 
 		while (qptr != NULL) {
-			//std::cout << "Analysis on: " << static_cast<uint32_t>(qptr->Address) << " Max Bytes: " << qptr->Max_Bytes << " " << std::endl;
+			std::cout << "Analysis on: " << static_cast<uint32_t>(qptr->Address) << " Max Bytes: " << qptr->Max_Bytes << " " << std::endl;
+//			printf("Qptr already analyzed: %d\n", qptr->Already_Analyzed);
 			if (redo || !qptr->Already_Analyzed) {
-				if (qptr->Count++ > 5) break;
-				//std::cout << "Analyse first time: " << qptr->Address << " Priority " << qptr->Priority << std::endl;
+				if (qptr->Count++ > 5) {
+//					printf("qptr count %d\n", qptr->Count);
+					break;
+				}
+				std::cout << "Analyse first time: " << qptr->Address << " Priority " << qptr->Priority << std::endl;
 
 				// run a disassembler task on this address with a max of 20 instructions...
 				int CountToAnalyze = Disassembler_Handle->RunDisassembleTask(qptr->Address, qptr->Priority, qptr->Max_Bytes, qptr->Max_Instructions);
-				//std::cout << "EROR Count  " + CountToAnalyze << std::endl;
+//				std::cout << "ERROR Count  " + CountToAnalyze << std::endl;
 				// then we need to reanalyze the instructions it disassembled
 				CodeAddr AnalyzeAddr = qptr->Address;
 				while (CountToAnalyze--) {
@@ -485,7 +491,7 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 					//printf("AnalyzeAddr %p\n", AnalyzeAddr);
 					DisassembleTask::InstructionInformation *InsInfo = Disassembler_Handle->GetInstructionInformationByAddress(AnalyzeAddr, DisassembleTask::LIST_TYPE_NEXT, 1, NULL);
 					if (!InsInfo) {
-						std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
+//						std::cout << "ERROR Address not found: " << AnalyzeAddr << std::endl;
 						if (!Max_Address_Not_Found--) {
 							std::cout << "We hit the limit of 100 on this queue.. moving on" << std::endl;
 							break;
@@ -494,7 +500,7 @@ int InstructionAnalysis::Complete_Analysis_Queue(int redo) {
 						AnalyzeAddr++;
 						continue;
 					} else {
-						//std::cout << "ERROR Found in cache " << AnalyzeAddr << std::endl;
+//						std::cout << "ERROR Found in cache " << AnalyzeAddr << std::endl;
 					}
 					// and analyze it (because it may relate to other previous unknown addresses
 					// which also have to be queued...

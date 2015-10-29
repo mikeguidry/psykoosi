@@ -261,10 +261,14 @@ int main(int argc, char *argv[]) {
 		emu.SetRegister(emu.MasterThread, Emulation::REG_EBX, emu.MasterVM.PEB);
 		
 			printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
+	} else {
+				int start = time(0);
+		op.analysis->Complete_Analysis_Queue(0);
+		int now = time(0);
+		printf("Disassembled first time! [%d seconds]\n", now - start);
+
 	}
-	
 	if (argv[2][0] == '0') {
-		printf("Exiting.. just wanted to load the snapshot.. but not emulating\n");
                printf("%d Instructions after loading\n", op.disasm->InstructionsCount(DisassembleTask::LIST_TYPE_NEXT));
 
                 std::cout << "Disasm Count " << op.disasm->DCount << std::endl;

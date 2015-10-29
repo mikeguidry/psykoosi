@@ -376,8 +376,10 @@ int analyze, uint32_t ImageBase, int skip_proxy) {
 				 lptr = AddLoadedImage(filename, dll_image, ImageBase, NULL);
 				 lptr->CodeSection = mptr;
 				 
-				 if (analyze)
+				 if (analyze) {
+					 printf("queueing %X\n", SectionAddress);
 					 _IA->QueueAddressForDisassembly(SectionAddress, 1, 0, s.get_size_of_raw_data(), 0);
+				 }
 				 //_DT->RunDisassembleTask((image->get_image_base_32() + s.get_virtual_address()), 1,  s.get_virtual_size(), 0,0);
 			 }
 	 }

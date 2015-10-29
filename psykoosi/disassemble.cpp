@@ -335,7 +335,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 
 
 
-	//std::cout << "Disasm Task: " << StartAddress << "Priority: " << static_cast<int>(priority) << "max raw: " << MaxRawSize << " Max Instructions: " << MaxInstructions << std::endl;
+	std::cout << "Disasm Task: " << StartAddress << "Priority: " << static_cast<int>(priority) << "max raw: " << MaxRawSize << " Max Instructions: " << MaxInstructions << std::endl;
 	// loop and disassemble a section of instructions (example: code section)
 	do {
 		InsInfo = 0;
@@ -345,10 +345,10 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 //		if (!(CurAddr % 100))
 			//std::cout << "\r" << CurAddr;
 
-		if (HighestCode > 0 && (CurAddr&0xffffffff) >= (HighestCode&0xffffffff)) {
-			//std::cout << "\rhigh break: " << CurAddr << " highest " << HighestCode << std::endl;
+		/*if (HighestCode > 0 && (CurAddr&0xffffffff) >= (HighestCode&0xffffffff)) {
+			std::cout << "\rhigh break: " << CurAddr << " highest " << HighestCode << std::endl;
 			break;
-		}
+		}*/
 
 		if (!vmem->Section_IsExecutable(NULL, CurAddr)) {
 			//printf("Cur addr not in code section %p\n", CurAddr);
@@ -400,7 +400,7 @@ int DisassembleTask::RunDisassembleTask(CodeAddr StartAddress, int priority, int
 			TaskComplete = 1;
 	} while (!TaskComplete);
 
-	//std::cout << "\rFinished Disassemble Task" << std::endl;
+	std::cout << "\rFinished Disassemble Task" << std::endl;
 
 
 	return DisassembledInstructionCount;

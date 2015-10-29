@@ -2113,7 +2113,7 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 	int _thread_count = fuzzinfo.thread_count;
 	int module_count = fuzzinfo.module_data_size / sizeof(MODULEENTRY32);
 	int _module_count = fuzzinfo.module_count;
-	int pages_count = fuzzinfo.memory_data_size / (sizeof(uint32_t) + 0x1000 + 1);
+	int pages_count = fuzzinfo.memory_data_size / (sizeof(uint32_t) + 0x1000);
 	int _page_count = fuzzinfo.page_count;
 	
 	printf("Thread Count: %d [%d] Module Count: %d [%d] Pages Count: %d [%d]\n",
@@ -2290,14 +2290,15 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 		mem_data_len, data_left_in_file, mem_pages_to_process);
 		*/
 		
+		if (full) {
 		int mem_start = time(0);
 		for (i = 0; i < pages_count; i++) {
 			uint32_t addr = 0;
 			char page_data[0x1000];
-			unsigned char type;
+			//unsigned char type;
 			
 			// read the type of memory (1 = full page, 2 = modification from source snapshot)
-			fread((void *)&type, 1, 1, fd);
+			//fread((void *)&type, 1, 1, fd);
 			
 			// read the address of this page..
 			fread((void *)&addr, 1, sizeof(uint32_t), fd);
@@ -2325,6 +2326,9 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 		}
 		printf("Virtual Memory pointer: %X\n", VM);
 		printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
+		} else {
+			// not full.. diff method of loading...
+		}
 	}
 
 
