@@ -1,0 +1,43 @@
+
+Unicorn:check if read/write mem does it before or after…
+see about a pre/post hook
+
+see about LDT/GDT
+ test multithreading 
+
+need piddump to start a process from scratch, and to hook create process .. it needs to create everything suspended, and then hook them before resuming (for chrome)
+all DLL versions should be packaged/uploaded to the server with the snapshots
+
+—
+can do native fuzzing now using piddump logs
+
+need to create internal socket, and file functions to keep track.. so when we restore a program and it needs a particular state that involves a socket, or file descriptor then we have to skip/restore it to that point (so for tcp/ip we need to give it the initial data, and then proxy.. depending on the service)
+
+if we hook CreateFile, ReadFile, WriteFile, CloseFile
+and keep exact information on placement then we can do binary fuzzing now extremely fast without worrying about emulating but not as fast as the phi and the coverage won’t be as well
+can at least release a fuzzer this week :)
+
+using x86emu logs or piddumps to fixup memory/threads
+—
+
+change “dfuzz”, remove python.. test new tables and start fuzzing the fuzzy function dumps (right now start with only the amount of data the fuzzy function returns.. so we want to capture simulations..) so we get the context before AND after the fuzzy function…
+log all win32 API on the process being fuzzed beginning with the first fuzzy function..  so the fuzzer can simulate the win32 API without needing the API proxy and only use it as backup
+
+start by fuzzing the sizes.. do the entire uint32_t space and determine the count of instructions afterwards and if anything goes into bad memory within the current function, inside of the children, or 2 generations of parents (backwards from below).. should be very fast if we limit the instructions being fuzzed.. 
+we need to log how many functions/instructions happen from each size/set of bytes.. it will help separate state machine states so we can ensure to fuzz each one separately if we want to focus on distributing BY state machines
+* brute force state machines and VM opcodes to try to exploit JIT javascript/etc (hook the function that processes the state machine)
+hook the AS3 processor to brute force it..
+
+
+create a hypervisor that is purely used to brute force the intel processor.. create a new VM and once it crashes just stop and restart so it won’t corrupt the main VM
+
+
+so use the analysis from the disassembler engine to generate a code path and verify if its within it… anything that falls outside (via normal software routines) ignore, and anything thats strange log into the database for ‘recreate’
+
+then fuzz all the bytes…after we fuzz the bytes (size actually being returned) of the fuzzy functions.. then we can manipulate the sizes…
+also.. we can start off by manipulating the size ALONE and counting the amount of instructions afterwards before it goes up to parent.. or look for some heuristics like returning -1.. etc 
+seeing if we get past logic which is usually immediately after the return…
+if the logic allows us to get through the majority of the function, then that size was allowed
+this will allow us to start using this type of approach to brute force apps without even fuzzing every byte… the size alone means it’ll still do a memcpy like a backwards men leak (if u think about heart bleed, but backwards) and can be tested thoroughly on every call very quickly and then you can brute force the address space afterwards to control the memory to look for execution
+
+keep the range from the end of the returned data to the increase of the size and determine whether any instructions are reading/writing to these locations and focus on these context settings for exploitation
