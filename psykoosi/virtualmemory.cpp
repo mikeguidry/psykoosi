@@ -164,12 +164,22 @@ VirtualMemory::MemPage *VirtualMemory::NewPage(unsigned long round, int size) {
 }
 
 // find the specific page
-VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr) {
+VirtualMemory::MemPage *VirtualMemory::MemPagePtr(unsigned long addr, int type) {
     MemPage *mptr = MemPagePtrIfExists(addr);
 
     // lets see if we have a parent.. and if it has this data.. if so we borrow the page
-    if (VMParent != NULL)
+    if (VMParent != NULL) {
     	mptr = VMParent->MemPagePtrIfExists(addr);
+		// if we are attempting to write to a parent's memory.. we need to copy it first
+		if (mptr && type == VMEM_WRITE) {
+			MemPage *cloned = ClonePage(mptr);
+			if (!cloned) {
+				printf("Error cloning page from parent [Address %X]\n", addr);
+				throw;
+			}
+			
+		}
+	}
 
     if (mptr != NULL) return mptr;
 
@@ -225,7 +235,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 	// we could calculate how many bytes before the end of the current
 	// page
     for (i = 0; i < len; i++) {
-        if ((mptr = MemPagePtr(addr+i)) == 0) return 0;
+        if ((mptr = MemPagePtr(addr+i, operation)) == 0) return 0;
 
 		addy = (unsigned long)(addr + i);
 /*		if (addy == 0x30EFC28) {
@@ -241,7 +251,7 @@ int VirtualMemory::MemDataIO(int operation, unsigned long addr, unsigned char *d
 			data[i] = mptr->data[pageaddr];
 			//if ((addr < 0x60000000))
 			addy = (unsigned long)(addr + i);
-			if (MemDebug && (addy < 0x3000)) {
+			if (MemDebug) {
 				//__asm("int3");
 				printf("(r) %X [%X] = %02X\n", addy, mptr->round, (unsigned char)(data[i]));
 			}

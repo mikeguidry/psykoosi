@@ -264,7 +264,7 @@ printf("seg %d offset %X bytes %d [VM %X]\n", seg, offset, bytes, pVM);
 	printf("vm %p read seg %d offset %X data %X bytes %d ctxt %p id %d ptr %p\n", pVM, seg, offset, p_data, bytes, ctxt,thread->ID, ctxt);
 	// if we cannot find the memory page in our memory..
 	// we have to read it from the remote API Proxy..
-	if (VirtPtr->Proxy != NULL && pVM->MemPagePtr(off) == NULL) {
+	if (VirtPtr->Proxy != NULL && pVM->MemPagePtr(off, VirtualMemory::VMEM_READ) == NULL) {
 		printf("Read of data at an address we do not have locally...Will load from PROXY Server [%X]\n", off);
 		
 		// lets read from remote side, and then copy into local sides memory
@@ -619,8 +619,26 @@ Emulation::Emulation(VirtualMemory *_VM) {
 
 }
 
+Emulation::EmulationThread *Emulation::FindThread(uint32_t thread_id, Emulation::VirtualMachine *VM) {
+	EmulationThread *tptr = VM->Threads;
+	
+	while (tptr != NULL) {
+		if (tptr->disabled != 1) {
+			if (tptr->thread_ctx.ID == thread_id) return tptr;
+		}
+		tptr = tptr->next;
+	}
+	return NULL;
+}
+
 Emulation::EmulationThread *Emulation::NewThread(uint32_t thread_id, Emulation::VirtualMachine *VM) {
-	EmulationThread *tptr = new EmulationThread;
+	EmulationThread *tptr = NULL;
+	
+	// first check if the thread already exists...
+	if ((tptr = FindThread(thread_id, VM)) != NULL) 
+		return tptr;
+	
+	tptr = new EmulationThread;
 	if (tptr == NULL) return NULL;
 	
 	std::memset(tptr, 0, sizeof(EmulationThread));
@@ -1932,7 +1950,7 @@ int Emulation::Snapshot_Revert(int id) {
 	
 	for (i = 0; i < snapptr->thread_count; i++) {
 		SnapshotThread *threadptr = (SnapshotThread *)ptr;
-		EmulationThread *tptr = FindThread(threadptr->stack.Thread_ID);
+		EmulationThread *tptr = FindThread(threadptr->stack.Thread_ID, &MasterVM);
 		if (tptr == NULL) {
 			printf("Couldnt find thread %d for revert\n");
 			throw;
@@ -2034,33 +2052,51 @@ int Emulation::Snapshot_Load(char *filename, int id) {
 }
 
 
-Emulation::EmulationThread *Emulation::FindThread(int id) {
-	EmulationThread *tptr = MasterVM.Threads;
-	
-	while (tptr != NULL) {
-		if (tptr->ID == id) return tptr;
-	}
-	
-	return NULL;
-}
 
 
 
 
-int Emulation::LoadExecutionSnapshot(char *filename) {
+// loads an execution snapshot...
+// full = first snapshot (0).. anything else is just modifications from the first... so we have to load the first anyway
+int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 	int start_ts = time(0);
 	int pid = 0;
-	
+	char fn[1024];	
 	Sculpture *op = (Sculpture *)_op;
 	
 	printf("Load Snapshot: %s\n", filename);
 	FILE *fd = NULL;
 	struct stat stv;
+
+	sprintf(fn, "snapshots/%s", filename);
+	
 	FuzzSnapshotInfo fuzzinfo;
-	if ((fd = fopen(filename, "rb")) == NULL) {
+	fd = fopen(filename, "rb");
+	if (fd == NULL)
+		fd = fopen(fn, "rb");
+		
+	if (fd == NULL) {
 		printf("Couldnt open snapshot file %s\n", filename);
 		return -1;
 	}
+	
+	int snap_pid = 0, snap_dump_number = 0;
+	sscanf(filename, "%d_%d_snapshot.dat", &snap_pid, &snap_dump_number);
+
+	
+	if (snap_dump_number > 0 && full) {
+		printf("Loading snapshot zero first! [attempting to load %d]\n", snap_dump_number);
+
+		sprintf(fn, "snapshots/%d_%d_snapshot.dat", snap_pid, 0);
+		if (LoadExecutionSnapshot(fn, 1) <= 0) {
+			printf("Couldnt load initial snapshot %s\n", fn);
+			fclose(fd);
+			return -1;
+		}
+	}
+	
+	if (snap_dump_number != 0) full = 0; else full = 1;
+	
 	// read PID.. (for debugging so we dont have to keep figureing this bullshit out!)
 	//fread((void *)&pid, 1, sizeof(int), fd);
 	
@@ -2077,7 +2113,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	int _thread_count = fuzzinfo.thread_count;
 	int module_count = fuzzinfo.module_data_size / sizeof(MODULEENTRY32);
 	int _module_count = fuzzinfo.module_count;
-	int pages_count = fuzzinfo.memory_data_size / (sizeof(uint32_t) + 0x1000);
+	int pages_count = fuzzinfo.memory_data_size / (sizeof(uint32_t) + 0x1000 + 1);
 	int _page_count = fuzzinfo.page_count;
 	
 	printf("Thread Count: %d [%d] Module Count: %d [%d] Pages Count: %d [%d]\n",
@@ -2093,7 +2129,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 		tinfo.PEB, tinfo.TLS);
 		
 		// create threads in emulator..
-		EmulationThread *newthread = NewThread(tinfo.ThreadID,&MasterVM);
+		EmulationThread *newthread = NewThread(tinfo.ThreadID, &MasterVM);
 		if (newthread == NULL) {
 			printf("couldnt allocate new thread!\n");
 			//throw;
@@ -2154,9 +2190,9 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	}
 	
 	
-
+	if (full == 1) {
+		printf("Full: %d Loading modules %s\n", full, fn);
 	// read each module entry to pair it with the memory we will load later...
-	
 	int point = ftell(fd);
 	for (i = 0; i < module_count; i++) {
 		fread((void *)&modentry, 1, sizeof(MODULEENTRY32), fd);
@@ -2259,8 +2295,14 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	for (i = 0; i < pages_count; i++) {
 		uint32_t addr = 0;
 		char page_data[0x1000];
+		unsigned char type;
+		
+		// read the type of memory (1 = full page, 2 = modification from source snapshot)
+		fread((void *)&type, 1, 1, fd);
+		
 		// read the address of this page..
 		fread((void *)&addr, 1, sizeof(uint32_t), fd);
+		
 		// read the data from the file..
 		fread((void *)&page_data, 1, 0x1000, fd);
 		
@@ -2284,7 +2326,7 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	}
 	printf("Virtual Memory pointer: %X\n", VM);
 	printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
-	
+	}
 
 
 	fclose(fd);
@@ -2298,7 +2340,10 @@ int Emulation::LoadExecutionSnapshot(char *filename) {
 	int time_spent = stop_ts - start_ts;
 	printf("It took %d seconds to load the snapshot! OPTIMIZE!\n", time_spent);
 	
-	printf("FUZZING TIME!!\n");
+	if (full) {
+		// setup the pointer in case we are loading subseq. snapshots
+		Snapshot_Zero = VM;
+	}
 	
 	return 1;
 }

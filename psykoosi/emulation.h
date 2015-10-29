@@ -436,6 +436,7 @@ namespace psykoosi {
       int state;
       
       int dumped;
+      int disabled;
 	  } EmulationThread;
 
 	 
@@ -556,6 +557,9 @@ namespace psykoosi {
     
     // incomplete functions
     EmulationThread *NewThread(uint32_t thread_id, VirtualMachine *);
+    
+    // *** FIX turn disable into destroy/delete.. for now just flag it
+    void DisableThread(uint32_t thread_id);
     void DestroyThread(VirtualMachine *, EmulationThread *);
     EmulationThread *NewVirtualMachineChild(VirtualMemory *ParentMemory, Emulation::CodeAddr EIP, struct cpu_user_regs *registers);
     void DestroyVirtualMachineChild(Emulation::EmulationThread *Thread);
@@ -563,14 +567,14 @@ namespace psykoosi {
     void StackPush(EmulationThread *, uint32_t value);
     uint32_t StackPop(EmulationThread *, uint32_t *);
     uint32_t StackPeek(EmulationThread *, int);
-    EmulationThread *FindThread(int id);
+    EmulationThread *FindThread(uint32_t , VirtualMachine *);
     int PreExecute(EmulationThread *thread);
     
     uint32_t CreateThread(EmulationThread *tptr, uint32_t *);
 	  EmulationThread *MasterThread;
     VirtualMachine MasterVM;
 
-    int LoadExecutionSnapshot(char *filename);
+    int LoadExecutionSnapshot(char *filename, int full);
 
     int Snapshot_Create(int);
     int Snapshot_Revert(int);
@@ -599,6 +603,7 @@ namespace psykoosi {
     Hooks APIHooks;
     APIClient *Proxy;
     
+    VirtualMemory *Snapshot_Zero;
     
     VirtualMachine *VMList;
     

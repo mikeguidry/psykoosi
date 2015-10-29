@@ -169,12 +169,13 @@ int main(int argc, char *argv[]) {
 		op.pe_image = op.loader->ProcessFile(op.pe_image, ImageBase, 0);
 	} else {
 		emu.from_snapshot = 1;
-		if (emu.LoadExecutionSnapshot(argv[1]) <= 0) {
+		if (emu.LoadExecutionSnapshot(argv[1], 1) <= 0) {
 			printf("Couldnt load emulatin snapshot! [%s]\n", argv[1]);
 			exit(-1);
 		}
 
 		//emu.LoadExecutionSnapshot(argv[1]);
+		printf("FUZZING TIME!!\n");
 		apicl.snapshot = 1;
 	}
 

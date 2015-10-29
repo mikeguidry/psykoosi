@@ -4,13 +4,13 @@ namespace psykoosi {
   class VirtualMemory {
     
 
+  public:
+  
     enum {
       VMEM_WRITE,
       VMEM_READ,
       VMEM_VERIFY
     };
-  public:
-  
   // how many diff buckets of mempages do we have? (for the algorithm to choose from)
   #define VMEM_JTABLE 1000
     
@@ -145,7 +145,7 @@ namespace psykoosi {
       ~VirtualMemory();
 
       unsigned long roundupto(unsigned long n, unsigned long block);
-      MemPage *MemPagePtr(unsigned long addr);
+      MemPage *MemPagePtr(unsigned long addr, int operation);
       MemPage *MemPagePtrIfExists(unsigned long addr);
 
       int MemDataRead(unsigned long addr, unsigned char *result, int len);
