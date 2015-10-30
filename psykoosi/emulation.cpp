@@ -912,7 +912,7 @@ int Emulation::PreExecute(EmulationThread *thread) {
 					// *** FIX
 					if (call_ret != 1) {	
 						printf("ERROR Making call.. fix logic later! (reconnect, etc, etc, local emu)\n");
-						exit(-1);
+						//exit(-1);
 					}
 					
 					// we want to debug the next instruction...

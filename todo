@@ -31,6 +31,9 @@ easier to brute force the smaller amount of bytes :)
                                                                                                                                                                                      m
 HIGH PRIORITY:
 
+* need a database of all win32 api and their ret_fix and success/fail eax so we can simulate errors instead of
+  always requiring apiproxy...
+  
 * ok last thing is memory basic information (protections, etc) is loaded... it isnt verified... now we need
   to test x86_emulate() to see what happens when an insurtction overflows/crashes/etc...
   and support our own SEH that acts just like windows.. see (win2k/private/ntos/ke/i386/exceptn.c)
