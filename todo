@@ -1,11 +1,41 @@
 * DO NOT PUBLISH WITH GIT HISTORY AND REMOVE NOTES/TODO *
 
-TODO FOR PSY/MESZEK 10/23/15
+TODO FOR PSY/MESZEK 10/30/15
 
 This software is meant to test your own software, or network.  I take no responsbility for any damages caused by other uses from users with more malicious intent.
 
+I've decided to pre-release this code.  I wanted to finish it before halloween weekend.  The last things changed: added memory protection mechanisms,
+and support SEH.  You can fuzz any application with VERY minimal modifications.  You just need to create some logic on detecting particular registers
+in emulation.cpp.  Look into StepCycle(), StepInstruction().
+
+APIProxy runs on the windows machine.  It will handle basic proxying.  Hiloimitar is a DLL that
+gets injected into a process and runs an API Proxy.  The PIDDump will find functions that will
+return 'user controlled' data and create logs of memory, threads, etc at these particular points.
+This will allow 'fuzz' to load these 'snapshots' and then begin emulation to attempt to find issues.
+These notes contain other information, and thoughts on advancing the software.  I'll continue to
+work on it.  I want to finish PIDDump 'reload,' as well as connect fuzz to 'dfuzz.'
+DFuzz is a distributed fuzzing framework.  It's very raw and basic for HTTP.  It won't be hard to
+connect it together.  PIDDump should also contain communication code for directly communicating with
+the database.  All of the subsystems could be completed with a small bit of work.  It could easily
+fuzz every application on a windows machine just by using the application as you normally would.
+The goal is to find all possible bugs of every application that a normal user interacts with during
+the course of their daily routine on a computer.
+
+Notice:  I removed GIT History due to some code that could harm me because of the Wassenaar Arrangement.
+         
+FYI for fuzzing 'javascript' inside of applications.. you need to find the actual function
+that processes the javascript commands and fuzz that.. so you would
+have to custom hook it.. and it'll brute force it via ASCII.. its
+much easier if its an opcode type of VM (bytecode) because its obviously
+easier to brute force the smaller amount of bytes :)
+                                                                                                                                                                                     m
 HIGH PRIORITY:
 
+* ok last thing is memory basic information (protections, etc) is loaded... it isnt verified... now we need
+  to test x86_emulate() to see what happens when an insurtction overflows/crashes/etc...
+  and support our own SEH that acts just like windows.. see (win2k/private/ntos/ke/i386/exceptn.c)
+  ... will support ASAP
+  
 * disassemble task is slow.. more than likely because of the linked list for the instructions...
 use the same concept as virtual memory (jalgo) on the analysis/disassemble engine
 also make a 'light' flag where it disassembles on need... put a pre/post check

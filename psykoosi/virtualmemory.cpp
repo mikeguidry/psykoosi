@@ -29,7 +29,7 @@ VirtualMemory::VirtualMemory()
   }
 
   // lower kb since we'll start cloning, etc...bigger the number = more clones
-  Settings[SETTINGS_PAGE_SIZE] = 1024*16;
+  Settings[SETTINGS_PAGE_SIZE] = 0x1000;
 
 }
 
@@ -124,6 +124,7 @@ int VirtualMemory::IsMyPage(MemPage *mptr) {
 }
 
 // it loads at 9 seconds.. maybe brute force and find a better timing later
+// it now takes 12 seconds loading the snapshots after adding the VirtualQueryEx information
 int VirtualMemory::jtable_algo(int round) {
 	int hmm = (round & (0xf0f0f00));
 	int jtable = hmm + ((round/2) + ((round/6) % (VMEM_JTABLE / 8))); 

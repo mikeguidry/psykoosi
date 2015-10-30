@@ -587,6 +587,7 @@ Emulation::Emulation(VirtualMemory *_VM) {
 	verbose = 1;
 	Proxy = NULL;
 	VM = _VM;
+	exploiting = 0;
 	//VM = _VM2[0] = _VM;
 	//EmuPtr[0] = this;
 	from_snapshot = 0;
@@ -2293,12 +2294,18 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 		if (full) {
 		int mem_start = time(0);
 		for (i = 0; i < pages_count; i++) {
+			MEMORY_BASIC_INFORMATION meminfo;
 			uint32_t addr = 0;
 			char page_data[0x1000];
 			//unsigned char type;
 			
+			unsigned char has_meminfo;
+			fread((void *)&has_meminfo, 1, 1, fd);
+			if (has_meminfo == 0) {
 			// read the type of memory (1 = full page, 2 = modification from source snapshot)
 			//fread((void *)&type, 1, 1, fd);
+				fread((void *)&meminfo, 1, sizeof(MEMORY_BASIC_INFORMATION), fd);
+			}
 			
 			// read the address of this page..
 			fread((void *)&addr, 1, sizeof(uint32_t), fd);
@@ -2312,6 +2319,15 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 			//printf("Writing page at %X\n", addr);
 			//uint32_t spot = 0x31cfc28;
 			
+			// set memory protection, etc.. this is necessary for knowing when
+			// the application has its own SEH handler, or not
+			if (has_meminfo == 0) {
+				VirtualMemory::MemPage *PageInfo = VM->MemPagePtr(addr, VirtualMemory::VMEM_WRITE);
+				PageInfo->State = meminfo.State;
+				PageInfo->Protect = meminfo.Protect;
+				PageInfo->Type = meminfo.Type;
+			}
+			
 			/*if ((spot >= addr) && (spot < (addr + 0x1000))) {
 				//printf("FOUND page %X\n", spot);
 			}*/
@@ -2324,10 +2340,30 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 				}
 			}
 		}
+		Snapshot_Zero = VM;
 		printf("Virtual Memory pointer: %X\n", VM);
 		printf("\r%d total pages of virtual memory from the snapshot was loaded\n", i);
 		} else {
 			// not full.. diff method of loading...
+			if (!Snapshot_Zero) {
+				printf("Cannot load snapshot memory because the first isnt there for the binary diff\n");
+				throw;
+			}
+			
+			// now we read the amount of modified DWORDs
+			uint32_t verify_size = 0;
+			fread((void *)&verify_size, 1, sizeof(uint32_t), fd);
+			
+			// now we have to loop and get the address, and data for changing
+			// these addresses to the updated data (updated since the original snapshot)
+			uint32_t verify_addr = 0;
+			uint32_t verify_data = 0;
+			for (int k = 0; k < verify_size; k++) {
+				fread((void *)&verify_addr, 1, sizeof(uint32_t), fd);
+				fread((void *)&verify_data, 1, sizeof(uint32_t), fd);
+				
+				VM->MemDataWrite(verify_addr, (unsigned char *)&verify_data, sizeof(uint32_t));
+			}		
 		}
 	}
 
@@ -2336,12 +2372,17 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 	
 
 	printf("Loaded execution snapshot %s into memory..\n", filename);
-	printf("Analyzing..\n");
-	op->analysis->Complete_Analysis_Queue(0);
 	
 	int stop_ts = time(0);
 	int time_spent = stop_ts - start_ts;
 	printf("It took %d seconds to load the snapshot! OPTIMIZE!\n", time_spent);
+	
+	if (exploiting) {
+		printf("Since we need lots of information for developing an exploit for the vulnerabilities.. we will analyze all code from the snapshot!\n");
+		printf("Analyzing (Disassembling)..\n");
+		op->analysis->Complete_Analysis_Queue(0);
+	}
+
 	
 	if (full) {
 		// setup the pointer in case we are loading subseq. snapshots

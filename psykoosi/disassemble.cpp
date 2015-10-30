@@ -98,6 +98,18 @@ int DisassembleTask::DeleteAddressRange(CodeAddr Address, int Size, int priority
 	return CountDeleted;
 }
 
+int DisassembleTask::jtable_algo(int round) {
+	int hmm = (round & (0xf0f0f00));
+	int jtable = hmm + ((round/2) + ((round/6) % (DISASM_JTABLE / 8))); 
+	
+	int ret = (jtable % DISASM_JTABLE);
+	
+	if (ret >= DISASM_JTABLE || ret < 0)
+		ret = (hmm + ~ret) % DISASM_JTABLE;
+	
+	return (ret > 0) ? ret : 0;
+}
+
 // removes an instruction structure by its pointer, or address
 int DisassembleTask::DeleteInstruction(InstructionInformation *InsInfoPtr, CodeAddr Address, int strict, int priority) {
 	int CurrentList = 0;

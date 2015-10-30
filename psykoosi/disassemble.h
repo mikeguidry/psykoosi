@@ -9,6 +9,10 @@ namespace psykoosi {
 
     //typedef void * DisassembleHandle;
   public:
+  #define DISASM_JTABLE 1000
+  
+  int jtable_algo(int round);
+  
 	  enum {
 		  LIST_TYPE_NEXT=0,
 		  LIST_TYPE_PREV=1,
@@ -22,9 +26,8 @@ namespace psykoosi {
 
 	  typedef uint32_t CodeAddr;
 	  typedef struct _instruction_information {
-		  struct _instruction_information *Lists[LIST_TYPE_MAX];
-
-		  struct _instruction_information *PrevLists[LIST_TYPE_MAX];
+		  struct _instruction_information *Lists[LIST_TYPE_MAX];//[DISASM_JTABLE];
+		  struct _instruction_information *PrevLists[LIST_TYPE_MAX];//[DISASM_JTABLE];
 
 		  unsigned char *RawData;
 		  unsigned short Size;

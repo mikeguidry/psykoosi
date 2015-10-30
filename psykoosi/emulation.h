@@ -116,7 +116,15 @@ namespace psykoosi {
           char function_name[32];
      } ThreadInfo;
     
-
+typedef struct _MEMORY_BASIC_INFORMATION {
+  uint32_t BaseAddress;
+  uint32_t AllocationBase;
+  uint32_t AllocationProtect;
+  uint32_t RegionSize;
+  uint32_t  State;
+  uint32_t  Protect;
+  uint32_t  Type;
+} MEMORY_BASIC_INFORMATION, *PMEMORY_BASIC_INFORMATION;
 
       typedef struct _fuzz_instruction_snapshot {
         uint32_t hdr;
@@ -232,6 +240,10 @@ namespace psykoosi {
           APIClient::AllocatedRegion *region;
       } HeapAllocations;
       
+      // mem addresses is used to follow a source address through all memory associated with it
+      // this will ensure we can detect the extent of how a corruption affects the machine
+      // in essence we stop it from being an unknown 'weird machine' (some term i heard at
+      // an immunity convention)
 	  typedef struct _memory_addresses {
 		  struct _memory_addresses *next;
 
@@ -414,7 +426,7 @@ namespace psykoosi {
 		  struct cpu_user_regs registers;
 		  struct cpu_user_regs registers_shadow;
 
-  // this is the emulation log of this thread.. it should contain all requested logging information for the
+      // this is the emulation log of this thread.. it should contain all requested logging information for the
 		  // lifetime of the thread... maybe later allow to have a maximum limit here.
 		  EmulationLog *LogList;
 
@@ -620,6 +632,7 @@ namespace psykoosi {
     
     int from_snapshot;
     EmuSnapshot *SnapshotList;
+    int exploiting;
 
 
 	  private:

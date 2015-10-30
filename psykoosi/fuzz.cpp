@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
 	Filename_Base(argv[1],(char *) &filename);
 	
 	int snapshot = (argc >= 3);
+	int exploiting = (argc >= 4);
 	printf("Snapshot: %d\n", snapshot);
 	
 //	apicl.Connect("192.168.169.134", 5555);
@@ -262,10 +263,12 @@ int main(int argc, char *argv[]) {
 		
 			printf("Application Entry Point [%s]: %p\n", argv[1], op.loader->EntryPoint);
 	} else {
-				int start = time(0);
+#ifdef ANALYZE_SNAPSHOT 
+		int start = time(0);
 		op.analysis->Complete_Analysis_Queue(0);
 		int now = time(0);
 		printf("Disassembled first time! [%d seconds]\n", now - start);
+#endif
 
 	}
 	if (argv[2][0] == '0') {

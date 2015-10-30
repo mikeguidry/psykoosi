@@ -80,17 +80,16 @@ namespace psykoosi {
 		struct _memory_page *prev;
 		unsigned long addr;
 		unsigned long high_addr;
-		unsigned long blah;
-		unsigned long blah3;
 		unsigned long round;
-		unsigned long blah2;
-		unsigned long blah4;
-		int size;
+		uint32_t size;
 		//MemoryAddr **blocklist;
 		unsigned char *data;
 		
 		// page protection.. (so we can detect bad read/writes/etc during fuzzing)
-		uint32_t protection;
+		uint32_t Protect;
+		uint32_t Type;
+		uint32_t State;
+		
 
 		// what cycle was this cloned at?
 		int clone_cycle;
