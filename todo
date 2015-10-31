@@ -21,6 +21,11 @@ fuzz every application on a windows machine just by using the application as you
 The goal is to find all possible bugs of every application that a normal user interacts with during
 the course of their daily routine on a computer.
 
+
+Next week.. I'll finish up and add distributed fuzzing, and start on automated exploitation...
+since cyber weapons are not considered 'arms,' I'll release everything publicly and we can begin to crowd source
+0day... I setup 0day.technology, and 0day.rip (for rest in peace), and 0day.cx....
+
 Notice:  I removed GIT History due to some code that could harm me because of the Wassenaar Arrangement.
          
 FYI for fuzzing 'javascript' inside of applications.. you need to find the actual function
