@@ -95,7 +95,7 @@ int EmuAddID(uint32_t ID, Emulation::EmulationThread *Handle, Emulation *ptr, Vi
 }
 
 
-static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
+uint32_t address_from_seg_offset(enum x86_segment seg, unsigned long offset, struct _x86_emulate_ctxt *ctxt) {
 	struct _x86_thread *thread = (struct _x86_thread *)ctxt;
 	
 	EmuThread_Handle *hptr = EmuByID(thread->ID);
@@ -121,6 +121,7 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
  
  // the segment dumper is a temporary fix to turn protected mode (segmented) into real mode (flat)
  // we have to test this again with a normal windows file
+ if (emuthread->snapshot == 0) {
 	switch (seg) {
 		case x86_seg_cs:
 			_seg = emuthread->registers.cs;
@@ -143,9 +144,33 @@ static int address_from_seg_offset(enum x86_segment seg, unsigned long offset, s
 		default:
 			break;
 	}
+ } else {
+	 switch (seg) {
+		case x86_seg_cs:
+			_seg = emuthread->ctx_segments.SegCs;
+			break;
+		case x86_seg_ss:
+			_seg = emuthread->ctx_segments.SegSs;
+			break;
+		case x86_seg_ds:
+			_seg = emuthread->ctx_segments.SegDs;
+			break;
+		case x86_seg_es:
+			_seg = emuthread->ctx_segments.SegEs;
+			break;
+		case x86_seg_fs:
+			_seg = emuthread->ctx_segments.SegFs;
+			break;
+		case x86_seg_gs:
+			_seg = emuthread->ctx_segments.SegGs;
+			break;
+		default:
+			break;
+	}
+ }
 	if (seg == 0 || seg == 2) _seg = 0;
 	result = _seg + offset;
-	printf("result %x\n", result);
+	//printf("result %x\n", result);
 
 	return result;
 }
@@ -912,6 +937,8 @@ int Emulation::PreExecute(EmulationThread *thread) {
 					// *** FIX
 					if (call_ret != 1) {	
 						printf("ERROR Making call.. fix logic later! (reconnect, etc, etc, local emu)\n");
+						
+						return -1;
 						//exit(-1);
 					}
 					
@@ -2171,7 +2198,13 @@ int Emulation::LoadExecutionSnapshot(char *filename, int full) {
 		SetRegister(newthread, REG_DS, tinfo.ctx.SegDs);
 		SetRegister(newthread, REG_CS, tinfo.ctx.SegCs);
 		
+		newthread->snapshot = 1;
 		CopyRegistersToShadow(newthread);
+		
+		// copy the CONTEXT information over directly in its original form
+		// we should dump the DR registers (debug) and overwrite the debug inside of ctx_segments in future..
+		memcpy(&newthread->ctx, &tinfo.ctx, sizeof(CONTEXT32));
+		memcpy(&newthread->ctx_segments, &tinfo.ctx_segments, sizeof(CONTEXT32));
 		
 		printf("Thread ID %X added\n", newthread->ID);
 		

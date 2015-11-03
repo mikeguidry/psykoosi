@@ -426,6 +426,10 @@ typedef struct _MEMORY_BASIC_INFORMATION {
 		  struct cpu_user_regs registers;
 		  struct cpu_user_regs registers_shadow;
 
+      // so we have access to segment registers resolved
+      CONTEXT32 ctx;
+      CONTEXT32 ctx_segments;
+      
       // this is the emulation log of this thread.. it should contain all requested logging information for the
 		  // lifetime of the thread... maybe later allow to have a maximum limit here.
 		  EmulationLog *LogList;
@@ -449,6 +453,8 @@ typedef struct _MEMORY_BASIC_INFORMATION {
       
       int dumped;
       int disabled;
+      
+      int snapshot;
 	  } EmulationThread;
 
 	 
